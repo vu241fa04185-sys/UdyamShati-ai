@@ -1,0 +1,223 @@
+[
+  {
+    "scheme_code": "NBCFDC_MICRO_FINANCE",
+    "organization": "Ministry of Social Justice & Empowerment (MoSJE) - NBCFDC",
+    "title_en": "NBCFDC Micro Finance Scheme for Backward Classes",
+    "title_hi": "एनबीसीएफडीसी सूक्ष्म वित्त योजना (पिछड़ा वर्ग)",
+    "title_te": "వెనుకబడిన తరగతుల కోసం ఎన్‌బీసీఎఫ్‌డీసీ మైక్రో ఫైనాన్స్ పథకం",
+    "scheme_type": "MICRO_FINANCE",
+    "description": "Concessional micro-credit financing specifically designed for rural micro-entrepreneurs in small business, agriculture-allied, and artisan trades with 10% beneficiary margin and 90% concessional loan.",
+    "max_project_cost": 140000,
+    "max_loan_amount": 125000,
+    "beneficiary_margin_pct": 10.0,
+    "concessional_loan_pct": 90.0,
+    "interest_rate_pct": 6.50,
+    "tenure_years": 3,
+    "moratorium_months": 3,
+    "subsidy_pct": 0.0,
+    "eligible_social_categories": ["OBC", "DNT"],
+    "channelizing_agency": "State Channelizing Agency (SCA) / Regional Rural Banks",
+    "source_url": "https://nbcfdc.gov.in/schemes/micro-finance",
+    "last_verified_date": "2026-03-01",
+    "official_portal_note": "Rate verified as per NBCFDC lending guidelines circular 2025-26",
+    "rules": [
+      {
+        "parameter": "project_cost",
+        "operator": "<=",
+        "threshold": 140000,
+        "description": "Project cost must not exceed ₹1.40 Lakh"
+      },
+      {
+        "parameter": "social_category",
+        "operator": "IN",
+        "threshold": ["OBC", "DNT"],
+        "description": "Applicant must belong to OBC or De-notified, Nomadic and Semi-Nomadic Tribes (DNT)"
+      },
+      {
+        "parameter": "annual_family_income",
+        "operator": "<=",
+        "threshold": 300000,
+        "description": "Annual family income must be ₹3.00 Lakh or below"
+      }
+    ]
+  },
+  {
+    "scheme_code": "NBCFDC_TERM_LOAN",
+    "organization": "Ministry of Social Justice & Empowerment (MoSJE) - NBCFDC",
+    "title_en": "NBCFDC General Term Loan Scheme",
+    "title_hi": "एनबीसीएफडीसी सामान्य सावधि ऋण योजना",
+    "title_te": "ఎన్‌బీసీఎఫ్‌డీసీ సాధారణ టర్మ్ లోన్ పథకం",
+    "scheme_type": "TERM_LOAN",
+    "description": "Medium to long-term concessional financing from ₹1.40 Lakh up to ₹50 Lakh for establishing viable income-generating micro-units. Concessional rate of 8% p.a. with up to 6 months repayment moratorium.",
+    "min_project_cost": 140001,
+    "max_project_cost": 5000000,
+    "max_loan_amount": 4500000,
+    "beneficiary_margin_pct": 10.0,
+    "concessional_loan_pct": 90.0,
+    "interest_rate_pct": 8.00,
+    "tenure_years": 7,
+    "moratorium_months": 6,
+    "subsidy_pct": 0.0,
+    "eligible_social_categories": ["OBC", "DNT"],
+    "channelizing_agency": "State Channelizing Agency (SCA) & Public Sector Banks",
+    "source_url": "https://nbcfdc.gov.in/schemes/term-loan",
+    "last_verified_date": "2026-03-01",
+    "official_portal_note": "MoSJE Concessional Finance Grid 2025-26",
+    "rules": [
+      {
+        "parameter": "project_cost",
+        "operator": "<=",
+        "threshold": 5000000,
+        "description": "Total project investment must not exceed ₹50.0 Lakh"
+      },
+      {
+        "parameter": "social_category",
+        "operator": "IN",
+        "threshold": ["OBC", "DNT"],
+        "description": "Applicant must belong to OBC or DNT target groups"
+      },
+      {
+        "parameter": "annual_family_income",
+        "operator": "<=",
+        "threshold": 300000,
+        "description": "Annual family income ceiling of ₹3.00 Lakh"
+      }
+    ]
+  },
+  {
+    "scheme_code": "NSFDC_TERM_LOAN",
+    "organization": "Ministry of Social Justice & Empowerment (MoSJE) - NSFDC",
+    "title_en": "NSFDC Term Loan for Scheduled Caste Entrepreneurs",
+    "title_hi": "एनएसएफडीसी सावधि ऋण योजना (अनुसूचित जाति)",
+    "title_te": "ఎన్‌ఎస్‌ఎఫ్‌డీసీ టర్మ్ లోన్ పథకం (ఎస్సీ పారిశ్రామికవేత్తలు)",
+    "scheme_type": "TERM_LOAN",
+    "description": "Targeted term loan assistance for Scheduled Caste beneficiaries up to ₹50 Lakh with concessional interest @ 7% p.a. and up to 7-year repayment window.",
+    "min_project_cost": 50000,
+    "max_project_cost": 5000000,
+    "max_loan_amount": 4500000,
+    "beneficiary_margin_pct": 10.0,
+    "concessional_loan_pct": 90.0,
+    "interest_rate_pct": 7.00,
+    "tenure_years": 7,
+    "moratorium_months": 6,
+    "subsidy_pct": 0.0,
+    "eligible_social_categories": ["SC"],
+    "channelizing_agency": "State SC Development Corporation / RRBs",
+    "source_url": "https://nsfdc.nic.in/en/term-loan",
+    "last_verified_date": "2026-02-15",
+    "official_portal_note": "NSFDC Annual Policy Handbook 2025",
+    "rules": [
+      {
+        "parameter": "social_category",
+        "operator": "==",
+        "threshold": "SC",
+        "description": "Applicant must belong to Scheduled Caste (SC) community"
+      },
+      {
+        "parameter": "project_cost",
+        "operator": "<=",
+        "threshold": 5000000,
+        "description": "Project cost within ₹50.0 Lakh"
+      }
+    ]
+  },
+  {
+    "scheme_code": "PMEGP_RURAL_MICRO",
+    "organization": "Ministry of MSME - KVIC",
+    "title_en": "Prime Minister's Employment Generation Programme (PMEGP)",
+    "title_hi": "प्रधानमंत्री रोजगार सृजन कार्यक्रम (PMEGP)",
+    "title_te": "ప్రధానమంత్రి ఉపాధి కల్పన కార్యక్రమం",
+    "scheme_type": "SUBSIDY",
+    "description": "Credit-linked capital subsidy program with 25% to 35% government margin money subsidy for non-farm rural micro-enterprises.",
+    "min_project_cost": 100000,
+    "max_project_cost": 5000000,
+    "max_loan_amount": 4500000,
+    "beneficiary_margin_pct": 10.0,
+    "concessional_loan_pct": 90.0,
+    "interest_rate_pct": 8.50,
+    "tenure_years": 7,
+    "moratorium_months": 6,
+    "subsidy_pct": 35.0,
+    "eligible_social_categories": ["ALL"],
+    "channelizing_agency": "KVIC / KVIB / District Industries Centre (DIC)",
+    "source_url": "https://www.kviconline.gov.in/pmegpeportal/",
+    "last_verified_date": "2026-03-05",
+    "official_portal_note": "MoMSME Operational Guidelines 2025 Revision",
+    "rules": [
+      {
+        "parameter": "age",
+        "operator": ">=",
+        "threshold": 18,
+        "description": "Applicant must be minimum 18 years of age"
+      },
+      {
+        "parameter": "project_cost",
+        "operator": "<=",
+        "threshold": 5000000,
+        "description": "Max ₹50L for Manufacturing, ₹20L for Service units"
+      }
+    ]
+  },
+  {
+    "scheme_code": "PM_MUDRA_KISHORE",
+    "organization": "Department of Financial Services (DFS), Ministry of Finance",
+    "title_en": "Pradhan Mantri Mudra Yojana (Kishore Category)",
+    "title_hi": "प्रधानमंत्री मुद्रा योजना (किशोर श्रेणी)",
+    "title_te": "ప్రధానమంత్రి ముద్ర యోజన (కిషోర్ విభాగం)",
+    "scheme_type": "TERM_LOAN",
+    "description": "Collateral-free commercial micro-business finance from ₹50,000 to ₹5,00,000 for purchasing equipment, stock, or expansion.",
+    "min_project_cost": 50000,
+    "max_project_cost": 500000,
+    "max_loan_amount": 500000,
+    "beneficiary_margin_pct": 15.0,
+    "concessional_loan_pct": 85.0,
+    "interest_rate_pct": 9.25,
+    "tenure_years": 5,
+    "moratorium_months": 3,
+    "subsidy_pct": 0.0,
+    "eligible_social_categories": ["ALL"],
+    "channelizing_agency": "Commercial Banks / Small Finance Banks / NBFCs",
+    "source_url": "https://www.mudra.org.in/",
+    "last_verified_date": "2026-02-28",
+    "official_portal_note": "DFS Master Circular on Micro Units Development",
+    "rules": [
+      {
+        "parameter": "project_cost",
+        "operator": "<=",
+        "threshold": 500000,
+        "description": "Loan assistance capped at ₹5.00 Lakh in Kishore bracket"
+      }
+    ]
+  },
+  {
+    "scheme_code": "PM_VISHWAKARMA",
+    "organization": "Ministry of MSME & MoSJE",
+    "title_en": "PM Vishwakarma Artisan & Traditional Trade Support",
+    "title_hi": "पीएम विश्वकर्मा योजना (कारीगर एवं पारंपरिक शिल्पकार)",
+    "title_te": "పీఎం విశ్వకర్మ పథకం",
+    "scheme_type": "MICRO_FINANCE",
+    "description": "Holistic end-to-end support for rural artisans and craftspeople: Skill training, ₹15,000 modern toolkit grant, and 5% subsidized collateral-free loans up to ₹3 Lakh.",
+    "min_project_cost": 50000,
+    "max_project_cost": 300000,
+    "max_loan_amount": 300000,
+    "beneficiary_margin_pct": 5.0,
+    "concessional_loan_pct": 95.0,
+    "interest_rate_pct": 5.00,
+    "tenure_years": 3,
+    "moratorium_months": 3,
+    "subsidy_pct": 15.0,
+    "eligible_social_categories": ["ALL"],
+    "channelizing_agency": "District Implementation Committee / Common Service Centres",
+    "source_url": "https://pmvishwakarma.gov.in/",
+    "last_verified_date": "2026-03-01",
+    "official_portal_note": "Central Sector Scheme Gazette Notification",
+    "rules": [
+      {
+        "parameter": "project_cost",
+        "operator": "<=",
+        "threshold": 300000,
+        "description": "Initial tranche up to ₹1L, subsequent tranche up to ₹2L"
+      }
+    ]
+  }
+]

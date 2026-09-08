@@ -1,0 +1,1492 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  User, 
+  MapPin, 
+  Coins, 
+  Tractor, 
+  Droplet, 
+  Zap, 
+  Shield, 
+  RotateCcw, 
+  CheckCircle2, 
+  ArrowRight,
+  Sparkles,
+  Navigation,
+  Mic, 
+  MicOff, 
+  Send, 
+  Volume2, 
+  VolumeX,
+  FileCheck2, 
+  Edit3, 
+  Bot,
+  HelpCircle,
+  CornerDownRight,
+  Check,
+  ChevronRight
+} from 'lucide-react';
+import axios from 'axios';
+import { translations } from '../locales/translations';
+
+export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang }) {
+  const t = translations[lang] || translations.en;
+  
+  // Registration Mode: 'manual' (self-fill) or 'ai' (interactive step-by-step AI interviewer)
+  const [regMode, setRegMode] = useState('ai');
+  const [isLocating, setIsLocating] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState(null);
+
+  // Step-by-step conversational interview state
+  // Steps: 0: name, 1: location, 2: capital, 3: land, 4: social_category, 5: utilities, 6: skills, 7: review
+  const [stepIndex, setStepIndex] = useState(0);
+  const [voiceGuidance, setVoiceGuidance] = useState(false); // Mute by default, easy toggle
+  const [isAiListening, setIsAiListening] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiInputText, setAiInputText] = useState('');
+  const [newlyFilledFields, setNewlyFilledFields] = useState([]);
+
+  const aiMessagesEndRef = useRef(null);
+  const aiRecognitionRef = useRef(null);
+
+  // Configuration of each question in the AI guided interview
+  const STEPS = [
+    {
+      id: 'name',
+      titleEn: 'Full Name',
+      titleHi: 'शुभ नाम',
+      titleTe: 'పూర్తి పేరు',
+      questionEn: "Hello! Let's get your enterprise registered step-by-step. What is your full name?",
+      questionHi: "नमस्ते! चलिए आपका उद्यम पंजीकरण शुरू करते हैं। कृपया अपना पूरा नाम बताएं।",
+      questionTe: "నమస్కారం! మీ వ్యాపార నమోదును ప్రారంభిద్దాం. మీ పూర్తి పేరు ఏమిటి?",
+      suggestions: ['Ramesh Kisan', 'Suresh Maurya', 'Lakshmi Devi', 'Sunita Patil'],
+      isDone: (p) => Boolean(p.name && p.name.trim().length > 1)
+    },
+    {
+      id: 'location',
+      titleEn: 'Location & GPS',
+      titleHi: 'गाँव व लोकेशन',
+      titleTe: 'ప్రాంతం & GPS',
+      questionEn: (p) => `Great ${p.name || 'friend'}! Which village or district are you located in? You can also tap '📍 Auto-Detect Live GPS' below.`,
+      questionHi: (p) => `बहुत बढ़िया ${p.name || ''} जी! आपका गाँव, शहर या जिला कौन सा है? आप नीचे दिए गए '📍 ऑटो-डिटेक्ट GPS' बटन से भी अपनी सटीक लोकेशन जोड़ सकते हैं।`,
+      questionTe: (p) => `చాలా బాగుంది ${p.name || ''}! మీ గ్రామం లేదా జిల్లా ఏమిటి? లేదా లైవ్ GPS ద్వారా లొకేషన్ ఎంచుకోండి.`,
+      presets: [
+        { label: 'Pimpalgaon Baswant (Nashik, MH)', lat: 20.1706, lon: 73.9840, v: 'Pimpalgaon Baswant', d: 'Nashik', s: 'Maharashtra' },
+        { label: 'Kankipadu (Krishna, AP)', lat: 16.4258, lon: 80.7712, v: 'Kankipadu', d: 'Krishna', s: 'Andhra Pradesh' },
+        { label: 'Chaubeypur (Varanasi, UP)', lat: 25.4380, lon: 83.0560, v: 'Chaubeypur', d: 'Varanasi', s: 'Uttar Pradesh' },
+        { label: 'Mogri Rural (Anand, GJ)', lat: 22.5360, lon: 72.9340, v: 'Mogri Rural', d: 'Anand', s: 'Gujarat' }
+      ],
+      isDone: (p) => Boolean(p.village_name || (p.latitude && p.longitude))
+    },
+    {
+      id: 'capital',
+      titleEn: 'Available Budget',
+      titleHi: 'पूँजी / बजट',
+      titleTe: 'పెట్టుబడి బడ్జెట్',
+      questionEn: () => "How much personal liquid capital (savings in ₹) do you have available to invest in this business?",
+      questionHi: () => "व्यवसाय शुरू करने के लिए आपके पास अपनी खुद की कितनी पूँजी (रुपये में बचत) उपलब्ध है?",
+      questionTe: () => "ఈ వ్యాపారంలో పెట్టుబడి పెట్టడానికి మీ వద్ద ఎంత సొంత నగదు అందుబాటులో ఉంది?",
+      options: [
+        { label: '₹50,000', value: 50000 },
+        { label: '₹1,00,000', value: 100000 },
+        { label: '₹2,00,000', value: 200000 },
+        { label: '₹3,00,000', value: 300000 },
+        { label: '₹5,00,000+', value: 500000 }
+      ],
+      isDone: (p) => Boolean(p.available_capital && p.available_capital > 0)
+    },
+    {
+      id: 'land',
+      titleEn: 'Land Holding',
+      titleHi: 'जमीन / भूखंड',
+      titleTe: 'భూమి వివరాలు',
+      questionEn: () => "How much land area (in acres) do you own or have access to for your enterprise?",
+      questionHi: () => "कार्य या खेती हेतु आपके पास कुल कितनी जमीन (एकड़ में) उपलब्ध है?",
+      questionTe: () => "వ్యాపారం లేదా సాగు కోసం మీ వద్ద ఎన్ని ఎకరాల భూమి అందుబాటులో ఉంది?",
+      options: [
+        { label: '0 Acres (Landless / गैर-कृषि)', value: 0 },
+        { label: '0.5 Acre', value: 0.5 },
+        { label: '1.0 Acre', value: 1.0 },
+        { label: '2.0 Acres', value: 2.0 },
+        { label: '5.0+ Acres', value: 5.0 }
+      ],
+      isDone: (p) => Boolean(p.land_acres !== undefined && p.land_acres !== null)
+    },
+    {
+      id: 'social_category',
+      titleEn: 'Social Category',
+      titleHi: 'सामाजिक वर्ग',
+      titleTe: 'సామాజిక వర్గం',
+      questionEn: () => "Which social category do you belong to? (Required to check eligibility for MoSJE concessional schemes like NBCFDC & NSFDC)",
+      questionHi: () => "सरकारी 10/90 रियायती ऋण योजनाओं (NBCFDC/NSFDC) की पात्रता हेतु आपका सामाजिक वर्ग क्या है?",
+      questionTe: () => "ప్రభుత్వ రాయితీ రుణాల అర్హత కోసం మీ సామాజిక వర్గం (కేటగిరీ) ఏమిటి?",
+      options: [
+        { label: 'OBC (Other Backward Classes - NBCFDC)', value: 'OBC' },
+        { label: 'SC (Scheduled Caste - NSFDC)', value: 'SC' },
+        { label: 'DNT (De-notified Tribes)', value: 'DNT' },
+        { label: 'General Category', value: 'GENERAL' },
+        { label: 'ST (Scheduled Tribe)', value: 'ST' }
+      ],
+      isDone: (p) => Boolean(p.social_category)
+    },
+    {
+      id: 'utilities',
+      titleEn: 'Site Infrastructure',
+      titleHi: 'सुविधाएँ व बुनियादी ढांचा',
+      titleTe: 'సౌకర్యాలు',
+      questionEn: () => "What utilities and facilities are available at your site? (Toggle all that apply, then click Continue)",
+      questionHi: () => "कार्यस्थल पर इनमें से क्या-क्या सुविधाएँ उपलब्ध हैं? (लागू होने वाली सुविधाओं पर टिक करें, फिर आगे बढ़ें)",
+      questionTe: () => "మీ పని ప్రదేశంలో ఏ సౌకర్యాలు అందుబాటులో ఉన్నాయి?",
+      items: [
+        { key: 'has_water_source', labelEn: '💧 Water / Borewell', labelHi: '💧 पानी / बोरवेल' },
+        { key: 'has_electricity', labelEn: '⚡ 3-Phase Power', labelHi: '⚡ 3-फेज बिजली' },
+        { key: 'has_vehicle', labelEn: '🚛 Commercial Vehicle', labelHi: '🚛 व्यावसायिक वाहन' },
+        { key: 'has_shop_building', labelEn: '🏪 Roadside Shed / Shop', labelHi: '🏪 सड़क किनारे दुकान/शेड' }
+      ],
+      isDone: () => true
+    },
+    {
+      id: 'skills',
+      titleEn: 'Skills & Experience',
+      titleHi: 'कौशल व अनुभव',
+      titleTe: 'నైపుణ్యాలు',
+      questionEn: () => "What skills or prior work experience do you have? (Select your background so AI suggests high-profit matches)",
+      questionHi: () => "आपको किस कार्य या व्यवसाय का अनुभव अथवा रुचि है? (AI इसके आधार पर सर्वाधिक लाभप्रद व्यवसाय चुनेगा)",
+      questionTe: () => "మీకు ఏ రంగంలో మునుపటి అనుభవం లేదా నైపుణ్యం ఉంది?",
+      items: [
+        { key: 'farming', label: '🌾 Farming / Agriculture' },
+        { key: 'dairy', label: '🐄 Dairy / Milk' },
+        { key: 'poultry', label: '🐔 Poultry' },
+        { key: 'goat_farming', label: '🐐 Goat Farming' },
+        { key: 'food_processing', label: '📦 Food Processing' },
+        { key: 'retail', label: '🏪 Retail / Shop' },
+        { key: 'machinery', label: '⚙️ Machinery / Tractor' }
+      ],
+      isDone: (p) => Boolean(p.skills && p.skills.length > 0)
+    },
+    {
+      id: 'review',
+      titleEn: 'Review & Submit',
+      titleHi: 'पुष्टि व अंतिम सबमिशन',
+      titleTe: 'ధృవీకరణ',
+      questionEn: () => "Excellent! All 7 registration parameters are recorded accurately. Review your summary below and submit to calculate your business advisory dossier.",
+      questionHi: () => "शानदार! आपके सभी 7 विवरण सफलतापूर्वक दर्ज हो गए हैं। नीचे दिया गया फाइनल डॉसियर देखें और 'Complete Registration & Generate Advisory' पर क्लिक करें।",
+      questionTe: () => "మీ 7 వివరాలు విజయవంతంగా నమోదయ్యాయి! మీ వ్యాపార నివేదికను రూపొందించడానికి క్రింది బటన్ పై క్లిక్ చేయండి.",
+      isDone: () => true
+    }
+  ];
+
+  // AI Chat Conversation Stream
+  const [aiChatMessages, setAiChatMessages] = useState([]);
+
+  // Audio Speech Synthesis helper
+  const speakText = (text) => {
+    if (!voiceGuidance || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/[*•#_]/g, '');
+      const u = new SpeechSynthesisUtterance(clean);
+      u.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      console.warn("TTS error:", e);
+    }
+  };
+
+  // Get current step question text in the active language
+  const getStepQuestion = (stepIdx, currProfile = profile) => {
+    const s = STEPS[stepIdx] || STEPS[0];
+    if (typeof s.questionHi === 'function') {
+      return lang === 'hi' ? s.questionHi(currProfile) : (lang === 'te' ? s.questionTe(currProfile) : s.questionEn(currProfile));
+    }
+    return lang === 'hi' ? s.questionHi : (lang === 'te' ? s.questionTe : s.questionEn);
+  };
+
+  // Ask question for a specific step
+  const triggerQuestionForStep = (newStepIdx, currProfile = profile, introMessage = '') => {
+    setStepIndex(newStepIdx);
+    const questionText = getStepQuestion(newStepIdx, currProfile);
+    const fullText = introMessage ? `${introMessage}\n\n${questionText}` : questionText;
+
+    const aiMsg = {
+      sender: 'ai',
+      text: fullText,
+      stepId: STEPS[newStepIdx]?.id,
+      isQuestion: true,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setAiChatMessages(prev => [...prev, aiMsg]);
+    speakText(fullText);
+  };
+
+  // Initial greeting and Question 1 on component mount
+  useEffect(() => {
+    if (aiChatMessages.length === 0) {
+      const qText = getStepQuestion(0, profile);
+      setAiChatMessages([
+        {
+          sender: 'ai',
+          text: qText,
+          stepId: 'name',
+          isQuestion: true,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+      speakText(qText);
+    }
+  }, []);
+
+  // Web Speech API STT setup
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setAiInputText(transcript);
+        setIsAiListening(false);
+        handleAiChatSubmit(transcript);
+      };
+
+      recognition.onerror = () => setIsAiListening(false);
+      recognition.onend = () => setIsAiListening(false);
+      aiRecognitionRef.current = recognition;
+    }
+  }, [lang, profile, stepIndex, voiceGuidance]);
+
+  useEffect(() => {
+    aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [aiChatMessages, isAiLoading, stepIndex]);
+
+  // Live GPS locator function
+  const handleDetectLiveGPS = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setIsLocating(true);
+    setGpsStatus("Detecting satellite coordinates...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const userLat = pos.coords.latitude;
+        const userLon = pos.coords.longitude;
+        let vName = "Current Location";
+        let dName = profile.district || "District";
+        let sName = profile.state || "State";
+        let pin = profile.pincode || "000000";
+
+        try {
+          const res = await axios.get(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLon}&zoom=14&addressdetails=1`
+          );
+          if (res.data?.address) {
+            const a = res.data.address;
+            vName = a.village || a.suburb || a.town || a.city || vName;
+            dName = a.state_district || a.county || a.district || dName;
+            sName = a.state || sName;
+            pin = a.postcode || pin;
+          }
+        } catch (e) {}
+
+        const updated = {
+          ...profile,
+          latitude: userLat,
+          longitude: userLon,
+          village_name: vName,
+          district: dName,
+          state: sName,
+          pincode: pin
+        };
+
+        setProfile(updated);
+        setIsLocating(false);
+        setGpsStatus(`✓ GPS Locked: ${vName}, ${dName} (${userLat.toFixed(4)}°, ${userLon.toFixed(4)}°)`);
+        setNewlyFilledFields(prev => [...new Set([...prev, 'location', 'gps'])]);
+
+        // If in AI interview, add user selection and advance to Step 2 (Capital)
+        if (regMode === 'ai') {
+          const userMsg = {
+            sender: 'user',
+            text: `📍 GPS Auto-Detected: ${vName}, ${dName} (${userLat.toFixed(4)}° N, ${userLon.toFixed(4)}° E)`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setAiChatMessages(prev => [...prev, userMsg]);
+          
+          const confirmText = lang === 'hi' 
+            ? `✓ आपकी लाइव GPS लोकेशन (${vName}, ${dName}) सफलतापूर्वक दर्ज कर ली गई है!`
+            : `✓ Live GPS location locked for ${vName}, ${dName}!`;
+          
+          advanceToNextStep(updated, 1, confirmText);
+        }
+      },
+      (err) => {
+        console.warn("GPS error:", err);
+        setIsLocating(false);
+        alert("GPS permission was denied. Please allow location access in your browser address bar.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  // Helper to advance to the next step
+  const advanceToNextStep = (currProfile, currentIdx, confirmationMessage = '') => {
+    const nextIdx = currentIdx + 1;
+    if (nextIdx < STEPS.length) {
+      triggerQuestionForStep(nextIdx, currProfile, confirmationMessage);
+    } else {
+      triggerQuestionForStep(STEPS.length - 1, currProfile, confirmationMessage);
+    }
+  };
+
+  // Handle direct 1-click chip answer
+  const handleChipAnswer = (field, value, displayLabel) => {
+    const userMsg = {
+      sender: 'user',
+      text: displayLabel || String(value),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setAiChatMessages(prev => [...prev, userMsg]);
+
+    const updated = { ...profile };
+    if (field === 'location_preset') {
+      updated.latitude = value.lat;
+      updated.longitude = value.lon;
+      updated.village_name = value.v;
+      updated.district = value.d;
+      updated.state = value.s;
+      setNewlyFilledFields(prev => [...new Set([...prev, 'location'])]);
+    } else {
+      updated[field] = value;
+      setNewlyFilledFields(prev => [...new Set([...prev, field])]);
+    }
+
+    setProfile(updated);
+
+    const confirmationText = lang === 'hi'
+      ? `✓ दर्ज किया: ${displayLabel || value}`
+      : `✓ Recorded: ${displayLabel || value}`;
+
+    advanceToNextStep(updated, stepIndex, confirmationText);
+  };
+
+  // Submit AI registration speech/text
+  const handleAiChatSubmit = async (customText = null) => {
+    const textToSend = customText || aiInputText;
+    if (!textToSend.trim()) return;
+
+    const userMsg = {
+      sender: 'user',
+      text: textToSend,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setAiChatMessages(prev => [...prev, userMsg]);
+    setAiInputText('');
+    setIsAiLoading(true);
+
+    try {
+      // Call NLU parser in AI service
+      const nluRes = await axios.post('/api/nlp/parse', { text: textToSend });
+      const entities = nluRes.data?.entities || {};
+      const intent = nluRes.data?.intent;
+      const updated = { ...profile };
+      const filled = [];
+
+      // Check if user is on name step and typed/spoke just their name
+      if (stepIndex === 0 && !entities.name) {
+        const cleanName = textToSend.replace(/^(मेरा नाम|my name is|naam|naam hai)\s+/i, '').trim();
+        if (cleanName.length >= 2 && cleanName.split(' ').length <= 4) {
+          entities.name = cleanName;
+        }
+      }
+
+      // Check if user is on capital step and said just a number or words
+      if (stepIndex === 2 && (entities.capital === null || entities.capital === undefined)) {
+        const numClean = parseFloat(textToSend.replace(/[^\d.]/g, ''));
+        if (!isNaN(numClean) && numClean > 0) {
+          entities.capital = numClean < 100 ? numClean * 100000 : numClean;
+        }
+      }
+
+      // Check if user is on land step and said a number
+      if (stepIndex === 3 && (entities.land_acres === null || entities.land_acres === undefined)) {
+        const numClean = parseFloat(textToSend.replace(/[^\d.]/g, ''));
+        if (!isNaN(numClean)) {
+          entities.land_acres = numClean;
+        }
+      }
+
+      // Check if user is on social category step
+      if (stepIndex === 4 && !entities.social_category) {
+        const up = textToSend.toUpperCase();
+        if (up.includes('OBC')) entities.social_category = 'OBC';
+        else if (up.includes('SC')) entities.social_category = 'SC';
+        else if (up.includes('ST')) entities.social_category = 'ST';
+        else if (up.includes('DNT')) entities.social_category = 'DNT';
+        else if (up.includes('GENERAL') || up.includes('सामान्य')) entities.social_category = 'GENERAL';
+      }
+
+      // Update fields based on extracted entities
+      if (entities.name) {
+        updated.name = entities.name;
+        filled.push('name');
+      }
+      if (entities.capital !== null && entities.capital !== undefined) {
+        updated.available_capital = entities.capital;
+        filled.push('capital');
+      }
+      if (entities.land_acres !== null && entities.land_acres !== undefined) {
+        updated.land_acres = entities.land_acres;
+        filled.push('land');
+      }
+      if (entities.social_category) {
+        updated.social_category = entities.social_category;
+        filled.push('social_category');
+      }
+      if (entities.has_water_source !== null && entities.has_water_source !== undefined) {
+        updated.has_water_source = entities.has_water_source;
+        filled.push('water');
+      }
+      if (entities.has_electricity !== null && entities.has_electricity !== undefined) {
+        updated.has_electricity = entities.has_electricity;
+        filled.push('electricity');
+      }
+      if (entities.has_vehicle !== null && entities.has_vehicle !== undefined) {
+        updated.has_vehicle = entities.has_vehicle;
+        filled.push('vehicle');
+      }
+      if (entities.has_shop_building !== null && entities.has_shop_building !== undefined) {
+        updated.has_shop_building = entities.has_shop_building;
+        filled.push('shop');
+      }
+      if (entities.skills && entities.skills.length > 0) {
+        updated.skills = Array.from(new Set([...(profile.skills || []), ...entities.skills]));
+        filled.push('skills');
+      }
+      if (entities.location_hint) {
+        const locCoords = {
+          "Nashik": { lat: 20.1706, lon: 73.9840, v: "Pimpalgaon Baswant", d: "Nashik", s: "Maharashtra" },
+          "Krishna": { lat: 16.4258, lon: 80.7712, v: "Kankipadu", d: "Krishna", s: "Andhra Pradesh" },
+          "Varanasi": { lat: 25.4380, lon: 83.0560, v: "Chaubeypur", d: "Varanasi", s: "Uttar Pradesh" },
+          "Anand": { lat: 22.5360, lon: 72.9340, v: "Mogri Rural", d: "Anand", s: "Gujarat" }
+        };
+        const c = locCoords[entities.location_hint];
+        if (c) {
+          updated.latitude = c.lat;
+          updated.longitude = c.lon;
+          updated.village_name = c.v;
+          updated.district = c.d;
+          updated.state = c.s;
+          filled.push('location');
+        }
+      }
+
+      setProfile(updated);
+      setNewlyFilledFields(prev => [...new Set([...prev, ...filled])]);
+
+      // Handle location query in middle of conversation
+      if (intent === 'LOCATION_QUERY') {
+        const v = updated.village_name || 'Registered Location';
+        const d = updated.district || 'District';
+        const locMsg = lang === 'hi'
+          ? `आपकी पंजीकृत लोकेशन: **${v}, ${d}** (${updated.latitude?.toFixed(4)}° N, ${updated.longitude?.toFixed(4)}° E) है। आप नीचे दिए बटन से कभी भी लाइव GPS बदल सकते हैं।`
+          : `Your current location is **${v}, ${d}** (${updated.latitude?.toFixed(4)}° N, ${updated.longitude?.toFixed(4)}° E).`;
+        
+        triggerQuestionForStep(stepIndex, updated, locMsg);
+        return;
+      }
+
+      // Check which step should be asked next
+      if (filled.length > 0) {
+        let confirmText = lang === 'hi'
+          ? `✓ धन्यवाद! मैंने आपका विवरण दर्ज कर लिया है: ${filled.map(f => f.toUpperCase()).join(', ')}।`
+          : `✓ Recorded: ${filled.join(', ')}.`;
+
+        // Find the next incomplete step
+        let targetStep = stepIndex + 1;
+        for (let i = 0; i < STEPS.length - 1; i++) {
+          if (!STEPS[i].isDone(updated)) {
+            targetStep = i;
+            break;
+          }
+        }
+        if (targetStep >= STEPS.length) targetStep = STEPS.length - 1;
+
+        triggerQuestionForStep(targetStep, updated, confirmText);
+      } else {
+        // Did not find matching entity, gently re-prompt current step
+        const gentleReprompt = lang === 'hi'
+          ? "मैंने आपकी बात सुनी। कृपया नीचे दिए गए विकल्पों में से चुनें या स्पष्ट रूप से बोलें।"
+          : "Understood. Please pick from the options below or specify clearly.";
+        triggerQuestionForStep(stepIndex, updated, gentleReprompt);
+      }
+    } catch (err) {
+      console.error("AI registration error:", err);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const toggleAiListening = () => {
+    if (!aiRecognitionRef.current) {
+      alert("Speech recognition is not supported in this browser. Please type your answer or click the option chips.");
+      return;
+    }
+    if (isAiListening) {
+      aiRecognitionRef.current.stop();
+      setIsAiListening(false);
+    } else {
+      aiRecognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      aiRecognitionRef.current.start();
+      setIsAiListening(true);
+    }
+  };
+
+  // Jump directly to edit a step
+  const handleEditStep = (targetIdx) => {
+    triggerQuestionForStep(targetIdx, profile, lang === 'hi' ? `आइए ${STEPS[targetIdx].titleHi} को अपडेट करें:` : `Let's update ${STEPS[targetIdx].titleEn}:`);
+  };
+
+  // Skill options
+  const skillOptions = [
+    'farming', 'agriculture', 'dairy', 'poultry', 
+    'goat_farming', 'machinery', 'food_processing', 'retail', 'mechanic'
+  ];
+
+  const toggleSkill = (skill) => {
+    const current = profile.skills || [];
+    let updatedSkills;
+    if (current.includes(skill)) {
+      updatedSkills = current.filter((s) => s !== skill);
+    } else {
+      updatedSkills = [...current, skill];
+    }
+    setProfile({ ...profile, skills: updatedSkills });
+    setNewlyFilledFields(prev => [...new Set([...prev, 'skills'])]);
+  };
+
+  // Toggle utility flag
+  const toggleUtility = (key) => {
+    const updated = { ...profile, [key]: !profile[key] };
+    setProfile(updated);
+    setNewlyFilledFields(prev => [...new Set([...prev, 'utilities', key])]);
+  };
+
+  // Calculate completion percentage
+  const totalFields = 7;
+  let filledCount = 0;
+  if (profile.name && profile.name.trim().length > 1) filledCount++;
+  if (profile.available_capital > 0) filledCount++;
+  if (profile.land_acres >= 0) filledCount++;
+  if (profile.village_name) filledCount++;
+  if (profile.skills && profile.skills.length > 0) filledCount++;
+  if (profile.social_category) filledCount++;
+  if (profile.latitude && profile.longitude) filledCount++;
+  const completionPct = Math.min(100, Math.round((filledCount / totalFields) * 100));
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Registration Mode Selector Header */}
+      <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+            National Rural Entrepreneur Registration Studio
+          </span>
+          <h2 className="text-lg font-black text-slate-900 mt-0.5 flex items-center space-x-2">
+            <span>Register Rural Micro-Entrepreneur</span>
+            <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">
+              AI Powered
+            </span>
+          </h2>
+        </div>
+
+        {/* Dual Mode Switcher Tabs */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
+          <button
+            onClick={() => setRegMode('ai')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-extrabold transition ${
+              regMode === 'ai'
+                ? 'bg-emerald-700 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Bot className="w-4 h-4 text-amber-300" />
+            <span>Option 1: Fill Using AI Interview (Guided Voice/Chat)</span>
+          </button>
+
+          <button
+            onClick={() => setRegMode('manual')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-extrabold transition ${
+              regMode === 'manual'
+                ? 'bg-emerald-700 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>Option 2: Self-Fill Form (Manual)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Progress & Quick Archetype Presets */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
+        <div className="flex items-center space-x-3 w-full md:w-auto">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center font-black text-emerald-800 text-sm">
+            {completionPct}%
+          </div>
+          <div>
+            <div className="font-bold text-slate-900 flex items-center space-x-2">
+              <span>Registration Dossier Completeness</span>
+              {completionPct === 100 && (
+                <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">
+                  ✓ Ready for Advisory
+                </span>
+              )}
+            </div>
+            <div className="w-48 bg-slate-200 h-2 rounded-full overflow-hidden mt-1">
+              <div 
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 h-full rounded-full transition-all duration-500" 
+                style={{ width: `${completionPct}%` }} 
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Sample Presets */}
+        <div className="flex items-center space-x-2 overflow-x-auto scrollbar-none w-full md:w-auto">
+          <span className="text-slate-400 font-bold whitespace-nowrap">Load Profile Preset:</span>
+          <button
+            onClick={() => {
+              setProfile(prev => ({
+                ...prev,
+                name: 'Ramesh Kisan',
+                village_name: 'Pimpalgaon Baswant',
+                district: 'Nashik',
+                state: 'Maharashtra',
+                latitude: 20.1706,
+                longitude: 73.9840,
+                social_category: 'OBC',
+                available_capital: 300000,
+                land_acres: 2.0,
+                skills: ['farming', 'agriculture']
+              }));
+              setNewlyFilledFields(['name', 'capital', 'land', 'skills', 'location', 'social_category']);
+              triggerQuestionForStep(7, profile, lang === 'hi' ? '✓ रमेश किसान का प्रोफ़ाइल लोड कर लिया गया है।' : '✓ Ramesh Kisan profile preset loaded.');
+            }}
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold whitespace-nowrap text-[11px] transition border border-slate-200"
+          >
+            Ramesh Kisan (₹3.0L • Nashik)
+          </button>
+          <button
+            onClick={() => {
+              setProfile(prev => ({
+                ...prev,
+                name: 'Lakshmi Devi',
+                village_name: 'Kankipadu',
+                district: 'Krishna',
+                state: 'Andhra Pradesh',
+                latitude: 16.4258,
+                longitude: 80.7712,
+                social_category: 'SC',
+                available_capital: 200000,
+                land_acres: 1.0,
+                skills: ['dairy', 'livestock']
+              }));
+              setNewlyFilledFields(['name', 'capital', 'land', 'skills', 'location', 'social_category']);
+              triggerQuestionForStep(7, profile, lang === 'hi' ? '✓ लक्ष्मी देवी का प्रोफ़ाइल लोड कर लिया गया है।' : '✓ Lakshmi Devi profile preset loaded.');
+            }}
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold whitespace-nowrap text-[11px] transition border border-slate-200"
+          >
+            Lakshmi Devi (₹2.0L • Krishna)
+          </button>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODE 1: INTERACTIVE AI INTERVIEWER (VOICE / CHAT ASSISTED)   */}
+      {/* ------------------------------------------------------------- */}
+      {regMode === 'ai' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Side: Voice / Chat Interviewer */}
+          <div className="lg:col-span-7 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[580px]">
+            <div className="space-y-4">
+              {/* Header with Step Tracker and Voice Guidance Toggle */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-bold shadow-sm">
+                    <Bot className="w-5 h-5 text-amber-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                      <span>AI Entrepreneur Interviewer</span>
+                      <span className="text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+                        Step {stepIndex + 1} of 7: {STEPS[stepIndex]?.titleHi || STEPS[stepIndex]?.titleEn}
+                      </span>
+                    </h3>
+                    <span className="text-[11px] text-slate-500">
+                      The AI asks every required question — speak, type, or tap options below!
+                    </span>
+                  </div>
+                </div>
+
+                {/* Voice Guidance Toggle */}
+                <button
+                  onClick={() => {
+                    const next = !voiceGuidance;
+                    setVoiceGuidance(next);
+                    if (next) {
+                      speakText(getStepQuestion(stepIndex, profile));
+                    } else {
+                      window.speechSynthesis?.cancel();
+                    }
+                  }}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                    voiceGuidance 
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-sm' 
+                      : 'bg-slate-50 text-slate-600 border-slate-200'
+                  }`}
+                  title="Toggle audio voice reading"
+                >
+                  {voiceGuidance ? <Volume2 className="w-3.5 h-3.5 text-emerald-600" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
+                  <span>{voiceGuidance ? 'Audio ON' : 'Audio OFF'}</span>
+                </button>
+              </div>
+
+              {/* Chat Stream with Interactive Action Prompts */}
+              <div className="max-h-[380px] overflow-y-auto space-y-3.5 text-xs pr-1">
+                {aiChatMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[90%] p-3.5 rounded-2xl space-y-2 ${
+                        msg.sender === 'user'
+                          ? 'bg-emerald-800 text-white rounded-br-none shadow-sm'
+                          : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] opacity-70 font-semibold">
+                        <span>{msg.sender === 'user' ? 'You' : 'AI Registration Assistant'}</span>
+                        <span>{msg.timestamp}</span>
+                      </div>
+                      
+                      <p className="leading-relaxed whitespace-pre-wrap font-medium">{msg.text}</p>
+
+                      {/* Render Interactive Action Cards for the latest AI question */}
+                      {msg.isQuestion && i === aiChatMessages.length - 1 && (
+                        <div className="pt-2 border-t border-slate-200/60 mt-2 space-y-2">
+                          {/* Step 0: Name Quick Suggestions */}
+                          {msg.stepId === 'name' && (
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-bold block mb-1.5">
+                                Suggestions (or speak your name):
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {STEPS[0].suggestions.map((name) => (
+                                  <button
+                                    key={name}
+                                    onClick={() => handleChipAnswer('name', name, name)}
+                                    className="bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 px-2.5 py-1 rounded-lg text-xs font-semibold transition shadow-xs"
+                                  >
+                                    + {name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Step 1: Location & GPS Options */}
+                          {msg.stepId === 'location' && (
+                            <div className="space-y-2">
+                              {/* Prominent GPS Auto-Detect Button */}
+                              <button
+                                onClick={handleDetectLiveGPS}
+                                disabled={isLocating}
+                                className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white py-2.5 px-4 rounded-xl text-xs font-bold shadow-md transition"
+                              >
+                                <Navigation className={`w-4 h-4 ${isLocating ? 'animate-spin' : ''}`} />
+                                <span>{isLocating ? 'Detecting satellite coordinates...' : '📍 Auto-Detect My Device Live GPS'}</span>
+                              </button>
+
+                              <span className="text-[10px] text-slate-500 font-bold block">
+                                Or select sample rural village cluster:
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {STEPS[1].presets.map((preset) => (
+                                  <button
+                                    key={preset.v}
+                                    onClick={() => handleChipAnswer('location_preset', preset, `${preset.v}, ${preset.d}`)}
+                                    className="text-left bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 p-2 rounded-xl text-xs font-semibold transition"
+                                  >
+                                    <div className="font-bold text-slate-900">{preset.v}</div>
+                                    <div className="text-[10px] text-slate-500">{preset.d}, {preset.s}</div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Step 2: Available Capital Chips */}
+                          {msg.stepId === 'capital' && (
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-bold block mb-1.5">
+                                Select capital budget (or speak your own amount):
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {STEPS[2].options.map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    onClick={() => handleChipAnswer('available_capital', opt.value, opt.label)}
+                                    className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-900 border border-emerald-300 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs"
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Step 3: Land Holding Chips */}
+                          {msg.stepId === 'land' && (
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-bold block mb-1.5">
+                                Select available land area:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {STEPS[3].options.map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    onClick={() => handleChipAnswer('land_acres', opt.value, opt.label)}
+                                    className="bg-white hover:bg-emerald-600 hover:text-white text-slate-800 border border-slate-200 hover:border-emerald-500 px-3 py-1.5 rounded-xl text-xs font-semibold transition shadow-xs"
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Step 4: Social Category Chips */}
+                          {msg.stepId === 'social_category' && (
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-bold block mb-1.5">
+                                Select social category for MoSJE concessional financing:
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {STEPS[4].options.map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    onClick={() => handleChipAnswer('social_category', opt.value, opt.label)}
+                                    className="text-left bg-white hover:bg-emerald-50 hover:border-emerald-400 border border-slate-200 p-2 rounded-xl text-xs font-semibold text-slate-800 transition"
+                                  >
+                                    <div className="font-bold text-emerald-800">{opt.value}</div>
+                                    <div className="text-[10px] text-slate-500">{opt.label}</div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Step 5: Utilities Multi-Select */}
+                          {msg.stepId === 'utilities' && (
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-slate-500 font-bold block">
+                                Tap to toggle utilities available at your site:
+                              </span>
+                              <div className="grid grid-cols-2 gap-2">
+                                {STEPS[5].items.map((item) => {
+                                  const checked = Boolean(profile[item.key]);
+                                  return (
+                                    <button
+                                      key={item.key}
+                                      type="button"
+                                      onClick={() => toggleUtility(item.key)}
+                                      className={`p-2.5 rounded-xl text-left border text-xs font-bold flex items-center justify-between transition ${
+                                        checked 
+                                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' 
+                                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      <span>{lang === 'hi' ? item.labelHi : item.labelEn}</span>
+                                      {checked ? <Check className="w-3.5 h-3.5 text-white" /> : <span className="w-3 h-3 rounded-full border border-slate-300" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <button
+                                onClick={() => advanceToNextStep(profile, 5, lang === 'hi' ? '✓ सुविधाएँ दर्ज कर ली गईं।' : '✓ Site utilities recorded.')}
+                                className="w-full flex items-center justify-center space-x-2 bg-emerald-700 hover:bg-emerald-800 text-white py-2 rounded-xl text-xs font-bold transition mt-2"
+                              >
+                                <span>Continue to Skills Step</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Step 6: Skills Multi-Select */}
+                          {msg.stepId === 'skills' && (
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-slate-500 font-bold block">
+                                Tap skills you have experience in:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {STEPS[6].items.map((item) => {
+                                  const active = (profile.skills || []).includes(item.key);
+                                  return (
+                                    <button
+                                      key={item.key}
+                                      type="button"
+                                      onClick={() => toggleSkill(item.key)}
+                                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                                        active
+                                          ? 'bg-emerald-600 text-white shadow-sm'
+                                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      {active ? `✓ ${item.label}` : `+ ${item.label}`}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <button
+                                onClick={() => advanceToNextStep(profile, 6, lang === 'hi' ? '✓ अनुभव व कौशल दर्ज कर लिए गए।' : '✓ Skills recorded.')}
+                                className="w-full flex items-center justify-center space-x-2 bg-emerald-700 hover:bg-emerald-800 text-white py-2 rounded-xl text-xs font-bold transition mt-2"
+                              >
+                                <span>Complete All Steps & Review Dossier</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Step 7: Review & Final Submit Action */}
+                          {msg.stepId === 'review' && (
+                            <div className="pt-2">
+                              <button
+                                onClick={onRunAdvisory}
+                                className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white py-3 px-4 rounded-xl text-xs font-extrabold shadow-lg transition transform hover:-translate-y-0.5"
+                              >
+                                <FileCheck2 className="w-4 h-4 text-amber-300" />
+                                <span>🚀 Complete Registration & Open Decision Advisory</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {isAiLoading && (
+                  <div className="text-xs text-slate-500 flex items-center space-x-2 p-2 bg-slate-50 rounded-xl">
+                    <div className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                    <span>Extracting parameters and updating dossier...</span>
+                  </div>
+                )}
+                <div ref={aiMessagesEndRef} />
+              </div>
+            </div>
+
+            {/* Bottom Input: Microphone (STT) + Free-form text */}
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              {isAiListening && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded-xl text-xs flex items-center justify-between font-bold animate-pulse">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
+                    <span>Listening... Speak your answer naturally in Hindi, English, or Telugu</span>
+                  </div>
+                  <button onClick={toggleAiListening} className="text-xs underline">Stop</button>
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={toggleAiListening}
+                  className={`p-3 rounded-xl transition shadow-xs ${
+                    isAiListening
+                      ? 'bg-rose-600 text-white animate-pulse'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  }`}
+                  title="Speak to answer current question"
+                >
+                  {isAiListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5 text-emerald-700" />}
+                </button>
+
+                <input
+                  type="text"
+                  value={aiInputText}
+                  onChange={(e) => setAiInputText(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAiChatSubmit()}
+                  placeholder={
+                    stepIndex === 0 ? "Type your name or say 'Mera naam ...'" :
+                    stepIndex === 1 ? "Type village name or say 'Nashik se hoon'..." :
+                    stepIndex === 2 ? "Type capital e.g. 200000 or say '3 lakh'..." :
+                    stepIndex === 3 ? "Type land acres e.g. 2 or say '2 acre'..." :
+                    stepIndex === 4 ? "Type OBC, SC, ST, or General..." :
+                    "Speak or type your answer..."
+                  }
+                  className="flex-1 bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                />
+
+                <button
+                  onClick={() => handleAiChatSubmit()}
+                  disabled={!aiInputText.trim() || isAiLoading}
+                  className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white p-3 rounded-xl font-bold transition shadow-xs"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side: LIVE AUTO-FILLING REGISTRATION DOSSIER (Real-Time Synchronized) */}
+          <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white rounded-2xl p-5 shadow-lg flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <h3 className="text-sm font-bold text-white">
+                    Live Auto-Filling Registration Dossier
+                  </h3>
+                </div>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full font-bold border border-emerald-400/30">
+                  {completionPct}% Complete
+                </span>
+              </div>
+
+              {/* Form Parameter Checkpoints with Direct Edit Triggers */}
+              <div className="space-y-2.5 text-xs">
+                {/* 1. Name */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  stepIndex === 0 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                  newlyFilledFields.includes('name') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
+                    <span className="font-semibold">1. Entrepreneur Name:</span>
+                    <div className="flex items-center space-x-1.5">
+                      {profile.name && <span className="text-emerald-400 font-bold">✓ Captured</span>}
+                      <button onClick={() => handleEditStep(0)} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
+                    </div>
+                  </div>
+                  <div className="text-sm font-bold text-white">
+                    {profile.name || <span className="text-slate-500 italic">Awaiting answer...</span>}
+                  </div>
+                </div>
+
+                {/* 2. Location */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  stepIndex === 1 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                  newlyFilledFields.includes('location') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
+                    <span className="font-semibold">2. Village & GPS:</span>
+                    <div className="flex items-center space-x-1.5">
+                      {profile.village_name && <span className="text-emerald-400 font-bold">✓ Locked</span>}
+                      <button onClick={() => handleEditStep(1)} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
+                    </div>
+                  </div>
+                  <div className="text-xs font-semibold text-white">
+                    {profile.village_name ? `${profile.village_name}, ${profile.district || ''} (${profile.latitude?.toFixed(2)}°N, ${profile.longitude?.toFixed(2)}°E)` : <span className="text-slate-500 italic">Awaiting answer...</span>}
+                  </div>
+                </div>
+
+                {/* 3. Capital */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  stepIndex === 2 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                  newlyFilledFields.includes('capital') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
+                    <span className="font-semibold">3. Available Capital:</span>
+                    <div className="flex items-center space-x-1.5">
+                      {profile.available_capital > 0 && <span className="text-emerald-400 font-bold">✓ Captured</span>}
+                      <button onClick={() => handleEditStep(2)} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
+                    </div>
+                  </div>
+                  <div className="text-sm font-extrabold text-amber-300">
+                    ₹{(profile.available_capital || 0).toLocaleString('en-IN')}
+                  </div>
+                </div>
+
+                {/* 4. Land */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  stepIndex === 3 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                  newlyFilledFields.includes('land') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
+                    <span className="font-semibold">4. Land Holding:</span>
+                    <div className="flex items-center space-x-1.5">
+                      {profile.land_acres !== undefined && <span className="text-emerald-400 font-bold">✓ Captured</span>}
+                      <button onClick={() => handleEditStep(3)} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
+                    </div>
+                  </div>
+                  <div className="text-sm font-bold text-white">
+                    {profile.land_acres ?? 0} Acres
+                  </div>
+                </div>
+
+                {/* 5. Social Category */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  stepIndex === 4 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                  newlyFilledFields.includes('social_category') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
+                    <span className="font-semibold">5. Social Category (MoSJE):</span>
+                    <div className="flex items-center space-x-1.5">
+                      {profile.social_category && <span className="text-emerald-400 font-bold">✓ Captured</span>}
+                      <button onClick={() => handleEditStep(4)} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
+                    </div>
+                  </div>
+                  <div className="text-sm font-bold text-white">
+                    {profile.social_category || <span className="text-slate-500 italic">Awaiting answer...</span>}
+                  </div>
+                </div>
+
+                {/* 6. Utilities */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  stepIndex === 5 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
+                    <span className="font-semibold">6. Site Infrastructure:</span>
+                    <button onClick={() => handleEditStep(5)} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
+                  </div>
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {profile.has_water_source && <span className="bg-emerald-800/80 text-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">💧 Water</span>}
+                    {profile.has_electricity && <span className="bg-emerald-800/80 text-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">⚡ 3-Phase Power</span>}
+                    {profile.has_vehicle && <span className="bg-emerald-800/80 text-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">🚛 Vehicle</span>}
+                    {profile.has_shop_building && <span className="bg-emerald-800/80 text-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">🏪 Shop/Shed</span>}
+                    {!profile.has_water_source && !profile.has_electricity && !profile.has_vehicle && !profile.has_shop_building && (
+                      <span className="text-slate-400 text-[11px]">Basic / Land only</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 7. Skills */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  stepIndex === 6 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                  newlyFilledFields.includes('skills') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
+                    <span className="font-semibold">7. Skills & Experience:</span>
+                    <div className="flex items-center space-x-1.5">
+                      {profile.skills?.length > 0 && <span className="text-emerald-400 font-bold">✓ Captured</span>}
+                      <button onClick={() => handleEditStep(6)} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {(profile.skills || []).map((s, idx) => (
+                      <span key={idx} className="bg-white/10 text-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold capitalize">
+                        {s.replace('_', ' ')}
+                      </span>
+                    ))}
+                    {(!profile.skills || profile.skills.length === 0) && (
+                      <span className="text-slate-500 italic text-[11px]">Awaiting selection...</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Complete & Run Decision Advisory CTA */}
+            <div className="pt-4 mt-4 border-t border-white/10">
+              <button
+                onClick={onRunAdvisory}
+                className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black py-3.5 rounded-xl text-xs shadow-lg transition"
+              >
+                <span>Save Dossier & Calculate Business Advisory</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODE 2: SELF-REGISTRATION (MANUAL FORM)                      */}
+      {/* ------------------------------------------------------------- */}
+      {regMode === 'manual' && (
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
+          {/* AI Banner for quick switch */}
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center space-x-2.5">
+              <Bot className="w-5 h-5 text-emerald-700 flex-shrink-0" />
+              <span className="text-slate-700 font-medium">
+                <strong>Prefer voice or chat assistance?</strong> The AI assistant can ask you each question step-by-step and auto-fill your entire registration dossier!
+              </span>
+            </div>
+            <button
+              onClick={() => setRegMode('ai')}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 rounded-xl font-bold whitespace-nowrap transition"
+            >
+              Switch to AI Interview
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center">
+                <User className="w-5 h-5 mr-2 text-emerald-600" />
+                Step 1: Entrepreneur Identity & Physical Location
+              </h3>
+              <p className="text-xs text-slate-500">
+                Fill out the registration details directly or use the live GPS button to capture your device location.
+              </p>
+            </div>
+
+            {/* Live GPS Button */}
+            <button
+              onClick={handleDetectLiveGPS}
+              disabled={isLocating}
+              className="flex items-center space-x-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md transition"
+            >
+              <Navigation className={`w-4 h-4 ${isLocating ? 'animate-spin' : ''}`} />
+              <span>{isLocating ? 'Detecting GPS...' : '📍 Auto-Detect Live GPS Coordinates'}</span>
+            </button>
+          </div>
+
+          {gpsStatus && (
+            <div className="bg-emerald-50 border border-emerald-300 text-emerald-950 p-3 rounded-xl text-xs font-semibold flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span>{gpsStatus}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">Farmer / Entrepreneur Full Name *</label>
+              <input
+                type="text"
+                value={profile.name || ''}
+                onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                placeholder="e.g. Ramesh Kisan"
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">Mobile Contact Number</label>
+              <input
+                type="text"
+                value={profile.phone || ''}
+                onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                placeholder="e.g. 9876543210"
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">Social Category (MoSJE Scheme Rule Match) *</label>
+              <select
+                value={profile.social_category || 'OBC'}
+                onChange={(e) => setProfile({ ...profile, social_category: e.target.value })}
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              >
+                <option value="OBC">OBC (Other Backward Classes - NBCFDC)</option>
+                <option value="SC">SC (Scheduled Caste - NSFDC)</option>
+                <option value="DNT">DNT (De-notified Tribes)</option>
+                <option value="GENERAL">General Category</option>
+                <option value="ST">ST (Scheduled Tribe)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">Village / Locality *</label>
+              <input
+                type="text"
+                value={profile.village_name || ''}
+                onChange={(e) => setProfile({ ...profile, village_name: e.target.value })}
+                placeholder="e.g. Pimpalgaon Baswant"
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">District *</label>
+              <input
+                type="text"
+                value={profile.district || ''}
+                onChange={(e) => setProfile({ ...profile, district: e.target.value })}
+                placeholder="e.g. Nashik"
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">State *</label>
+              <input
+                type="text"
+                value={profile.state || ''}
+                onChange={(e) => setProfile({ ...profile, state: e.target.value })}
+                placeholder="e.g. Maharashtra"
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">GPS Latitude (° N)</label>
+              <input
+                type="number"
+                step="0.0001"
+                value={profile.latitude || 20.1706}
+                onChange={(e) => setProfile({ ...profile, latitude: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">GPS Longitude (° E)</label>
+              <input
+                type="number"
+                step="0.0001"
+                value={profile.longitude || 73.9840}
+                onChange={(e) => setProfile({ ...profile, longitude: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5">Analysis Radius Catchment (GIS)</label>
+              <select
+                value={profile.analysis_radius_km || 10.0}
+                onChange={(e) => setProfile({ ...profile, analysis_radius_km: parseFloat(e.target.value) })}
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              >
+                <option value="5.0">5 km (Immediate Village Clusters)</option>
+                <option value="10.0">10 km (Standard Block & Mandi Reach)</option>
+                <option value="15.0">15 km (Extended Sub-District Reach)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 space-y-4">
+            <h3 className="text-base font-bold text-slate-900 flex items-center">
+              <Coins className="w-5 h-5 mr-2 text-emerald-600" />
+              Step 2: Financial Capital & Land Holding
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">Available Liquid Capital (₹) *</label>
+                <input
+                  type="number"
+                  step="10000"
+                  value={profile.available_capital || 300000}
+                  onChange={(e) => setProfile({ ...profile, available_capital: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-black text-emerald-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">Emergency Liquid Reserve (₹)</label>
+                <input
+                  type="number"
+                  step="5000"
+                  value={profile.liquid_reserve || 20000}
+                  onChange={(e) => setProfile({ ...profile, liquid_reserve: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">Available Land Area (Acres) *</label>
+                <input
+                  type="number"
+                  step="0.25"
+                  value={profile.land_acres ?? 1.0}
+                  onChange={(e) => setProfile({ ...profile, land_acres: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-black text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 space-y-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center">
+              <Tractor className="w-5 h-5 mr-2 text-emerald-600" />
+              Step 3: Farm Infrastructure & Core Skills
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <label className="flex items-center space-x-2.5 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                <input
+                  type="checkbox"
+                  checked={Boolean(profile.has_water_source)}
+                  onChange={(e) => setProfile({ ...profile, has_water_source: e.target.checked })}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                />
+                <span className="font-bold text-slate-800">💧 Water / Borewell</span>
+              </label>
+              <label className="flex items-center space-x-2.5 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                <input
+                  type="checkbox"
+                  checked={Boolean(profile.has_electricity)}
+                  onChange={(e) => setProfile({ ...profile, has_electricity: e.target.checked })}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                />
+                <span className="font-bold text-slate-800">⚡ 3-Phase Power</span>
+              </label>
+              <label className="flex items-center space-x-2.5 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                <input
+                  type="checkbox"
+                  checked={Boolean(profile.has_vehicle)}
+                  onChange={(e) => setProfile({ ...profile, has_vehicle: e.target.checked })}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                />
+                <span className="font-bold text-slate-800">🚛 Commercial Vehicle</span>
+              </label>
+              <label className="flex items-center space-x-2.5 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                <input
+                  type="checkbox"
+                  checked={Boolean(profile.has_shop_building)}
+                  onChange={(e) => setProfile({ ...profile, has_shop_building: e.target.checked })}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                />
+                <span className="font-bold text-slate-800">🏪 Roadside Shed / Shop</span>
+              </label>
+            </div>
+
+            {/* Skills Pills */}
+            <div className="pt-2">
+              <label className="block text-xs font-bold text-slate-700 mb-2">Select Skills & Background Experience:</label>
+              <div className="flex flex-wrap gap-2">
+                {skillOptions.map((s) => {
+                  const active = (profile.skills || []).includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => toggleSkill(s)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition ${
+                        active
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {active ? `✓ ${s.replace('_', ' ')}` : `+ ${s.replace('_', ' ')}`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-slate-100 flex justify-end">
+            <button
+              onClick={onRunAdvisory}
+              className="flex items-center space-x-2 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white px-8 py-3.5 rounded-xl font-black text-sm shadow-md transition transform hover:-translate-y-0.5"
+            >
+              <FileCheck2 className="w-5 h-5" />
+              <span>Complete Registration & Generate Dossier</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

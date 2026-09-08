@@ -1,0 +1,56 @@
+[
+  {
+    "id": "doc-nbcfdc-01",
+    "scheme_code": "NBCFDC_MICRO_FINANCE",
+    "title": "NBCFDC Micro Finance Lending Norms & Eligibility",
+    "section": "Eligibility & Loan Ceilings",
+    "text": "Under the NBCFDC Micro Finance Scheme, members of Backward Classes living below double the poverty line (annual family income up to ₹3,00,000 in both rural and urban areas) are eligible for concessional financial assistance. The maximum project cost under micro-finance is ₹1,40,000 and maximum loan provided is ₹1,25,000 (up to 90% of project cost). The beneficiary contributes a mandatory minimum 10% margin. The interest rate charged to the end beneficiary is 6.50% per annum. Repayment tenure is 3 years with a 3-month moratorium period on principal repayment.",
+    "source": "https://nbcfdc.gov.in/schemes/micro-finance",
+    "verified_date": "2026-03-01"
+  },
+  {
+    "id": "doc-nbcfdc-02",
+    "scheme_code": "NBCFDC_TERM_LOAN",
+    "title": "NBCFDC General Term Loan Guidelines",
+    "section": "Term Loan Terms & Margin",
+    "text": "The NBCFDC Term Loan Scheme caters to individual micro-entrepreneurs belonging to OBC and DNT communities for projects costing more than ₹1.40 Lakh and up to ₹50.00 Lakh. NBCFDC provides concessional loan up to 90% of the project cost (maximum loan ₹45.00 Lakh), while the beneficiary margin is fixed at 10%. The lending rate of interest to the beneficiary is 8.00% per annum. The loan tenure is up to 7 years with an initial moratorium period of 6 months. Projects can cover agriculture, allied animal husbandry, transport, retail, and service sectors.",
+    "source": "https://nbcfdc.gov.in/schemes/term-loan",
+    "verified_date": "2026-03-01"
+  },
+  {
+    "id": "doc-nsfdc-01",
+    "scheme_code": "NSFDC_TERM_LOAN",
+    "title": "NSFDC Concessional Finance for Scheduled Castes",
+    "section": "Terms of Finance",
+    "text": "NSFDC assists Scheduled Caste entrepreneurs through State Channelizing Agencies (SCAs). Term loans up to ₹50 Lakh are available for viable income-generating activities. Beneficiaries enjoy subsidized interest rates between 6.0% and 7.5% per annum depending on loan slab. The standard repayment period is up to 7 years with a 6-month moratorium. The applicant must produce an authentic SC certificate issued by the competent revenue authority.",
+    "source": "https://nsfdc.nic.in/en/term-loan",
+    "verified_date": "2026-02-15"
+  },
+  {
+    "id": "doc-pmegp-01",
+    "scheme_code": "PMEGP_RURAL_MICRO",
+    "title": "PMEGP Guidelines on Margin Money Subsidy",
+    "section": "Subsidy Structure & Eligible Projects",
+    "text": "Under the Prime Minister's Employment Generation Programme (PMEGP), special category beneficiaries (including SC/ST/OBC/Women/Ex-servicemen/Physically Handicapped) setting up micro-enterprises in rural areas receive 35% margin money subsidy on project cost from the Government. The beneficiary own contribution is only 5% to 10% of the project cost. The balance 60% to 90% is financed by financial institutions as bank loan. Maximum eligible project cost is ₹50 Lakh for manufacturing units and ₹20 Lakh for service/business units.",
+    "source": "https://www.kviconline.gov.in/pmegpeportal/",
+    "verified_date": "2026-03-05"
+  },
+  {
+    "id": "doc-mudra-01",
+    "scheme_code": "PM_MUDRA_KISHORE",
+    "title": "Pradhan Mantri Mudra Yojana Loan Slabs",
+    "section": "Kishore Category Norms",
+    "text": "MUDRA provides refinance support for bank lending to non-corporate, non-farm small/micro enterprises. The 'Kishore' category covers loans above ₹50,000 and up to ₹5,00,000. No collateral security is required from the micro-entrepreneur. Margin money requirements are typically 15%, with repayment tenures stretching up to 5 years. Typical interest rates range from 9.0% to 10.5% p.a. depending on the sponsoring bank.",
+    "source": "https://www.mudra.org.in/",
+    "verified_date": "2026-02-28"
+  },
+  {
+    "id": "doc-vishwakarma-01",
+    "scheme_code": "PM_VISHWAKARMA",
+    "title": "PM Vishwakarma Scheme Benefits",
+    "section": "Enterprise Support & Credit Guarantee",
+    "text": "PM Vishwakarma recognizes traditional rural artisans across 18 family-based trades (such as blacksmiths, carpenters, potters, cobblers, tailors, basket makers). Benefits include PM Vishwakarma Certificate & ID Card, basic 5-7 days skill training with ₹500/day stipend, a ₹15,000 e-voucher for modern toolkits, and collateral-free enterprise credit up to ₹1,00,000 (first tranche) and ₹2,00,000 (second tranche) at a heavily concessional interest rate of 5% with interest subvention cap paid by MoMSME.",
+    "source": "https://pmvishwakarma.gov.in/",
+    "verified_date": "2026-03-01"
+  }
+]
