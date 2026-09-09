@@ -399,6 +399,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
                   </button>
                 </div>
               )}
+            </div>
           </div>
         ))}
 
