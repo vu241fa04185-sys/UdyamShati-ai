@@ -11,7 +11,8 @@ import {
   Settings,
   Briefcase,
   FolderOpen,
-  Check
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { translations } from '../../locales/translations';
 import { useSaarthi } from '../../context/SaarthiContext';
