@@ -578,6 +578,7 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
       if (nluRes.data?.entities) {
         entities = nluRes.data.entities;
         intent = nluRes.data.intent;
+      }
     } catch (apiErr) {
       console.warn("Backend NLU parse failed or unavailable, fallback to direct client parsing:", apiErr);
     } finally {

@@ -36,7 +36,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, la
     { id: 'settings', label: t.navSettings || 'Settings', icon: Settings },
     { id: 'help', label: t.navHelpSupport || t.navHelp || 'Help & Support', icon: HelpCircle }
   ];
-  ];
 
   const handleSelect = (id) => {
     setActiveTab(id);

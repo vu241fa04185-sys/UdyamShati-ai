@@ -299,22 +299,6 @@ export default function App() {
             }}
         />
 
-        {/* 2. Main Content Workspace (Offset by Sidebar on Desktop) */}
-        <div className="flex-1 lg:ml-64 flex flex-col min-w-0 min-h-screen">
-          
-          {/* Top Header Bar */}
-          <TopHeader
-            auth={auth}
-            profile={profile}
-            onLogout={handleLogout}
-            language={lang}
-            setLanguage={handleSetLanguage}
-            onOpenSidebar={() => setIsSidebarOpen(true)}
-            setActiveTab={setActiveTab}
-            onSearch={(query) => {
-              setActiveTab('home');
-            }}
-          />
 
           {/* Main Page Content */}
           <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
@@ -406,6 +390,16 @@ export default function App() {
                     setActiveTab={setActiveTab}
                   />
                 )}
+
+                {activeTab === 'settings' && (
+                  <SettingsView
+                    auth={auth}
+                    profile={profile}
+                    notificationSettings={notificationSettings}
+                    onUpdateNotificationSettings={setNotificationSettings}
+                    language={lang}
+                  />
+                )}
               </>
             )}
           </main>
@@ -414,127 +408,13 @@ export default function App() {
           <footer className="bg-white/80 border-t border-emerald-900/10 py-4 px-6 text-center text-xs text-stone-500">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
               <span className="font-bold text-[#0F3D2E]">
-                {t.footerTitle || "UdyamSaarthi AI • Your Business Companion"}
+                {t.appTitle || 'UdyamSaarthi AI'} • {t.tagline || 'Your Business Companion'}
               </span>
               <span>
-                {t.footerSubtitle || "Empowering Rural Micro-Entrepreneurs across India"}
+                {t.empowerRuralIndia || 'Empowering Rural Micro-Entrepreneurs across India'}
               </span>
             </div>
-<<<<<<< HEAD
-          ) : (
-            <>
-              {activeTab === 'home' && (
-                <HomeDashboard
-                  auth={auth}
-                  profile={profile}
-                  onProfileUpdate={handleProfileUpdate}
-                  setActiveTab={setActiveTab}
-                  language={lang}
-                />
-              )}
-
-              {activeTab === 'chat' && (
-                <ChatAssistant
-                  lang={lang}
-                  profile={profile}
-                  onProfileUpdate={handleProfileUpdate}
-                  setActiveTab={setActiveTab}
-                />
-              )}
-
-              {activeTab === 'profile' && (
-                <ProfileWizard
-                  profile={profile}
-                  setProfile={setProfile}
-                  onRunAdvisory={() => {
-                    runDecisionAdvisory(profile);
-                    setActiveTab('recommendations');
-                  }}
-                  lang={lang}
-                />
-              )}
-
-              {activeTab === 'recommendations' && (
-                <RecommendationsView
-                  recommendations={recommendations}
-                  lang={lang}
-                  setActiveTab={setActiveTab}
-                />
-              )}
-
-              {activeTab === 'market' && (
-                <MarketMapView
-                  profile={profile}
-                  setProfile={setProfile}
-                  recommendations={recommendations}
-                  lang={lang}
-                  onLocationUpdate={handleProfileUpdate}
-                />
-              )}
-
-              {activeTab === 'finance' && (
-                <FinanceDashboard
-                  recommendations={recommendations}
-                  profile={profile}
-                  lang={lang}
-                />
-              )}
-
-              {activeTab === 'schemes' && (
-                <SchemeMatcher
-                  profile={profile}
-                  recommendations={recommendations}
-                  lang={lang}
-                />
-              )}
-
-              {activeTab === 'risk' && (
-                <RiskStressView
-                  recommendations={recommendations}
-                  lang={lang}
-                />
-              )}
-
-              {activeTab === 'simulator' && (
-                <SimulatorView
-                  profile={profile}
-                  recommendations={recommendations}
-                  lang={lang}
-                />
-              )}
-
-              {activeTab === 'report' && (
-                <ReportView
-                  profile={profile}
-                  recommendations={recommendations}
-                  lang={lang}
-                />
-              )}
-
-              {activeTab === 'settings' && (
-                <SettingsView
-                  auth={auth}
-                  profile={profile}
-                  notificationSettings={notificationSettings}
-                  onUpdateNotificationSettings={setNotificationSettings}
-                  language={lang}
-                />
-              )}
-            </>
-          )}
-        </main>
-
-        {/* Footer */}
-        <footer className="bg-white/80 border-t border-emerald-900/10 py-4 px-6 text-center text-xs text-stone-500">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span className="font-bold text-[#0F3D2E]">
-              {t.appTitle || 'UdyamSaarthi AI'} • {t.tagline || 'Your Business Companion'}
-            </span>
-            <span>
-              {t.empowerRuralIndia || 'Empowering Rural Micro-Entrepreneurs across India'}
-            </span>
-          </div>
-        </footer>
+          </footer>
 
         </div>
       </div>
