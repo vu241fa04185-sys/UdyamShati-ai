@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Store, Star, Navigation, Search, ChevronRight, ShieldCheck, MapPin } from 'lucide-react';
+import { Store, Star, Search, ChevronRight } from 'lucide-react';
+import { translations } from '../../locales/translations';
 
 export default function NearbyPlaces({
   places = [],
   radiusKm = 10,
   selectedPlaceId = null,
-  onSelectPlace
+  onSelectPlace,
+  lang = 'en'
 }) {
+  const t = translations[lang] || translations.en;
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredPlaces = places.filter((p) => {
@@ -25,10 +28,10 @@ export default function NearbyPlaces({
         <div className="flex items-center space-x-2">
           <Store className="w-4 h-4 text-emerald-600" />
           <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
-            Places in {radiusKm} km Reach ({filteredPlaces.length})
+            {t.placesInReach || "Places in Reach"} ({filteredPlaces.length})
           </h4>
         </div>
-        <span className="text-[10px] text-slate-400 font-semibold">Sorted by Road Distance</span>
+        <span className="text-[10px] text-slate-400 font-semibold">{t.sortedByDistance || "Sorted by Road Distance"}</span>
       </div>
 
       {/* Search Input */}
@@ -38,7 +41,7 @@ export default function NearbyPlaces({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Filter by shop name, category, or village..."
+          placeholder={t.filterPlacesPlaceholder || "Filter by shop name, category, or village..."}
           className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 text-xs focus:outline-none focus:border-emerald-500"
         />
       </div>
@@ -48,7 +51,7 @@ export default function NearbyPlaces({
         {filteredPlaces.length === 0 ? (
           <div className="p-6 text-center text-slate-400 space-y-1">
             <Store className="w-6 h-6 mx-auto opacity-40 mb-1" />
-            <p>No places found matching your filter within {radiusKm} km.</p>
+            <p>{(t.noPlacesFoundInRadius || "No places found matching your filter within this radius.").replace('{radius}', radiusKm)}</p>
           </div>
         ) : (
           filteredPlaces.map((place) => {
@@ -73,7 +76,7 @@ export default function NearbyPlaces({
                     </span>
                     {place.source === 'postgis_database' && (
                       <span className="text-[9px] bg-slate-200 text-slate-700 px-1 rounded font-bold shrink-0">
-                        Local DB
+                        {t.localDbBadge || "Local DB"}
                       </span>
                     )}
                   </div>
@@ -92,7 +95,7 @@ export default function NearbyPlaces({
 
                 <div className="text-right shrink-0">
                   <span className="font-extrabold text-emerald-800 text-xs block">
-                    {roadDist} km
+                    {roadDist} {t.km || "km"}
                   </span>
                   <span className="text-[10px] text-slate-400 block">
                     ~{travelTime} min

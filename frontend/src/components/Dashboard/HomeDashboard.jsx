@@ -11,14 +11,15 @@ export default function HomeDashboard({
   setActiveTab, 
   language 
 }) {
-  const userName = auth?.user?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
+  const userName = auth?.name || auth?.user?.name || profile?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
 
   return (
     <div className="space-y-8 pb-12">
       {/* 1. Hero Banner */}
       <HeroBanner 
         userName={userName} 
-        onStartAnalysis={() => setActiveTab('recommendations')} 
+        onStartAnalysis={() => setActiveTab('recommendations')}
+        lang={language} 
       />
 
       {/* 2. Main Content Grid (Central Voice AI Chat + Right Context Panel) */}
@@ -40,13 +41,14 @@ export default function HomeDashboard({
             profile={profile}
             onProfileUpdate={onProfileUpdate}
             setActiveTab={setActiveTab}
+            lang={language}
           />
         </div>
 
       </div>
 
       {/* 3. Lower Home Content: Why UdyamSaarthi + Helpline */}
-      <LowerDashboard />
+      <LowerDashboard lang={language} />
     </div>
   );
 }

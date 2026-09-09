@@ -18,44 +18,57 @@ import {
   Scale,
   MapPin,
   CheckCircle2,
-  RotateCcw,
-  ShieldCheck,
-  Zap,
   Droplet,
-  ChevronRight,
-  Sliders
+  Zap,
+  FileText,
+  Edit2,
+  Check
 } from 'lucide-react';
 import axios from 'axios';
 import { detectAccurateLocation } from '../../utils/geolocation';
+import { translations } from '../../locales/translations';
+import { useSaarthi } from '../../context/SaarthiContext';
+import { extractBusinessIntent } from '../../utils/businessPlanEngine';
 
-export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language }) {
-  // Mode: 'interview' (AI actively asks questions step-by-step) or 'chat' (Free-form conversational advisory)
-  const [mode, setMode] = useState('interview');
-  
-  // Step in Guided Advisory: 0: Name & Location, 1: Capital, 2: Land & Facilities, 3: Category, 4: Results
-  const [currentStep, setCurrentStep] = useState(0);
-  const [stepData, setStepData] = useState({
-    name: profile?.name || '',
-    village: profile?.village_name || profile?.location?.village || '',
-    capital: profile?.available_capital || profile?.financial?.capital || null,
-    land_acres: profile?.land_acres ?? profile?.resources?.land_acres ?? null,
-    has_water: profile?.has_water_source ?? profile?.resources?.water ?? true,
-    has_electricity: profile?.has_electricity ?? profile?.resources?.electricity ?? true,
-    has_shop: profile?.has_shop_building ?? profile?.resources?.shop ?? false,
-    has_vehicle: profile?.has_vehicle ?? profile?.resources?.vehicle ?? false,
-    social_category: profile?.social_category || ''
+export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language = 'en' }) {
+  const t = translations[language] || translations.en;
+
+  const { 
+    personalPlans, 
+    createPlanFromIntent, 
+    updatePlan, 
+    setActivePlanId, 
+    pendingBusinessIdea, 
+    setPendingBusinessIdea 
+  } = useSaarthi();
+
+  const userName = profile?.name || 'Entrepreneur';
+
+  // Live Dossier State for Business Plan creation
+  const [dossier, setDossier] = useState({
+    name: userName,
+    businessIdea: profile?.business_idea || '',
+    location: `${profile?.village_name || 'Village'}, ${profile?.district || 'District'}`,
+    capital: profile?.available_capital || 300000,
+    land: `${profile?.land_acres || 2} Acres`,
+    experience: (profile?.skills || ['Agriculture']).join(', '),
+    scale: 'Small'
   });
 
+  const [editingField, setEditingField] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
+  // Mode & Conversation State
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: language === 'hi' 
-        ? "नमस्ते! 👋 मैं **उद्यमसारथी** हूँ — आपका एआई व्यापार सलाहकार। आपके लिए सबसे सही और लाभदायक व्यवसाय व ऋण खोजने के लिए, मैं आपसे एक-एक करके कुछ जरूरी सवाल पूछूँगा।\n\n**पहला कदम:** कृपया अपना **शुभ नाम** और अपने **गांव/कस्बे का नाम** बताएं।"
+      text: language === 'hi'
+        ? `नमस्ते ${userName} 👋\n\nमैं सारथी हूँ, आपका व्यावसायिक साथी। क्या आपके पास कोई व्यावसायिक विचार है, या आप चाहते हैं कि मैं आपको कुछ बेहतरीन अवसर सुझाऊँ?`
         : (language === 'te'
-          ? "నమస్కారం! 👋 నేను **ఉద్యమ్ సారథి** — మీ ఏఐ వ్యాపార సలహాదారుని. మీ కోసం ఉత్తమ వ్యాపారం మరియు రుణ పథకాన్ని గుర్తించడానికి నేను మిమ్మల్ని కొన్ని ప్రశ్నలు అడుగుతాను.\n\n**మొదటి ప్రశ్న:** దయచేసి మీ **పూర్తి పేరు** మరియు మీ **గ్రామం లేదా పట్టణం పేరు** చెప్పండి."
-          : "Namaste! 👋 I'm **UdyamSarthi**, your dedicated AI business companion. To find the highest-profit, low-risk business and concessional loan for you, I will guide you step-by-step.\n\n**Step 1:** What is your **full name** and which **village or town** are you from?"),
+          ? `నమస్తే ${userName} 👋\n\nనేను సారథిని, మీ వ్యాపార తోడు. మీ మనస్సులో ఏదైనా వ్యాపార ఆలోచన ఉందా, లేదా నేను కొన్ని అవకాశాలను సూచించమంటారా?`
+          : `Hello ${userName} 👋\n\nI'm Saarthi, your business companion. Do you already have a business idea in mind, or would you like me to suggest some opportunities for you?`),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      stepIndex: 0
+      actionType: 'INITIAL_GREETING_CHOICE'
     }
   ]);
 
@@ -68,533 +81,313 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
   const [speechError, setSpeechError] = useState(null);
   const [autoVoice, setAutoVoice] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
-  const [finalBlueprint, setFinalBlueprint] = useState(null);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Configuration for 5 Interview Steps
-  const STEPS_CONFIG = [
-    {
-      id: 'name_location',
-      stepNum: 1,
-      titleEn: 'Your Name & Location',
-      titleHi: 'शुभ नाम व गाँव / कस्बा',
-      titleTe: 'మీ పేరు & ప్రాంతం',
-      questionEn: "What is your full name and which village or district are you from?",
-      questionHi: "आपका शुभ नाम क्या है और आप किस गाँव या जिले से हैं?",
-      questionTe: "మీ పూర్తి పేరు ఏమిటి మరియు మీ గ్రామం లేదా జిల్లా ఏది?",
-      presets: [
-        { label: '📍 Pimpalgaon Baswant (Nashik, MH)', name: 'Ramesh Kisan', village: 'Pimpalgaon Baswant', district: 'Nashik', state: 'Maharashtra', lat: 20.1706, lon: 73.9840 },
-        { label: '📍 Kankipadu (Krishna, AP)', name: 'Suresh Rao', village: 'Kankipadu', district: 'Krishna', state: 'Andhra Pradesh', lat: 16.4258, lon: 80.7712 },
-        { label: '📍 Chaubeypur (Varanasi, UP)', name: 'Rakesh Maurya', village: 'Chaubeypur', district: 'Varanasi', state: 'Uttar Pradesh', lat: 25.4380, lon: 83.0560 }
-      ]
-    },
-    {
-      id: 'capital',
-      stepNum: 2,
-      titleEn: 'Investment Budget (Capital)',
-      titleHi: 'उपलब्ध पूँजी / बजट',
-      titleTe: 'పెట్టుబడి బడ్జెట్',
-      questionEn: "How much personal liquid savings (in ₹) do you have available to invest in this enterprise?",
-      questionHi: "व्यवसाय शुरू करने के लिए आपके पास अपनी खुद की कितनी पूँजी (रुपये में बचत) उपलब्ध है?",
-      questionTe: "ఈ వ్యాపారంలో పెట్టుబడి పెట్టడానికి మీ వద్ద ఎంత సొంత నగదు అందుబాటులో ఉంది?",
-      options: [
-        { label: '₹50,000', value: 50000 },
-        { label: '₹1,00,000', value: 100000 },
-        { label: '₹2,00,000', value: 200000 },
-        { label: '₹3,00,000', value: 300000 },
-        { label: '₹5,00,000+', value: 500000 }
-      ]
-    },
-    {
-      id: 'land_infrastructure',
-      stepNum: 3,
-      titleEn: 'Land & Site Infrastructure',
-      titleHi: 'जमीन व कार्यस्थल सुविधाएँ',
-      titleTe: 'భూమి & సౌకర్యాలు',
-      questionEn: "How much land area (in acres) do you have, and what facilities (water, 3-phase power) are available?",
-      questionHi: "आपके पास कुल कितनी जमीन (एकड़ में) उपलब्ध है, और पानी या 3-फेज बिजली की क्या सुविधा है?",
-      questionTe: "మీ వద్ద ఎన్ని ఎకరాల భూమి ఉంది మరియు అక్కడ నీరు లేదా కరెంట్ సదుపాయం ఉందా?",
-      landOptions: [
-        { label: '0 Acres (Landless)', value: 0 },
-        { label: '0.5 Acre', value: 0.5 },
-        { label: '1.0 Acre', value: 1.0 },
-        { label: '2.0 Acres', value: 2.0 },
-        { label: '5.0+ Acres', value: 5.0 }
-      ]
-    },
-    {
-      id: 'social_category',
-      stepNum: 4,
-      titleEn: 'Social Category & Schemes',
-      titleHi: 'सामाजिक वर्ग व सरकारी योजनाएँ',
-      titleTe: 'సామాజిక వర్గం & పథకాలు',
-      questionEn: "Which social category do you belong to? This determines eligibility for 90% concessional government schemes (NBCFDC, NSFDC, PMEGP).",
-      questionHi: "सरकारी 90% रियायती ऋण योजनाओं (जैसे NBCFDC, NSFDC, PMEGP) के लिए आपकी सामाजिक श्रेणी क्या है?",
-      questionTe: "ప్రభుత్వ 90% రాయితీ రుణాల అర్హత కోసం మీ సామాజిక వర్గం (OBC, SC, ST, లేదా General) ఏమిటి?",
-      options: [
-        { label: 'OBC (NBCFDC 10/90 Scheme)', value: 'OBC' },
-        { label: 'SC (NSFDC Scheme)', value: 'SC' },
-        { label: 'ST (Tribal Scheme)', value: 'ST' },
-        { label: 'General / Minority', value: 'GENERAL' }
-      ]
-    },
-    {
-      id: 'blueprint',
-      stepNum: 5,
-      titleEn: 'AI Business Blueprint & Loan',
-      titleHi: 'एआई बिजनेस ब्लूप्रिंट व ऋण योजना',
-      titleTe: 'వ్యాపార ప్రణాళిక & రుణం'
+  // Initialize Web Speech Recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setInterimTranscript(transcript);
+        if (event.results[0].isFinal) {
+          setInputText(transcript);
+          setInterimTranscript('');
+          setIsListening(false);
+          handleSend(transcript);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn("Speech recognition error:", event.error);
+        setSpeechError("Speech recognition notice. Please try typing your message.");
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
     }
-  ];
+  }, [language, profile]);
 
-  // Natural Text-to-Speech Engine
-  const speakText = (text, targetLang = language) => {
-    if (!('speechSynthesis' in window)) return;
-    try {
+  const speakText = (text) => {
+    if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const clean = text
-        .replace(/[*#•_`~]/g, '')
-        .replace(/https?:\/\/\S+/g, '')
-        .replace(/₹\s*(\d+)/g, '$1 rupees ');
-
-      const utterance = new SpeechSynthesisUtterance(clean);
-      const langCode = targetLang === 'hi' || targetLang === 'HINDI' ? 'hi-IN' : (targetLang === 'te' || targetLang === 'TELUGU' ? 'te-IN' : 'en-IN');
-      utterance.lang = langCode;
-
-      // Select matching voice
-      const voices = window.speechSynthesis.getVoices();
-      const matched = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(langCode.substring(0, 2).toLowerCase()));
-      if (matched) utterance.voice = matched;
-
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
+      const cleanText = text.replace(/\*\*/g, '').replace(/•/g, '');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
+      utterance.rate = 1.0;
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
-
       window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.warn("TTS speak warning:", e);
-      setIsSpeaking(false);
     }
   };
 
   const stopSpeaking = () => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      setIsSpeaking(false);
     }
-    setIsSpeaking(false);
   };
-
-  // Preload browser speech voices
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-    }
-  }, []);
-
-  // Web Speech API STT setup with graceful fallback
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true; // Show live transcription as user speaks!
-      recognition.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
-
-      recognition.onresult = (event) => {
-        let interim = '';
-        let final = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
-        }
-
-        if (interim) {
-          setInterimTranscript(interim);
-        }
-
-        if (final) {
-          setInterimTranscript('');
-          setInputText(final);
-          setIsListening(false);
-          setSpeechError(null);
-          setSpeechHelper(null);
-
-          if (mode === 'interview') {
-            handleStepResponse(final);
-          } else {
-            handleSend(final);
-          }
-        }
-      };
-
-      recognition.onerror = (event) => {
-        console.warn("STT warning:", event.error);
-        setIsListening(false);
-        setInterimTranscript('');
-
-        if (event.error === 'no-speech') {
-          // Graceful prompt - not a failure!
-          setSpeechHelper("Didn't catch audio. Tap the mic when ready to speak, or tap any option below.");
-          setSpeechError(null);
-        } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          setSpeechError("Microphone access is blocked. Click the lock/camera icon in your address bar to allow mic access.");
-          setSpeechHelper(null);
-        } else if (event.error === 'audio-capture') {
-          setSpeechError("No microphone found. Please connect a mic or type/tap below.");
-          setSpeechHelper(null);
-        } else {
-          setSpeechHelper("Tap the mic to try speaking again, or type below.");
-          setSpeechError(null);
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        setInterimTranscript('');
-      };
-
-      recognitionRef.current = recognition;
-    }
-  }, [language, mode, currentStep, stepData]);
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      setSpeechError("Speech recognition is not supported in this browser. Please use Chrome or Edge.");
+      alert("Microphone speech recognition is not supported in this browser. Please type your message.");
       return;
     }
+
     if (isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
-      setInterimTranscript('');
     } else {
-      stopSpeaking();
-      setSpeechError(null);
-      setSpeechHelper("Listening... speak naturally now");
       try {
+        setSpeechError(null);
+        recognitionRef.current.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
         recognitionRef.current.start();
         setIsListening(true);
       } catch (err) {
-        console.warn("Mic start retry:", err);
-        setIsListening(false);
+        console.error("Error starting speech recognition:", err);
       }
     }
   };
 
-  // Speak initial question on user's first interaction or step change
-  const triggerStepQuestion = (stepIdx, currentValues = stepData) => {
-    const s = STEPS_CONFIG[stepIdx];
-    if (!s) return;
-    const qText = language === 'hi' ? s.questionHi : (language === 'te' ? s.questionTe : s.questionEn);
-    
-    let intro = "";
-    if (stepIdx === 1) {
-      intro = language === 'hi' ? `बहुत बढ़िया ${currentValues.name || ''} जी! 👍` : (language === 'te' ? `చాలా బాగుంది ${currentValues.name || ''} గారు! 👍` : `Great ${currentValues.name || ''}! 👍`);
-    } else if (stepIdx === 2) {
-      const capFmt = currentValues.capital ? `₹${Number(currentValues.capital).toLocaleString('en-IN')}` : '';
-      intro = language === 'hi' ? `धन्यवाद, आपका बजट ${capFmt} दर्ज हो गया। 👍` : (language === 'te' ? `ధన్యవాదాలు, మీ బడ్జెట్ ${capFmt} నమోదైంది. 👍` : `Thank you, budget of ${capFmt} recorded. 👍`);
-    } else if (stepIdx === 3) {
-      intro = language === 'hi' ? "संसाधन व जमीन विवरण दर्ज हो गए। 🌾" : (language === 'te' ? "వనరుల వివరాలు నమోదయ్యాయి. 🌾" : "Site resources recorded. 🌾");
-    }
+  // Synchronize dossier if profile updates
+  useEffect(() => {
+    setDossier(prev => ({
+      ...prev,
+      name: profile?.name || prev.name,
+      location: `${profile?.village_name || 'Village'}, ${profile?.district || 'District'}`,
+      capital: profile?.available_capital || prev.capital,
+      land: `${profile?.land_acres || 2} Acres`,
+      experience: (profile?.skills || ['Agriculture']).join(', ')
+    }));
+  }, [profile]);
 
-    const fullMessage = intro ? `${intro}\n\n${qText}` : qText;
-    const aiMsg = {
-      sender: 'ai',
-      text: fullMessage,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      stepIndex: stepIdx
+  // Trigger full dynamic business analysis and creation
+  const handleConfirmAndAnalyze = (intentData) => {
+    setIsLoading(true);
+    const targetIntent = intentData || pendingBusinessIdea || {
+      businessIdea: dossier.businessIdea || "Rural Micro-Enterprise",
+      location: { village: profile?.village_name || "Village", district: profile?.district || "District", state: profile?.state || "State" },
+      capital: typeof dossier.capital === 'number' ? dossier.capital : parseInt(dossier.capital) || 300000,
+      scale: dossier.scale,
+      rawQuery: inputText
     };
 
-    setMessages(prev => [...prev, aiMsg]);
+    // Update live dossier
+    setDossier(prev => ({
+      ...prev,
+      businessIdea: targetIntent.businessIdea,
+      capital: targetIntent.capital || prev.capital
+    }));
+
+    // Create new personal business plan
+    const newPlan = createPlanFromIntent(targetIntent);
+
+    const successMsg = {
+      sender: 'ai',
+      text: language === 'hi'
+        ? `🎉 आपकी **${newPlan.businessName}** व्यावसायिक योजना तैयार है! उपयुक्तता स्कोर: ${newPlan.suitabilityScore}/100। नीचे बटन पर क्लिक करके अपना संपूर्ण विश्लेषण देखें।`
+        : (language === 'te'
+          ? `🎉 మీ **${newPlan.businessName}** వ్యాపార ప్రణాళిక సిద్ధంగా ఉంది! అనుకూలత స్కోరు: ${newPlan.suitabilityScore}/100. నివేదిక చూడటానికి కింద బటన్ నొక్కండి.`
+          : `🎉 Your **${newPlan.businessName}** Business Plan is Ready! Suitability Score: ${newPlan.suitabilityScore}/100. Click below to inspect your full analysis.`),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      actionType: 'SHOW_PERSONAL_RECOMMENDATION',
+      planId: newPlan.id
+    };
+
+    setMessages(prev => [...prev, successMsg]);
+    setIsLoading(false);
+
     if (autoVoice) {
-      speakText(fullMessage);
+      speakText(successMsg.text, language);
     }
   };
 
-  // Handle Response in Guided Advisory Mode
-  const handleStepResponse = async (textAnswer, directKey = null, directValue = null) => {
-    const text = (textAnswer || '').trim();
-    if (!text && directValue === null) return;
+  // Update existing plan
+  const handleConfirmUpdatePlan = (existingPlanId, intentData) => {
+    setIsLoading(true);
+    updatePlan(existingPlanId, {
+      capital: intentData.capital,
+      businessIdea: intentData.businessIdea
+    });
+    setActivePlanId(existingPlanId);
 
-    // Record user message
-    const userDisplay = directValue !== null && typeof directValue === 'object' && directValue.label 
-      ? directValue.label 
-      : (directValue !== null ? String(directValue) : text);
+    const updatedMsg = {
+      sender: 'ai',
+      text: `Your ${intentData.businessIdea} plan has been updated and recalculated!`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      actionType: 'SHOW_PERSONAL_RECOMMENDATION',
+      planId: existingPlanId
+    };
 
-    const userMsg = {
+    setMessages(prev => [...prev, updatedMsg]);
+    setIsLoading(false);
+
+    if (autoVoice) {
+      speakText(updatedMsg.text, language);
+    }
+  };
+
+  const handleSend = async (customText = null) => {
+    const messageToSend = customText || inputText;
+    if (!messageToSend || !messageToSend.trim()) return;
+
+    const userMessage = {
       sender: 'user',
-      text: userDisplay,
+      text: messageToSend,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-    setMessages(prev => [...prev, userMsg]);
+
+    setMessages((prev) => [...prev, userMessage]);
     setInputText('');
-    setInterimTranscript('');
-    setSpeechHelper(null);
-
-    // Process and update stepData
-    const updated = { ...stepData };
-
-    if (currentStep === 0) {
-      // Step 0: Name & Location
-      if (directKey === 'preset') {
-        updated.name = directValue.name;
-        updated.village = directValue.village;
-        updated.district = directValue.district;
-        updated.state = directValue.state;
-      } else {
-        // Parse from text
-        const nameMatch = text.match(/(?:naam|name|hoon|am)\s+([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+(?:\s+[a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+)?)/i);
-        if (nameMatch) updated.name = nameMatch[1];
-        else if (!updated.name) updated.name = text.split(' ')[0] || 'Entrepreneur';
-
-        const locMatch = text.match(/([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]{3,})\s*(?:village|gaon|se|from|district)/i);
-        if (locMatch) updated.village = locMatch[1];
-        else if (!updated.village) updated.village = 'Pimpalgaon Baswant';
-      }
-      setStepData(updated);
-      syncProfileToParent(updated);
-      setCurrentStep(1);
-      triggerStepQuestion(1, updated);
-
-    } else if (currentStep === 1) {
-      // Step 1: Capital
-      let cap = directValue;
-      if (!cap) {
-        const lakhMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:lakh|lac|लाख|లక్ష)/i);
-        if (lakhMatch) cap = parseFloat(lakhMatch[1]) * 100000;
-        else {
-          const num = text.replace(/[^0-9]/g, '');
-          if (num && parseInt(num) >= 1000) cap = parseFloat(num);
-          else cap = 200000;
-        }
-      }
-      updated.capital = cap;
-      setStepData(updated);
-      syncProfileToParent(updated);
-      setCurrentStep(2);
-      triggerStepQuestion(2, updated);
-
-    } else if (currentStep === 2) {
-      // Step 2: Land & Facilities
-      if (directKey === 'land') {
-        updated.land_acres = directValue;
-      } else {
-        const acreMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:acre|acres|एकड़|ఎకరాలు)/i);
-        if (acreMatch) updated.land_acres = parseFloat(acreMatch[1]);
-        else if (text.toLowerCase().includes('zero') || text.toLowerCase().includes('nahi') || text.toLowerCase().includes('landless')) {
-          updated.land_acres = 0;
-        } else if (updated.land_acres === null) {
-          updated.land_acres = 1.0;
-        }
-      }
-      setStepData(updated);
-      syncProfileToParent(updated);
-      setCurrentStep(3);
-      triggerStepQuestion(3, updated);
-
-    } else if (currentStep === 3) {
-      // Step 3: Social Category -> Generate Full Blueprint!
-      let cat = directValue;
-      if (!cat) {
-        if (text.toLowerCase().includes('obc') || text.includes('ओबीसी')) cat = 'OBC';
-        else if (text.toLowerCase().includes('sc') || text.includes('अनुसूचित')) cat = 'SC';
-        else if (text.toLowerCase().includes('st')) cat = 'ST';
-        else cat = 'GENERAL';
-      }
-      updated.social_category = cat;
-      setStepData(updated);
-      syncProfileToParent(updated);
-      setCurrentStep(4);
-      generateFinalBlueprint(updated);
-    }
-  };
-
-  // Sync profile updates to parent and dashboard state
-  const syncProfileToParent = (data) => {
-    if (!onProfileUpdate) return;
-    const mapped = {
-      ...profile,
-      name: data.name || profile?.name || 'Entrepreneur',
-      available_capital: data.capital || profile?.available_capital || 200000,
-      land_acres: data.land_acres ?? profile?.land_acres ?? 1.0,
-      social_category: data.social_category || profile?.social_category || 'OBC',
-      has_water_source: data.has_water ?? true,
-      has_electricity: data.has_electricity ?? true,
-      has_shop_building: data.has_shop ?? false,
-      has_vehicle: data.has_vehicle ?? false,
-      village_name: data.village || profile?.village_name || 'Pimpalgaon Baswant',
-      district: data.district || profile?.district || 'Nashik',
-      state: data.state || profile?.state || 'Maharashtra'
-    };
-    onProfileUpdate(mapped);
-  };
-
-  // Generate Final Blueprint via AI Service
-  const generateFinalBlueprint = async (completedData) => {
     setIsLoading(true);
-    try {
-      const response = await axios.post('/api/chat', {
-        message: language === 'hi' 
-          ? `मेरा नाम ${completedData.name} है, गाँव ${completedData.village}, पूँजी ₹${completedData.capital}, जमीन ${completedData.land_acres} एकड़, श्रेणी ${completedData.social_category}। मुझे सबसे उपयुक्त व्यवसाय और ऋण योजना बताएं।`
-          : `I am ${completedData.name} from ${completedData.village}, capital ₹${completedData.capital}, land ${completedData.land_acres} acres, category ${completedData.social_category}. Generate complete business blueprint.`,
-        profile: {
-          name: completedData.name,
-          available_capital: completedData.capital,
-          land_acres: completedData.land_acres,
-          social_category: completedData.social_category,
-          has_water_source: completedData.has_water,
-          has_electricity: completedData.has_electricity,
-          village_name: completedData.village
-        }
-      });
 
-      const reply = response.data?.reply || "Here is your verified business advisory blueprint.";
-      const recScore = response.data?.recommendation_score || 87;
-      const confScore = response.data?.confidence_score || 88;
-      const finSummary = response.data?.financial_summary;
-      const compTable = response.data?.comparison_table;
+    // Extract business intent from Voice/Text input
+    const extractedIntent = extractBusinessIntent(messageToSend, profile);
 
-      setFinalBlueprint({
-        reply,
-        recScore,
-        confScore,
-        finSummary,
-        compTable
-      });
+    // Check if prompt expresses clear business creation intent
+    const hasIntent = messageToSend.toLowerCase().includes('want') || 
+                      messageToSend.toLowerCase().includes('start') || 
+                      messageToSend.toLowerCase().includes('open') || 
+                      messageToSend.toLowerCase().includes('business') || 
+                      messageToSend.toLowerCase().includes('farm') || 
+                      messageToSend.toLowerCase().includes('poultry') || 
+                      messageToSend.toLowerCase().includes('dairy') ||
+                      messageToSend.toLowerCase().includes('mushroom') ||
+                      messageToSend.toLowerCase().includes('processing') ||
+                      messageToSend.toLowerCase().includes('chahata') ||
+                      messageToSend.toLowerCase().includes('shuru') ||
+                      messageToSend.toLowerCase().includes('karna');
 
-      const aiMsg = {
+    if (hasIntent && extractedIntent.businessIdea && extractedIntent.businessIdea !== 'Rural Micro-Enterprise') {
+      setPendingBusinessIdea(extractedIntent);
+
+      // Check if user already has an active plan of similar type
+      const existingPlan = personalPlans.find(p => 
+        p.businessName.toLowerCase().includes(extractedIntent.businessIdea.toLowerCase()) ||
+        extractedIntent.businessIdea.toLowerCase().includes(p.businessName.toLowerCase())
+      );
+
+      if (existingPlan) {
+        setIsLoading(false);
+        const dupMessage = {
+          sender: 'ai',
+          text: language === 'hi'
+            ? `आपकी प्रोफ़ाइल में पहले से ही **${existingPlan.businessName}** की योजना सुरक्षित है। क्या आप इसे नए विवरणों के साथ अपडेट करना चाहते हैं या नई अलग योजना बनाना चाहते हैं?`
+            : (language === 'te'
+              ? `మీ వద్ద ఇప్పటికే **${existingPlan.businessName}** ప్రణాళిక భద్రపరచబడి ఉంది. దాన్ని నవీకరించాలా లేదా కొత్త ప్రణాళికను సృష్టించాలా?`
+              : `You already have a **${existingPlan.businessName}** plan. Would you like to update it or create a new separate plan?`),
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          actionType: 'UPDATE_OR_CREATE_PLAN',
+          existingPlanId: existingPlan.id,
+          existingPlanName: existingPlan.businessName,
+          intentData: extractedIntent
+        };
+        setMessages(prev => [...prev, dupMessage]);
+        if (autoVoice) speakText(dupMessage.text, language);
+        return;
+      }
+
+      // Show confirmation prompt before running business analysis
+      setIsLoading(false);
+      const confirmMessage = {
         sender: 'ai',
-        text: reply,
+        text: language === 'hi'
+          ? `मैंने आपके विचार से यह विवरण समझा:\n• व्यवसाय: **${extractedIntent.businessIdea}**\n• स्थान: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• उपलब्ध पूँजी: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nक्या मैं इस व्यावसायिक अवसर का विश्लेषण करूँ?`
+          : (language === 'te'
+            ? `మీ ఆలోచన నుండి నేను గ్రహించిన వివరాలు:\n• వ్యాపారం: **${extractedIntent.businessIdea}**\n• ప్రాంతం: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• అందుబాటులో ఉన్న పెట్టుబడి: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nనేను ఈ అవకాశాన్ని విశ్లేషించమంటారా?`
+            : `Here's what I understood about your business idea:\n• Business: **${extractedIntent.businessIdea}**\n• Location: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• Available Capital: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nShould I analyze this business opportunity now?`),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        recScore,
-        confScore,
-        financialSummary: finSummary,
-        actionType: 'SHOW_RECOMMENDATIONS',
-        stepIndex: 4
+        actionType: 'CONFIRM_BUSINESS_PLAN',
+        intentData: extractedIntent
+      };
+      setMessages(prev => [...prev, confirmMessage]);
+      if (autoVoice) speakText(confirmMessage.text, language);
+      return;
+    }
+
+    try {
+      const res = await axios.post('/api/chat', {
+        message: messageToSend,
+        profile: profile,
+        language: language
+      });
+
+      const responseText = res.data?.response || res.data?.reply || "I have recorded your request. Let me assist you further.";
+      const aiMessage = {
+        sender: 'ai',
+        text: responseText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        recScore: res.data?.suitability_score,
+        confScore: res.data?.confidence_score,
+        actionType: res.data?.action_type
       };
 
-      setMessages(prev => [...prev, aiMsg]);
+      setMessages((prev) => [...prev, aiMessage]);
 
       if (autoVoice) {
-        speakText(reply);
+        speakText(responseText, language);
+      }
+
+      if (res.data?.updated_profile && onProfileUpdate) {
+        onProfileUpdate(res.data.updated_profile);
       }
     } catch (err) {
-      console.warn("Blueprint generation fallback:", err);
-      const fallbackReply = `Congratulations ${completedData.name}! Based on your ₹${(completedData.capital || 200000).toLocaleString('en-IN')} investment and ${completedData.land_acres || 1} acre land:\n\n🌟 Top Recommended Business: Mini Flour, Spice & Oil Processing Mill\n• Suitability Score: 87/100 | Data Confidence: 88/100\n• Concessional Scheme: NBCFDC/PMEGP 90% Term Loan\n• Monthly Reducing EMI: ~₹4,675 | Operating Profit: ~₹28,500/month\n• Safe DSCR Ratio: 2.8x\n\nYour profile has been saved. You can now view your Hyper-Local Map or download your Project Dossier!`;
-      
-      const aiMsg = {
-        sender: 'ai',
-        text: fallbackReply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        recScore: 87,
-        confScore: 88,
-        stepIndex: 4
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      if (autoVoice) speakText(fallbackReply);
+      console.error("Chat API error:", err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'ai',
+          text: language === 'hi'
+            ? "क्षमा करें, नेटवर्क समस्या के कारण उत्तर प्राप्त नहीं हो सका। कृपया पुनः प्रयास करें।"
+            : (language === 'te'
+              ? "క్షమించండి, నెట్‌వర్క్ సమస్య ఉంది. దయచేసి మళ్లీ ప్రయత్నించండి."
+              : "Apologies, I encountered a temporary connection notice. Please ask again or select an option below."),
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Auto-Detect Live GPS
+  const handleStepResponse = (userInput, specialType = null, extraVal = null) => {
+    handleSend(userInput);
+  };
+
   const handleAutoGPS = async () => {
     setIsLocating(true);
-    setSpeechHelper("Detecting your live GPS location...");
     try {
-      const geo = await detectAccurateLocation();
-      if (geo && geo.success) {
-        const v = geo.village_name || 'Local Area';
-        const d = geo.district || 'District';
-        const s = geo.state || 'State';
+      const loc = await detectAccurateLocation();
+      if (loc && onProfileUpdate) {
         const updated = {
-          ...stepData,
-          village: v,
-          district: d,
-          state: s
+          ...profile,
+          district: loc.district || profile.district,
+          state: loc.state || profile.state,
+          latitude: loc.latitude || profile.latitude,
+          longitude: loc.longitude || profile.longitude
         };
-        setStepData(updated);
-        syncProfileToParent(updated);
-        setSpeechHelper(`Location detected: ${v}, ${d} (${s})`);
-        
-        handleStepResponse(`My location is ${v}, ${d} (${s})`);
-      } else {
-        setSpeechHelper("Couldn't retrieve GPS. Please choose a preset below.");
+        onProfileUpdate(updated);
+        handleSend(`Location updated via GPS: ${loc.district}, ${loc.state}`);
       }
-    } catch (err) {
-      console.warn("GPS detection warning:", err);
-      setSpeechHelper("GPS detection error. Please choose a preset below.");
+    } catch (e) {
+      console.warn("GPS notice:", e);
     } finally {
       setIsLocating(false);
-    }
-  };
-
-  // Free Chat Handle Send
-  const handleSend = async (textToSend = inputText) => {
-    const text = textToSend.trim();
-    if (!text || isLoading) return;
-
-    const userMsg = {
-      sender: 'user',
-      text: text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setMessages(prev => [...prev, userMsg]);
-    setInputText('');
-    setIsLoading(true);
-    setSpeechError(null);
-    setSpeechHelper(null);
-
-    try {
-      const response = await axios.post('/api/chat', {
-        message: text,
-        profile: profile || stepData,
-        lang: language || 'en'
-      });
-
-      const replyText = response.data?.reply || "I am analyzing your query with rural micro-enterprise models.";
-      const actionType = response.data?.action_type;
-      const comparisonTable = response.data?.comparison_table;
-      const recScore = response.data?.recommendation_score;
-      const confScore = response.data?.confidence_score;
-      const detectedLang = response.data?.detected_language || language;
-
-      const aiMsg = {
-        sender: 'ai',
-        text: replyText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        actionType,
-        comparisonTable,
-        recScore,
-        confScore,
-        detectedLang,
-        financialSummary: response.data?.financial_summary
-      };
-
-      setMessages(prev => [...prev, aiMsg]);
-
-      if (autoVoice) {
-        speakText(replyText, detectedLang);
-      }
-
-      if (response.data?.updated_profile && onProfileUpdate) {
-        onProfileUpdate(response.data.updated_profile);
-      }
-    } catch (err) {
-      console.warn("Chat error:", err);
-      const fallback = "I am UdyamSarthi. Please share your capital, land, and location so I can calculate your project feasibility.";
-      setMessages(prev => [...prev, { sender: 'ai', text: fallback, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -613,41 +406,21 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h2 className="text-lg font-extrabold text-stone-900">UdyamSarthi AI</h2>
+              <h2 className="text-lg font-extrabold text-stone-900">
+                {t.saarthiTitle || "Saarthi AI"}
+              </h2>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#0F3D2E]">
-                Active Voice Advisory
+                {t.saarthiStatus || "Online Companion"}
               </span>
             </div>
-            <p className="text-xs text-stone-500 font-medium">Trilingual Rural Business Advisor (HI / TE / EN)</p>
+            <p className="text-xs text-stone-500 font-medium">
+              {t.saarthiSubtitle || "Your 24/7 Rural Business Companion"}
+            </p>
           </div>
         </div>
 
         {/* Mode Switch & Auto-Voice Toggle */}
         <div className="flex items-center space-x-2">
-          {/* Mode Switch Tabs */}
-          <div className="bg-stone-100 p-1 rounded-xl flex items-center text-xs font-bold">
-            <button
-              onClick={() => setMode('interview')}
-              className={`px-3 py-1 rounded-lg transition ${
-                mode === 'interview'
-                  ? 'bg-[#0F3D2E] text-amber-300 shadow-xs'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              🎙️ Guided Steps
-            </button>
-            <button
-              onClick={() => setMode('chat')}
-              className={`px-3 py-1 rounded-lg transition ${
-                mode === 'chat'
-                  ? 'bg-[#0F3D2E] text-amber-300 shadow-xs'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              💬 Free Chat
-            </button>
-          </div>
-
           {/* Voice Toggle */}
           <button
             onClick={() => {
@@ -667,258 +440,314 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         </div>
       </div>
 
-      {/* 2. Step Progress Bar when in Guided Mode */}
-      {mode === 'interview' && (
-        <div className="my-4 bg-[#FAF8F5] p-3.5 rounded-2xl border border-stone-200/80">
-          <div className="flex items-center justify-between text-xs font-extrabold text-stone-700 mb-1.5">
-            <span className="flex items-center space-x-1.5 text-[#0F3D2E]">
-              <Sparkles className="w-4 h-4 text-[#C28A17]" />
-              <span>Step {Math.min(currentStep + 1, 5)} of 5: {STEPS_CONFIG[currentStep]?.titleEn || 'Completed'}</span>
-            </span>
-            <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 text-[11px]">
-              {Math.min((currentStep + 1) * 20, 100)}% Complete
-            </span>
-          </div>
-          <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-[#0F3D2E] to-emerald-600 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${Math.min((currentStep + 1) * 20, 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* 3. Conversation & Message Window */}
-      <div className="bg-[#FAF8F5] rounded-2xl p-4 min-h-[220px] max-h-[320px] overflow-y-auto space-y-3 border border-stone-200/60 mb-4 custom-scrollbar">
-        {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
-          >
-            <div className={`
-              max-w-[88%] sm:max-w-[80%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-xs
-              ${msg.sender === 'user' 
-                ? 'bg-[#0F3D2E] text-white rounded-tr-xs' 
-                : 'bg-white text-stone-800 border border-stone-200/80 rounded-tl-xs'
-              }
-            `}>
-              <div className="flex items-center space-x-1.5 mb-1 opacity-80 text-[10px] font-semibold">
-                {msg.sender === 'user' ? (
-                  <>
-                    <span>You</span>
-                    <User className="w-3 h-3 text-amber-300" />
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3 h-3 text-[#C28A17]" />
-                    <span className="text-[#0F3D2E] font-bold">UdyamSarthi</span>
-                  </>
-                )}
-                <span className="ml-auto">{msg.timestamp}</span>
+      {/* 2. Main Grid: Left Chat Area & Right Live Business Plan Dossier Widget */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 my-4">
+        
+        {/* Left Column: Chat Window & Controls */}
+        <div className="lg:col-span-2 space-y-4 flex flex-col justify-between">
+          
+          {/* Quick Choice Buttons for Initial Greeting */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button
+              onClick={() => handleSend("I have a business idea in mind")}
+              className="p-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-200 text-left transition flex items-center space-x-2 shadow-2xs group"
+            >
+              <div className="p-1.5 rounded-lg bg-amber-400/20 text-[#C28A17] group-hover:scale-110 transition">
+                <Lightbulb className="w-4 h-4" />
               </div>
-              
-              <p className="whitespace-pre-line font-medium text-xs sm:text-sm">{msg.text}</p>
+              <span className="text-xs font-bold leading-tight">💡 I Have an Idea</span>
+            </button>
 
-              {/* Side-by-Side Comparison Table if present */}
-              {msg.comparisonTable && msg.comparisonTable.length > 0 && (
-                <div className="bg-stone-50 rounded-xl p-2.5 border border-stone-200 mt-2 space-y-1.5">
-                  <div className="text-[11px] font-extrabold text-[#0F3D2E] flex items-center space-x-1">
-                    <Scale className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Side-by-Side Comparison</span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-[10px] text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-stone-200 text-stone-600 font-bold">
-                          <th className="p-1">Factor</th>
-                          <th className="p-1 text-[#0F3D2E]">Option 1</th>
-                          <th className="p-1 text-blue-800">Option 2</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {msg.comparisonTable.map((row, rIdx) => (
-                          <tr key={rIdx} className="border-b border-stone-100">
-                            <td className="p-1 font-semibold text-stone-600">{row.factor}</td>
-                            <td className="p-1 font-medium text-[#0F3D2E]">{row.option_1}</td>
-                            <td className="p-1 font-medium text-blue-900">{row.option_2}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+            <button
+              onClick={() => handleSend("Suggest best business ideas for my location")}
+              className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-stone-800 border border-emerald-200 text-left transition flex items-center space-x-2 shadow-2xs group"
+            >
+              <div className="p-1.5 rounded-lg bg-emerald-700/10 text-[#0F3D2E] group-hover:scale-110 transition">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold leading-tight">✨ Suggest Ideas</span>
+            </button>
 
-              {/* Dual Scores Badges */}
-              {msg.recScore && (
-                <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-[10px]">
-                  <span className="px-2 py-0.5 rounded-md font-bold bg-emerald-100 text-[#0F3D2E] border border-emerald-200">
-                    Suitability: {msg.recScore}/100
-                  </span>
-                  {msg.confScore && (
-                    <span className="px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                      Data Confidence: {msg.confScore}/100
-                    </span>
+            <button
+              onClick={() => toggleListening()}
+              className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-stone-800 border border-rose-200 text-left transition flex items-center space-x-2 shadow-2xs group"
+            >
+              <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-700 group-hover:scale-110 transition">
+                <Mic className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold leading-tight">🎙 Voice Input</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const el = document.getElementById('saarthi-text-input');
+                if (el) el.focus();
+              }}
+              className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-stone-800 border border-blue-200 text-left transition flex items-center space-x-2 shadow-2xs group"
+            >
+              <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-700 group-hover:scale-110 transition">
+                <Keyboard className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold leading-tight">⌨ Type My Idea</span>
+            </button>
+          </div>
+
+          {/* Chat Message Window */}
+          <div className="bg-[#FAF8F5] rounded-2xl p-4 min-h-[240px] max-h-[340px] overflow-y-auto space-y-3 border border-stone-200/60 custom-scrollbar">
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
+              >
+                <div className={`
+                  max-w-[88%] sm:max-w-[82%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-xs
+                  ${msg.sender === 'user' 
+                    ? 'bg-[#0F3D2E] text-white rounded-tr-xs' 
+                    : 'bg-white text-stone-800 border border-stone-200/80 rounded-tl-xs'
+                  }
+                `}>
+                  <div className="flex items-center space-x-1.5 mb-1 opacity-80 text-[10px] font-semibold">
+                    {msg.sender === 'user' ? (
+                      <>
+                        <span>You</span>
+                        <User className="w-3 h-3 text-amber-300" />
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-[#C28A17]" />
+                        <span className="text-[#0F3D2E] font-bold">UdyamSaarthi</span>
+                      </>
+                    )}
+                    <span className="ml-auto">{msg.timestamp}</span>
+                  </div>
+                  
+                  <p className="whitespace-pre-line font-medium text-xs sm:text-sm">{msg.text}</p>
+
+                  {/* Action Buttons if available */}
+                  {msg.actionType === 'CONFIRM_BUSINESS_PLAN' && msg.intentData && (
+                    <div className="mt-3 p-3 bg-amber-50/90 border border-amber-300 rounded-xl space-y-2 text-stone-800 shadow-2xs">
+                      <div className="font-bold text-[#0F3D2E] text-xs">
+                        {t.confirmPlanTitle || "Here's what I understood about your business idea:"}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-[11px] bg-white p-2.5 rounded-lg border border-amber-200">
+                        <div><span className="text-stone-500">Business:</span> <strong className="text-stone-900">{msg.intentData.businessIdea}</strong></div>
+                        <div><span className="text-stone-500">Location:</span> <strong className="text-stone-900">{msg.intentData.location.village}, {msg.intentData.location.district}</strong></div>
+                        <div><span className="text-stone-500">Capital:</span> <strong className="text-emerald-700">₹{(msg.intentData.capital || 300000).toLocaleString('en-IN')}</strong></div>
+                        <div><span className="text-stone-500">Scale:</span> <strong className="capitalize text-stone-900">{msg.intentData.scale || 'Small'}</strong></div>
+                      </div>
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => handleConfirmAndAnalyze(msg.intentData)}
+                          className="bg-[#0F3D2E] text-amber-300 font-bold px-3.5 py-1.5 rounded-lg text-xs hover:brightness-110 shadow-xs flex items-center space-x-1"
+                        >
+                          <span>🚀 {t.analyzeMyBusiness || "Analyze My Business"}</span>
+                        </button>
+                        <button
+                          onClick={() => handleSend("Let me edit the details")}
+                          className="bg-stone-200 text-stone-700 font-semibold px-2.5 py-1.5 rounded-lg text-xs hover:bg-stone-300"
+                        >
+                          {t.editDetails || "Edit Details"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {msg.actionType === 'UPDATE_OR_CREATE_PLAN' && (
+                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-300 rounded-xl space-y-2 shadow-2xs">
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          onClick={() => handleConfirmUpdatePlan(msg.existingPlanId, msg.intentData)}
+                          className="bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-emerald-900"
+                        >
+                          {t.updateExistingPlan || "Update Existing Plan"}
+                        </button>
+                        <button
+                          onClick={() => handleConfirmAndAnalyze(msg.intentData)}
+                          className="bg-[#0F3D2E] text-amber-300 font-bold px-3 py-1.5 rounded-lg text-xs hover:brightness-110"
+                        >
+                          {t.createNewPlan || "Create New Plan"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(msg.actionType === 'SHOW_RECOMMENDATIONS' || msg.actionType === 'SHOW_PERSONAL_RECOMMENDATION') && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 pt-2 border-t border-stone-100">
+                      <button
+                        onClick={() => {
+                          if (msg.planId) setActivePlanId(msg.planId);
+                          setActiveTab('recommendations');
+                        }}
+                        className="bg-[#0F3D2E] text-amber-300 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center space-x-1 hover:brightness-110 shadow-sm sm:col-span-2"
+                      >
+                        <span>✨ {t.viewFullAnalysis || "View Business Analysis →"}</span>
+                        <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('market')}
+                        className="bg-emerald-800 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center space-x-1 hover:brightness-110 shadow-sm"
+                      >
+                        <span>📍 Market Map</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Replay Voice Audio Button */}
+                  {msg.sender === 'ai' && (
+                    <div className="flex items-center justify-between pt-1">
+                      {isSpeaking ? (
+                        <button
+                          onClick={stopSpeaking}
+                          className="flex items-center space-x-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md text-[10px] font-bold"
+                        >
+                          <VolumeX className="w-3 h-3 text-amber-600 animate-pulse" />
+                          <span>Speaking... Tap to Stop</span>
+                        </button>
+                      ) : <span />}
+
+                      <button
+                        onClick={() => speakText(msg.text, language)}
+                        className="flex items-center space-x-1 text-stone-400 hover:text-[#0F3D2E] text-[10px] font-semibold transition"
+                        title="Replay Voice Audio"
+                      >
+                        <Volume2 className="w-3 h-3" />
+                        <span>Replay Voice</span>
+                      </button>
+                    </div>
                   )}
                 </div>
-              )}
+              </div>
+            ))}
 
-              {/* Action Buttons */}
-              {msg.actionType === 'SHOW_RECOMMENDATIONS' && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 pt-2 border-t border-stone-100">
-                  <button
-                    onClick={() => setActiveTab('recommendations')}
-                    className="bg-[#0F3D2E] text-amber-300 font-bold py-1.5 px-2 rounded-xl text-[10px] flex items-center justify-center space-x-1 hover:brightness-110 shadow-xs"
-                  >
-                    <span>📈 View Full Blueprint</span>
-                    <ArrowRight className="w-3 h-3 ml-0.5" />
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('market')}
-                    className="bg-emerald-800 text-white font-bold py-1.5 px-2 rounded-xl text-[10px] flex items-center justify-center space-x-1 hover:brightness-110 shadow-xs"
-                  >
-                    <span>📍 Open 10km Map</span>
-                    <ArrowRight className="w-3 h-3 ml-0.5" />
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('finance')}
-                    className="bg-purple-800 text-white font-bold py-1.5 px-2 rounded-xl text-[10px] flex items-center justify-center space-x-1 hover:brightness-110 shadow-xs"
-                  >
-                    <span>🏛️ Concessional Schemes</span>
-                    <ArrowRight className="w-3 h-3 ml-0.5" />
-                  </button>
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-xs p-3.5 flex items-center space-x-2 text-xs text-stone-500 font-medium">
+                  <Loader2 className="w-4 h-4 text-[#0F3D2E] animate-spin" />
+                  <span>Saarthi is analyzing your business context...</span>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Replay Voice Audio Button */}
-              {msg.sender === 'ai' && (
-                <div className="flex items-center justify-between pt-1">
-                  {isSpeaking ? (
-                    <button
-                      onClick={stopSpeaking}
-                      className="flex items-center space-x-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md text-[10px] font-bold"
-                    >
-                      <VolumeX className="w-3 h-3 text-amber-600 animate-pulse" />
-                      <span>Speaking... Tap to Stop</span>
-                    </button>
-                  ) : <span />}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
 
-                  <button
-                    onClick={() => speakText(msg.text, msg.detectedLang)}
-                    className="flex items-center space-x-1 text-stone-400 hover:text-[#0F3D2E] text-[10px] font-semibold transition"
-                    title="Replay Voice Audio"
-                  >
-                    <Volume2 className="w-3 h-3" />
-                    <span>Replay Voice</span>
-                  </button>
+        {/* Right Column: Live Business Plan Dossier Widget */}
+        <div className="bg-gradient-to-br from-[#0F3D2E]/5 to-emerald-50/60 rounded-2xl p-4 border border-emerald-900/15 flex flex-col justify-between space-y-3">
+          <div>
+            <div className="flex items-center justify-between pb-2 border-b border-emerald-900/10 mb-3">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-[#0F3D2E]" />
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0F3D2E]">
+                  LIVE BUSINESS PLAN DOSSIER
+                </h3>
+              </div>
+              <span className="bg-emerald-100 text-[#0F3D2E] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                Auto-Updating
+              </span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {/* Field 1: Entrepreneur */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">1. Entrepreneur</span>
+                  <span className="font-bold text-stone-900">{dossier.name}</span>
                 </div>
-              )}
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> Captured
+                </span>
+              </div>
+
+              {/* Field 2: Business Idea */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">2. Business Idea</span>
+                  <span className="font-bold text-stone-900">
+                    {dossier.businessIdea || <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.businessIdea ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
+                )}
+              </div>
+
+              {/* Field 3: Location */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">3. Location</span>
+                  <span className="font-bold text-stone-900">{dossier.location}</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> Profile
+                </span>
+              </div>
+
+              {/* Field 4: Available Capital */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">4. Available Capital</span>
+                  <span className="font-extrabold text-emerald-800">
+                    ₹{(typeof dossier.capital === 'number' ? dossier.capital : parseInt(dossier.capital) || 300000).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> Captured
+                </span>
+              </div>
+
+              {/* Field 5: Land / Workspace */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">5. Land / Workspace</span>
+                  <span className="font-bold text-stone-900">{dossier.land}</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> Captured
+                </span>
+              </div>
+
+              {/* Field 6: Experience & Skills */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">6. Core Skills</span>
+                  <span className="font-bold text-stone-900 capitalize truncate max-w-[120px] block">{dossier.experience}</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> Profile
+                </span>
+              </div>
             </div>
           </div>
-        ))}
 
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-xs p-3.5 flex items-center space-x-2 text-xs text-stone-500 font-medium">
-              <Loader2 className="w-4 h-4 text-[#0F3D2E] animate-spin" />
-              <span>Saarthi is calculating your business blueprint...</span>
-            </div>
+          <div className="pt-2 border-t border-emerald-900/10">
+            <button
+              onClick={() => {
+                if (dossier.businessIdea) {
+                  handleConfirmAndAnalyze();
+                } else {
+                  handleSend("I want to create my personalized business plan");
+                }
+              }}
+              className="w-full bg-[#0F3D2E] hover:bg-[#165440] text-amber-300 font-bold py-2.5 rounded-xl text-xs shadow-sm transition flex items-center justify-center space-x-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>{dossier.businessIdea ? "Analyze Business Plan Now" : "Create Business Plan"}</span>
+            </button>
           </div>
-        )}
+        </div>
 
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* 4. Interactive Quick-Select Option Chips for the Active Step */}
-      {mode === 'interview' && currentStep < 4 && (
-        <div className="mb-4 bg-emerald-50/50 p-3 rounded-2xl border border-emerald-900/10">
-          <p className="text-[11px] font-bold text-stone-700 mb-2 flex items-center space-x-1">
-            <Sparkles className="w-3 h-3 text-[#C28A17]" />
-            <span>Quick Answer Options (Tap or Speak):</span>
-          </p>
 
-          {/* STEP 0: Location Chips & GPS */}
-          {currentStep === 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleAutoGPS}
-                disabled={isLocating}
-                className="px-3 py-1.5 rounded-xl bg-[#0F3D2E] text-amber-300 hover:bg-[#154f3c] text-xs font-bold shadow-xs flex items-center space-x-1 transition"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{isLocating ? 'Detecting GPS...' : '📍 Auto-Detect Live GPS'}</span>
-              </button>
-              {STEPS_CONFIG[0].presets.map((p, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleStepResponse(p.label, 'preset', p)}
-                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-emerald-100 text-stone-700 text-xs font-medium border border-stone-200 shadow-2xs transition"
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          )}
 
-          {/* STEP 1: Capital Chips */}
-          {currentStep === 1 && (
-            <div className="flex flex-wrap gap-2">
-              {STEPS_CONFIG[1].options.map((opt, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleStepResponse(opt.label, 'capital', opt.value)}
-                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#0F3D2E] text-stone-800 hover:text-amber-300 text-xs font-bold border border-stone-200 shadow-2xs transition hover:scale-105"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* STEP 2: Land & Infrastructure */}
-          {currentStep === 2 && (
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                {STEPS_CONFIG[2].landOptions.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleStepResponse(opt.label, 'land', opt.value)}
-                    className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#0F3D2E] text-stone-800 hover:text-amber-300 text-xs font-bold border border-stone-200 shadow-2xs transition"
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2 pt-1 border-t border-emerald-900/10">
-                <span className="text-[10px] font-bold text-stone-500 self-center">Facilities:</span>
-                <span className="px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-[10px] font-bold text-emerald-800 flex items-center space-x-1">
-                  <Droplet className="w-2.5 h-2.5" /> <span>Water / Borewell</span>
-                </span>
-                <span className="px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-[10px] font-bold text-emerald-800 flex items-center space-x-1">
-                  <Zap className="w-2.5 h-2.5" /> <span>3-Phase Power</span>
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: Category Chips */}
-          {currentStep === 3 && (
-            <div className="flex flex-wrap gap-2">
-              {STEPS_CONFIG[3].options.map((opt, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleStepResponse(opt.label, 'category', opt.value)}
-                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#0F3D2E] text-stone-800 hover:text-amber-300 text-xs font-bold border border-stone-200 shadow-2xs transition hover:scale-105"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 5. Main Central Microphone & Speech Interaction Bar */}
+      {/* 4. Main Central Microphone & Speech Interaction Bar */}
       <div className="flex flex-col items-center justify-center my-2 text-center">
         
         {/* Layered Circular Microphone Button */}
@@ -952,7 +781,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         {/* Live Audio Transcription & Guidance */}
         <div className="mt-3 min-h-[38px]">
           <p className="text-xs sm:text-sm font-bold text-stone-800">
-            {isListening ? "Listening... Speak your answer now!" : "Tap to Speak to Saarthi"}
+            {isListening ? (t.listeningState || "Listening... Speak your answer now!") : (t.tapAndSpeak || "Tap and speak to Saarthi")}
           </p>
           
           {/* Live speech interim transcript */}
@@ -964,16 +793,14 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
           {!interimTranscript && (
             <p className="text-[11px] text-stone-500 mt-0.5 font-medium">
-              You can speak in <span className="text-[#0F3D2E] font-semibold">English</span>, <span className="text-[#0F3D2E] font-semibold">हिंदी</span> or <span className="text-[#0F3D2E] font-semibold">తెలుగు</span>
+              {t.speakLanguageHint || "You can speak in English, हिंदी or తెలుగు"}
             </p>
           )}
 
-          {/* Friendly helper / non-blocking notices */}
           {speechHelper && !interimTranscript && (
             <p className="text-xs text-stone-600 mt-1 font-semibold">{speechHelper}</p>
           )}
 
-          {/* Explicit permission errors */}
           {speechError && (
             <p className="text-xs text-rose-600 mt-1 font-semibold bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 inline-block">
               {speechError}
@@ -982,17 +809,13 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         </div>
       </div>
 
-      {/* 6. Alternative Text Input Form */}
+      {/* 5. Alternative Text Input Form */}
       <form 
         onSubmit={(e) => {
           e.preventDefault();
-          if (mode === 'interview') {
-            handleStepResponse(inputText);
-          } else {
-            handleSend();
-          }
+          handleSend();
         }} 
-        className="relative mt-4"
+        className="relative mt-3"
       >
         <div className="flex items-center bg-[#FAF8F5] border border-stone-300 focus-within:border-[#0F3D2E] focus-within:ring-2 focus-within:ring-[#0F3D2E]/10 rounded-2xl px-3.5 py-2 shadow-xs transition">
           <Keyboard className="w-4 h-4 text-stone-400 mr-2 shrink-0" />
@@ -1000,52 +823,45 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder={mode === 'interview' ? "Or type your answer here (e.g. ₹2 lakh, 1 acre)..." : "Ask anything about business, schemes, or EMI..."}
+            placeholder={t.typeMessagePlaceholder || "Or type your message here..."}
             className="w-full bg-transparent text-stone-800 text-xs sm:text-sm focus:outline-none placeholder:text-stone-400 font-medium"
           />
           <button
             type="submit"
             disabled={!inputText.trim() || isLoading}
-            className="ml-2 p-2 rounded-xl bg-[#0F3D2E] text-amber-300 hover:bg-[#165440] disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+            className="ml-2 p-2 rounded-xl bg-[#0F3D2E] text-amber-300 hover:bg-[#165440] disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0 flex items-center space-x-1"
           >
+            <span className="text-xs font-bold px-1 hidden sm:inline">{t.send || "Send"}</span>
             <Send className="w-4 h-4" />
           </button>
         </div>
       </form>
 
-      {/* 7. Suggested Quick Prompts when in Free Chat Mode */}
-      {mode === 'chat' && (
-        <div className="mt-4 pt-3 border-t border-stone-100">
-          <p className="text-xs font-bold text-stone-500 mb-2 flex items-center space-x-1">
-            <Sparkles className="w-3.5 h-3.5 text-[#C28A17]" />
-            <span>Try saying or typing:</span>
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              "Dairy vs Poultry compare karo na",
-              "5 lakh loan ki EMI kitni hogi?",
-              "Are there any government schemes for OBC?",
-              "Start guided interview step by step"
-            ].map((prompt, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  if (prompt.includes('step by step')) {
-                    setMode('interview');
-                    setCurrentStep(0);
-                    triggerStepQuestion(0);
-                  } else {
-                    handleSend(prompt);
-                  }
-                }}
-                className="px-2.5 py-1 rounded-full bg-[#FAF8F5] hover:bg-[#0F3D2E] text-stone-700 hover:text-amber-300 text-[11px] font-medium border border-stone-200/80 transition shadow-2xs"
-              >
-                "{prompt}"
-              </button>
-            ))}
-          </div>
+      {/* 6. Try Saying Prompts */}
+      <div className="mt-4 pt-3 border-t border-stone-100">
+        <p className="text-xs font-bold text-stone-500 mb-2 flex items-center space-x-1">
+          <Sparkles className="w-3.5 h-3.5 text-[#C28A17]" />
+          <span>{t.trySayingTitle || "Try saying:"}</span>
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            t.tryPrompt1 || "I want to start a dairy business",
+            t.tryPrompt2 || "I have ₹2 lakh. What can I start?",
+            t.tryPrompt3 || "Are there any government schemes?",
+            t.tryPrompt4 || "I need a loan for my business",
+            t.tryPrompt5 || "Is this business good in my area?",
+            t.tryPrompt6 || "Help me create a business plan"
+          ].map((prompt, i) => (
+            <button
+              key={i}
+              onClick={() => handleSend(prompt)}
+              className="px-2.5 py-1 rounded-full bg-[#FAF8F5] hover:bg-[#0F3D2E] text-stone-700 hover:text-amber-300 text-[11px] font-medium border border-stone-200/80 transition shadow-2xs"
+            >
+              "{prompt}"
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
     </div>
   );

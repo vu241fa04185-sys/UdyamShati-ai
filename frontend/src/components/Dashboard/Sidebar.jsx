@@ -14,24 +14,26 @@ import {
   HelpCircle,
   X
 } from 'lucide-react';
+import { translations } from '../../locales/translations';
 
-export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) {
+export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, lang = 'en' }) {
+  const t = translations[lang] || translations.en;
+
   const mainNavItems = [
-    { id: 'home', label: 'HOME', icon: Home },
-    { id: 'chat', label: 'My Conversations', icon: MessageSquare },
-    { id: 'recommendations', label: 'Business Analysis', icon: BarChart3 },
-    { id: 'market', label: 'Local Market Insights', icon: MapPin },
-    { id: 'finance', label: 'Financial Planner', icon: Wallet },
-    { id: 'schemes', label: 'Government Schemes', icon: Landmark },
-    { id: 'risk', label: 'Risk & Stress', icon: ShieldAlert },
-    { id: 'simulator', label: 'Simulator', icon: Sliders },
-    { id: 'report', label: 'My Business Plans', icon: FileText }
+    { id: 'home', label: t.navHome || 'HOME', icon: Home },
+    { id: 'recommendations', label: t.navAnalysis || 'Business Analysis', icon: BarChart3 },
+    { id: 'market', label: t.navMarket || 'Local Market Insights', icon: MapPin },
+    { id: 'finance', label: t.navFinance || 'Financial Planner', icon: Wallet },
+    { id: 'schemes', label: t.navSchemes || 'Government Schemes', icon: Landmark },
+    { id: 'risk', label: t.navRisk || 'Risk & Stress', icon: ShieldAlert },
+    { id: 'simulator', label: t.navSimulator || 'Simulator / What-If', icon: Sliders },
+    { id: 'report', label: t.navReport || 'My Business Plans', icon: FileText }
   ];
 
   const secondaryNavItems = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'help', label: 'Help & Support', icon: HelpCircle }
+    { id: 'profile', label: t.navProfile || 'Profile', icon: User },
+    { id: 'settings', label: t.navSettings || 'Settings', icon: Settings },
+    { id: 'help', label: t.navHelp || 'Help & Support', icon: HelpCircle }
   ];
 
   const handleSelect = (id) => {
@@ -59,7 +61,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) 
         <div className="p-5 border-b border-emerald-900/10 flex items-center justify-between">
           <div className="flex flex-col">
             <div className="flex items-center space-x-1.5">
-              <span className="text-xl font-bold tracking-tight text-[#0F3D2E]">
+              <span className="text-xl font-extrabold tracking-tight text-[#0F3D2E]">
                 Udyam<span className="text-[#C28A17]">Saarthi</span>
               </span>
               <span className="bg-[#C28A17]/15 text-[#C28A17] text-[10px] font-bold px-1.5 py-0.5 rounded-md">
@@ -67,7 +69,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) 
               </span>
             </div>
             <p className="text-[11px] text-stone-500 font-medium tracking-wide mt-0.5">
-              — Your Business Companion —
+              — {t.tagline || "Your Business Companion"} —
             </p>
           </div>
           {setIsOpen && (
@@ -84,7 +86,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) 
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 custom-scrollbar">
           <div>
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-2">
-              Main Menu
+              {t.mainMenu || "Main Menu"}
             </p>
             <nav className="space-y-1">
               {mainNavItems.map((item) => {
@@ -115,7 +117,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) 
 
           <div className="pt-2 border-t border-emerald-900/10">
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-2">
-              Account & Support
+              {t.accountSupport || "Account & Support"}
             </p>
             <nav className="space-y-1">
               {secondaryNavItems.map((item) => {
@@ -126,14 +128,14 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) 
                     key={item.id}
                     onClick={() => handleSelect(item.id)}
                     className={`
-                      w-full flex items-center space-x-3 px-3 py-2 rounded-xl font-medium text-sm transition-all duration-200
+                      w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
                       ${isActive 
                         ? 'bg-[#0F3D2E] text-white' 
                         : 'text-stone-600 hover:bg-emerald-950/5 hover:text-[#0F3D2E]'
                       }
                     `}
                   >
-                    <Icon className="w-4 h-4 shrink-0 text-stone-400" />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-400' : 'text-stone-400'}`} />
                     <span className="truncate">{item.label}</span>
                   </button>
                 );

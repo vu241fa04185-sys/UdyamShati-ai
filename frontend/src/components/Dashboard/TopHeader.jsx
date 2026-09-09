@@ -7,23 +7,37 @@ import {
   ChevronDown, 
   User, 
   LogOut,
-  Sparkles
+  Sparkles,
+  Briefcase,
+  FolderOpen,
+  Check
 } from 'lucide-react';
+import { translations } from '../../locales/translations';
+import { useSaarthi } from '../../context/SaarthiContext';
 
 export default function TopHeader({ 
   auth, 
+  profile,
+  userName: customUserName,
   onLogout, 
-  language, 
+  language = 'en', 
   setLanguage, 
   onOpenSidebar,
-  onSearch 
+  onSearch,
+  setActiveTab
 }) {
+  const { userPlans = [], activePlan, activePlanId, setActivePlanId } = useSaarthi();
+  const plansList = Array.isArray(userPlans) ? userPlans : [];
+
+  const t = translations[language] || translations.en || {};
+
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showPlanMenu, setShowPlanMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Extract logged-in user name
-  const userName = auth?.user?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
+  // Extract logged-in user name from customUserName, auth, or profile
+  const userName = customUserName || auth?.name || auth?.user?.name || profile?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
   
   // Helper for user initials
   const getInitials = (name) => {
@@ -70,42 +84,116 @@ export default function TopHeader({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search for schemes, business ideas, or ask anything..."
+              placeholder={t.searchPlaceholder || "Search for schemes, business ideas, or ask anything..."}
               className="w-full bg-white text-stone-800 text-sm pl-10 pr-4 py-2 rounded-xl border border-stone-200 focus:outline-none focus:border-[#0F3D2E] focus:ring-2 focus:ring-[#0F3D2E]/10 placeholder:text-stone-400 shadow-xs transition"
             />
           </form>
         </div>
 
-        {/* Right Side: Language Selector + Notifications + User Identity */}
-        <div className="flex items-center space-x-3">
+        {/* Right Side: Business Plan Selector + Language Selector + Notifications + User Identity */}
+        <div className="flex items-center space-x-2.5">
           
+          {/* Active Business Plan Selector Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowPlanMenu(!showPlanMenu)}
+              className="flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-emerald-800/30 bg-emerald-50/70 hover:bg-emerald-100 text-stone-800 text-xs font-bold shadow-xs transition"
+              title="Switch Active Business Plan"
+            >
+              <Briefcase className="w-3.5 h-3.5 text-emerald-800" />
+              <span className="max-w-[130px] truncate font-extrabold text-[#0F3D2E]">
+                {activePlan?.businessName || "Select Business Plan"}
+              </span>
+              {!activePlan?.isDefault && (
+                <span className="bg-amber-400 text-stone-900 text-[9px] font-black px-1.5 py-0.2 rounded-full hidden sm:inline">
+                  YOUR PLAN
+                </span>
+              )}
+              <ChevronDown className="w-3 h-3 text-stone-500" />
+            </button>
+
+            {showPlanMenu && (
+              <div className="absolute right-0 mt-2 w-64 bg-white border border-stone-200 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-3 py-1.5 border-b border-stone-100 flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-stone-900 uppercase tracking-wider flex items-center gap-1">
+                    <FolderOpen className="w-3.5 h-3.5 text-emerald-700" />
+                    Active Business Plan
+                  </span>
+                  <span className="text-[10px] text-stone-500">
+                    {plansList.length} Available
+                  </span>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto py-1">
+                  {plansList.map((plan) => {
+                    const isSelected = plan.id === activePlanId;
+                    const isPersonal = !plan.isDefault;
+                    return (
+                      <button
+                        key={plan.id}
+                        onClick={() => {
+                          setActivePlanId(plan.id);
+                          setShowPlanMenu(false);
+                        }}
+                        className={`
+                          w-full text-left px-3 py-2 text-xs transition flex items-center justify-between
+                          ${isSelected ? 'bg-emerald-50 text-[#0F3D2E] font-bold' : 'text-stone-700 hover:bg-stone-50'}
+                        `}
+                      >
+                        <div className="truncate max-w-[170px]">
+                          <div className="flex items-center gap-1">
+                            <span className="truncate font-bold">{plan.businessName}</span>
+                          </div>
+                          <span className="text-[10px] text-stone-400 block truncate">
+                            {isPersonal ? (plan.location?.district || 'Guntur') : 'Example Opportunity'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center space-x-1">
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${
+                            isPersonal 
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300/60' 
+                              : 'bg-stone-100 text-stone-600'
+                          }`}>
+                            {isPersonal ? 'YOUR PLAN' : 'EXAMPLE'}
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-emerald-700" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Language Selector Dropdown */}
           <div className="relative">
             <button
               onClick={() => setShowLangMenu(!showLangMenu)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 text-xs font-medium shadow-xs transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 text-xs font-semibold shadow-xs transition"
             >
-              <Globe className="w-3.5 h-3.5 text-emerald-800" />
+              <Globe className="w-3.5 h-3.5 text-[#0F3D2E]" />
               <span>{currentLangLabel}</span>
               <ChevronDown className="w-3 h-3 text-stone-400" />
             </button>
 
             {showLangMenu && (
               <div className="absolute right-0 mt-2 w-36 bg-white border border-stone-200 rounded-xl shadow-lg py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                {languages.map((lang) => (
+                {languages.map((langItem) => (
                   <button
-                    key={lang.code}
+                    key={langItem.code}
                     onClick={() => {
-                      setLanguage(lang.code);
+                      setLanguage(langItem.code);
                       setShowLangMenu(false);
                     }}
                     className={`
                       w-full text-left px-3 py-2 text-xs font-medium transition flex items-center justify-between
-                      ${language === lang.code ? 'bg-[#0F3D2E]/10 text-[#0F3D2E] font-semibold' : 'text-stone-600 hover:bg-stone-50'}
+                      ${language === langItem.code ? 'bg-[#0F3D2E]/10 text-[#0F3D2E] font-bold' : 'text-stone-600 hover:bg-stone-50'}
                     `}
                   >
-                    <span>{lang.label}</span>
-                    {language === lang.code && <span className="w-1.5 h-1.5 rounded-full bg-[#0F3D2E]" />}
+                    <span>{langItem.label}</span>
+                    {language === langItem.code && <span className="w-1.5 h-1.5 rounded-full bg-[#0F3D2E]" />}
                   </button>
                 ))}
               </div>
@@ -131,12 +219,12 @@ export default function TopHeader({
                 {getInitials(userName)}
               </div>
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-bold text-stone-800 truncate max-w-[120px]">
+                <span className="text-xs font-bold text-stone-800 truncate max-w-[130px]">
                   {userName}
                 </span>
                 <span className="text-[10px] text-emerald-800 font-semibold flex items-center space-x-0.5">
                   <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-                  <span>Rural Entrepreneur</span>
+                  <span>{t.ruralEntrepreneur || "Rural Entrepreneur"}</span>
                 </span>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-stone-400 hidden sm:block" />
@@ -151,11 +239,14 @@ export default function TopHeader({
                 </div>
 
                 <button 
-                  onClick={() => setShowUserMenu(false)} 
-                  className="w-full flex items-center space-x-2 px-4 py-2 text-xs text-stone-700 hover:bg-stone-50 transition"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    if (setActiveTab) setActiveTab('profile');
+                  }} 
+                  className="w-full flex items-center space-x-2 px-4 py-2 text-xs text-stone-700 hover:bg-stone-50 transition font-medium"
                 >
                   <User className="w-4 h-4 text-stone-400" />
-                  <span>My Profile</span>
+                  <span>{t.myProfile || "My Profile"}</span>
                 </button>
 
                 <div className="border-t border-stone-100 my-1" />
@@ -168,7 +259,7 @@ export default function TopHeader({
                   className="w-full flex items-center space-x-2 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 font-medium transition"
                 >
                   <LogOut className="w-4 h-4 text-rose-500" />
-                  <span>Logout</span>
+                  <span>{t.logout || "Logout"}</span>
                 </button>
               </div>
             )}

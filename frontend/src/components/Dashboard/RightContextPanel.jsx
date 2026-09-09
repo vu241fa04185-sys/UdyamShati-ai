@@ -7,8 +7,11 @@ import {
   ArrowRight,
   Edit2
 } from 'lucide-react';
+import { translations } from '../../locales/translations';
 
-export default function RightContextPanel({ profile, onProfileUpdate, setActiveTab }) {
+export default function RightContextPanel({ profile, onProfileUpdate, setActiveTab, lang = 'en' }) {
+  const t = translations[lang] || translations.en;
+
   const [isChangingLoc, setIsChangingLoc] = useState(false);
   const [inputDistrict, setInputDistrict] = useState(profile?.district || 'Guntur');
   const [inputState, setInputState] = useState(profile?.state || 'Andhra Pradesh');
@@ -41,10 +44,12 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
             <div className="p-2 rounded-xl bg-amber-500/15 text-[#C28A17]">
               <MapPin className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-extrabold text-stone-900">Your Location</h3>
+            <h3 className="text-sm font-extrabold text-stone-900">
+              {t.yourLocationTitle || "Your Location"}
+            </h3>
           </div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#0F3D2E]">
-            Active Context
+            {t.activeContext || "Active Context"}
           </span>
         </div>
 
@@ -53,8 +58,8 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
             <p className="text-base font-bold text-stone-800">
               {locationText}
             </p>
-            <p className="text-xs text-stone-500 mt-0.5">
-              Market opportunities & schemes filtered for this area.
+            <p className="text-xs text-stone-500 mt-0.5 leading-snug">
+              {t.locationSubtext || "Market opportunities & schemes filtered for this area."}
             </p>
 
             <div className="flex items-center space-x-2 mt-4">
@@ -62,21 +67,23 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                 onClick={() => setActiveTab('market')}
                 className="flex-1 py-2 px-3 rounded-xl bg-[#0F3D2E] text-white text-xs font-bold text-center hover:bg-[#165440] transition shadow-xs"
               >
-                Use this location
+                {t.useThisLocation || "Use this location"}
               </button>
               <button
                 onClick={() => setIsChangingLoc(true)}
                 className="py-2 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition flex items-center space-x-1"
               >
                 <Edit2 className="w-3 h-3 text-stone-500" />
-                <span>Change</span>
+                <span>{t.changeLocation || "Change"}</span>
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSaveLocation} className="space-y-3 mt-2">
             <div>
-              <label className="text-[11px] font-bold text-stone-600 block mb-1">District / Town</label>
+              <label className="text-[11px] font-bold text-stone-600 block mb-1">
+                {t.districtLabel || "District / Town"}
+              </label>
               <input
                 type="text"
                 value={inputDistrict}
@@ -86,7 +93,9 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-stone-600 block mb-1">State</label>
+              <label className="text-[11px] font-bold text-stone-600 block mb-1">
+                {t.stateLabel || "State"}
+              </label>
               <input
                 type="text"
                 value={inputState}
@@ -100,26 +109,26 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                 type="submit"
                 className="flex-1 py-1.5 rounded-xl bg-[#0F3D2E] text-white text-xs font-bold"
               >
-                Update Location
+                {t.updateLocation || "Update Location"}
               </button>
               <button
                 type="button"
                 onClick={() => setIsChangingLoc(false)}
                 className="py-1.5 px-3 rounded-xl bg-stone-100 text-stone-600 text-xs font-bold"
               >
-                Cancel
+                {t.cancel || "Cancel"}
               </button>
             </div>
           </form>
         )}
       </div>
 
-      {/* 2. HYPER-LOCAL INSIGHTS — GREEN OPPORTUNITY DASHBOARD CARD */}
+      {/* 2. HYPER-LOCAL INSIGHTS — GREEN OPPORTUNITY DASHBOARD CARD (Immediately below Location Card) */}
       <div className="bg-gradient-to-br from-[#0F3D2E] to-[#144d3b] text-white rounded-3xl p-5 shadow-xl border border-emerald-800/40 flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">
-              🌱 HYPER-LOCAL INSIGHTS
+              {t.hyperLocalTag || "🌱 HYPER-LOCAL INSIGHTS"}
             </span>
             <span className="text-[11px] bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-full font-semibold">
               {districtOnly}
@@ -127,7 +136,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
           </div>
           
           <h3 className="text-base font-extrabold text-amber-100 mb-4">
-            Opportunity Dashboard
+            {t.opportunityDashboardTitle || "Opportunity Dashboard"}
           </h3>
 
           <div className="space-y-3">
@@ -137,7 +146,9 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                   <TrendingUp className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[11px] text-emerald-100 font-medium">Growing Opportunities</p>
+                  <p className="text-[11px] text-emerald-100 font-medium">
+                    {t.growingOpportunities || "Growing Opportunities"}
+                  </p>
                   <p className="text-lg font-black text-amber-300">24+</p>
                 </div>
               </div>
@@ -149,7 +160,9 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                   <Landmark className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[11px] text-emerald-100 font-medium">Active Schemes</p>
+                  <p className="text-[11px] text-emerald-100 font-medium">
+                    {t.activeSchemes || "Active Schemes"}
+                  </p>
                   <p className="text-lg font-black text-amber-300">12+</p>
                 </div>
               </div>
@@ -161,7 +174,9 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                   <Users className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[11px] text-emerald-100 font-medium">Supported Entrepreneurs</p>
+                  <p className="text-[11px] text-emerald-100 font-medium">
+                    {t.supportedEntrepreneurs || "Supported Entrepreneurs"}
+                  </p>
                   <p className="text-lg font-black text-amber-300">1K+</p>
                 </div>
               </div>
@@ -173,7 +188,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
           onClick={() => setActiveTab('market')}
           className="w-full mt-5 py-2.5 rounded-2xl bg-[#C28A17] hover:bg-[#b07d14] text-white text-xs font-bold text-center transition flex items-center justify-center space-x-2 shadow-md"
         >
-          <span>Explore Market Insights Map →</span>
+          <span>{t.exploreMarketMapBtn || "Explore Market Insights Map →"}</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
