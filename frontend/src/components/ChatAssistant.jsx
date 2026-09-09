@@ -18,6 +18,7 @@ import {
   Crosshair
 } from 'lucide-react';
 import axios from 'axios';
+import { detectAccurateLocation } from '../utils/geolocation';
 import { translations } from '../locales/translations';
 
 export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiveTab }) {
@@ -112,64 +113,46 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
     }
   };
 
-  // Detect Live GPS when requested by user or chat button
-  const detectLiveGPSInChat = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your device/browser.");
-      return;
+  // Detect Live GPS & Network location when requested by user or chat button
+  const detectLiveGPSInChat = async () => {
+    setGpsDetecting(true);
+
+    const result = await detectAccurateLocation();
+
+    if (result.success) {
+      const newProfile = {
+        ...profile,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        village_name: result.village_name,
+        district: result.district,
+        state: result.state,
+        pincode: result.pincode || profile.pincode
+      };
+
+      if (onProfileUpdate) onProfileUpdate(newProfile);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'ai',
+          text: `📍 आपकी लाइव लोकेशन सफलतापूर्वक लॉक हो गई है!\n• स्थान: **${result.village_name}, ${result.district} (${result.state})**\n• GPS निर्देशांक: **${result.latitude.toFixed(4)}° N, ${result.longitude.toFixed(4)}° E**\n• स्रोत: **${result.source === 'gps_device' ? 'हार्डवेयर GPS सैटेलाइट' : 'लाइव नेटवर्क / WiFi ट्राइएंगुलेशन'}**\n\nअब 5-10 किमी का बाजार नक्शा और व्यावसायिक सिफारिशें आपकी इस वास्तविक लोकेशन पर अपडेट हो चुकी हैं।`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          actionType: 'LOCATION_LOCKED'
+        }
+      ]);
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'ai',
+          text: `⚠️ ${result.message}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
     }
 
-    setGpsDetecting(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const userLat = pos.coords.latitude;
-        const userLon = pos.coords.longitude;
-        let village = "My Current Location";
-        let district = profile.district || "District";
-        let state = profile.state || "State";
-
-        try {
-          const geoRes = await axios.get(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLon}&zoom=14&addressdetails=1`
-          );
-          if (geoRes.data?.address) {
-            const addr = geoRes.data.address;
-            village = addr.village || addr.suburb || addr.town || addr.city || "Local Village";
-            district = addr.state_district || addr.county || addr.district || district;
-            state = addr.state || state;
-          }
-        } catch (e) {}
-
-        const newProfile = {
-          ...profile,
-          latitude: userLat,
-          longitude: userLon,
-          village_name: village,
-          district: district,
-          state: state
-        };
-
-        if (onProfileUpdate) onProfileUpdate(newProfile);
-        setGpsDetecting(false);
-
-        // Add confirmation message to chat
-        setMessages((prev) => [
-          ...prev,
-          {
-            sender: 'ai',
-            text: `📍 लाइव GPS लोकेशन सफलतापूर्वक लॉक हो गई है!\n• स्थान: **${village}, ${district} (${state})**\n• GPS निर्देशांक: **${userLat.toFixed(4)}° N, ${userLon.toFixed(4)}° E**\n\nअब 5-10 किमी का बाजार नक्शा और व्यावसायिक सिफारिशें आपकी इस वास्तविक लोकेशन पर अपडेट हो चुकी हैं।`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            actionType: 'LOCATION_LOCKED'
-          }
-        ]);
-      },
-      (err) => {
-        console.warn("GPS error:", err);
-        setGpsDetecting(false);
-        alert("GPS access was denied. Please allow location permissions in your browser bar.");
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    setGpsDetecting(false);
   };
 
   const handleSend = async (customText = null) => {

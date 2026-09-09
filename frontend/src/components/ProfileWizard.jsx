@@ -26,6 +26,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import axios from 'axios';
+import { detectAccurateLocation } from '../utils/geolocation';
 import { translations } from '../locales/translations';
 
 export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang }) {
@@ -288,76 +289,48 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
     aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [aiChatMessages, isAiLoading, stepIndex]);
 
-  // Live GPS locator function
-  const handleDetectLiveGPS = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
-      return;
+  // Live GPS & Network location detection
+  const handleDetectLiveGPS = async () => {
+    setIsLocating(true);
+    setGpsStatus("Detecting location (GPS / Network WiFi)...");
+
+    const result = await detectAccurateLocation();
+
+    if (result.success) {
+      const updated = {
+        ...profile,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        village_name: result.village_name,
+        district: result.district,
+        state: result.state,
+        pincode: result.pincode || profile.pincode
+      };
+
+      setProfile(updated);
+      setGpsStatus(`✓ ${result.message}`);
+      setNewlyFilledFields(prev => [...new Set([...prev, 'location', 'gps'])]);
+
+      // If in AI interview, add user selection and advance to Step 2 (Capital)
+      if (regMode === 'ai') {
+        const userMsg = {
+          sender: 'user',
+          text: `📍 Location Auto-Detected: ${result.village_name}, ${result.district} (${result.latitude.toFixed(4)}° N, ${result.longitude.toFixed(4)}° E)`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setAiChatMessages(prev => [...prev, userMsg]);
+
+        const confirmText = lang === 'hi' 
+          ? `✓ आपकी लोकेशन (${result.village_name}, ${result.district}) दर्ज कर ली गई है!`
+          : `✓ Location locked for ${result.village_name}, ${result.district}!`;
+
+        advanceToNextStep(updated, 1, confirmText);
+      }
+    } else {
+      setGpsStatus(result.message);
     }
 
-    setIsLocating(true);
-    setGpsStatus("Detecting satellite coordinates...");
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const userLat = pos.coords.latitude;
-        const userLon = pos.coords.longitude;
-        let vName = "Current Location";
-        let dName = profile.district || "District";
-        let sName = profile.state || "State";
-        let pin = profile.pincode || "000000";
-
-        try {
-          const res = await axios.get(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLon}&zoom=14&addressdetails=1`
-          );
-          if (res.data?.address) {
-            const a = res.data.address;
-            vName = a.village || a.suburb || a.town || a.city || vName;
-            dName = a.state_district || a.county || a.district || dName;
-            sName = a.state || sName;
-            pin = a.postcode || pin;
-          }
-        } catch (e) {}
-
-        const updated = {
-          ...profile,
-          latitude: userLat,
-          longitude: userLon,
-          village_name: vName,
-          district: dName,
-          state: sName,
-          pincode: pin
-        };
-
-        setProfile(updated);
-        setIsLocating(false);
-        setGpsStatus(`✓ GPS Locked: ${vName}, ${dName} (${userLat.toFixed(4)}°, ${userLon.toFixed(4)}°)`);
-        setNewlyFilledFields(prev => [...new Set([...prev, 'location', 'gps'])]);
-
-        // If in AI interview, add user selection and advance to Step 2 (Capital)
-        if (regMode === 'ai') {
-          const userMsg = {
-            sender: 'user',
-            text: `📍 GPS Auto-Detected: ${vName}, ${dName} (${userLat.toFixed(4)}° N, ${userLon.toFixed(4)}° E)`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          setAiChatMessages(prev => [...prev, userMsg]);
-          
-          const confirmText = lang === 'hi' 
-            ? `✓ आपकी लाइव GPS लोकेशन (${vName}, ${dName}) सफलतापूर्वक दर्ज कर ली गई है!`
-            : `✓ Live GPS location locked for ${vName}, ${dName}!`;
-          
-          advanceToNextStep(updated, 1, confirmText);
-        }
-      },
-      (err) => {
-        console.warn("GPS error:", err);
-        setIsLocating(false);
-        alert("GPS permission was denied. Please allow location access in your browser address bar.");
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    setIsLocating(false);
   };
 
   // Helper to advance to the next step

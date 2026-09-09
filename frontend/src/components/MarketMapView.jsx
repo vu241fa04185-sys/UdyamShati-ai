@@ -23,6 +23,7 @@ import PlaceDetails from './maps/PlaceDetails';
 import MarketSummary from './maps/MarketSummary';
 import MarketOpportunity from './maps/MarketOpportunity';
 import CompetitionHeatmap from './maps/CompetitionHeatmap';
+import { detectAccurateLocation } from '../utils/geolocation';
 import { translations } from '../locales/translations';
 
 export default function MarketMapView({
@@ -148,62 +149,32 @@ export default function MarketMapView({
     return acc;
   }, {});
 
-  // 1. Device Live GPS Geolocation
-  const handleDetectLiveLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
-      return;
-    }
-
+  // 1. Device Live GPS & Network Geolocation
+  const handleDetectLiveLocation = async () => {
     setIsLocating(true);
-    setLocationStatus('Acquiring high-accuracy GPS satellites...');
+    setLocationStatus('Locating device (GPS satellites / Network WiFi)...');
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const userLat = pos.coords.latitude;
-        const userLon = pos.coords.longitude;
-        setLocationStatus('GPS acquired! Reverse geocoding rural address...');
+    const result = await detectAccurateLocation();
 
-        let village = 'My Live Location';
-        let dist = district;
-        let st = state;
+    if (result.success) {
+      const updated = {
+        ...profile,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        village_name: result.village_name,
+        district: result.district,
+        state: result.state,
+        pincode: result.pincode || profile.pincode
+      };
 
-        try {
-          const geoRes = await axios.get(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLon}&zoom=14&addressdetails=1`
-          );
-          if (geoRes.data?.address) {
-            const addr = geoRes.data.address;
-            village = addr.village || addr.suburb || addr.town || addr.city || village;
-            dist = addr.state_district || addr.county || addr.district || dist;
-            st = addr.state || st;
-          }
-        } catch (e) {
-          console.warn('Reverse geocode error:', e);
-        }
+      if (setProfile) setProfile(updated);
+      if (onLocationUpdate) onLocationUpdate(updated);
 
-        const updated = {
-          ...profile,
-          latitude: userLat,
-          longitude: userLon,
-          village_name: village,
-          district: dist,
-          state: st
-        };
-
-        if (setProfile) setProfile(updated);
-        if (onLocationUpdate) onLocationUpdate(updated);
-
-        setLocationStatus(`Locked: ${village}, ${dist} (${userLat.toFixed(4)}°, ${userLon.toFixed(4)}°)`);
-        setIsLocating(false);
-      },
-      (err) => {
-        console.error('GPS error:', err);
-        setIsLocating(false);
-        setLocationStatus('GPS permission unavailable. Using current location.');
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+      setLocationStatus(result.message);
+    } else {
+      setLocationStatus(result.message);
+    }
+    setIsLocating(false);
   };
 
   // 2. Village / Town Search via OpenStreetMap Geocoding
