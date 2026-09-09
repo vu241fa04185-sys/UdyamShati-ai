@@ -175,7 +175,18 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
         profile: profile
       });
 
-      const { reply, updated_profile, top_recommendation, nlu, action_type } = response.data;
+      const { 
+        reply, 
+        updated_profile, 
+        top_recommendation, 
+        nlu, 
+        action_type, 
+        comparison_table, 
+        recommendation_score, 
+        confidence_score, 
+        financial_summary, 
+        detected_language 
+      } = response.data;
 
       // Update global profile state if updated by AI
       if (updated_profile && onProfileUpdate) {
@@ -194,13 +205,18 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         entities: nlu?.entities,
         topRec: top_recommendation,
-        actionType: action_type
+        actionType: action_type,
+        comparisonTable: comparison_table,
+        recommendationScore: recommendation_score,
+        confidenceScore: confidence_score,
+        financialSummary: financial_summary,
+        detectedLanguage: detected_language
       };
 
       setMessages((prev) => [...prev, aiMsg]);
 
       if (autoSpeak) {
-        speakText(reply);
+        speakText(reply, detected_language);
       }
     } catch (err) {
       setMessages((prev) => [
@@ -527,6 +543,51 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
                     <span>Inspect Full Financial & Market Blueprint</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
+                </div>
+              )}
+
+              {/* UdyamSarthi Business Comparison Table */}
+              {msg.comparisonTable && msg.comparisonTable.length > 0 && (
+                <div className="bg-white rounded-xl p-3.5 border border-emerald-300 shadow-sm space-y-2">
+                  <div className="text-xs font-black text-emerald-950 flex items-center space-x-1.5">
+                    <span>⚖️ Business Opportunity Comparison</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-stone-200 bg-stone-50 text-stone-700">
+                          <th className="p-2 font-bold">Criteria</th>
+                          <th className="p-2 font-bold text-emerald-800">Option 1</th>
+                          <th className="p-2 font-bold text-blue-800">Option 2</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {msg.comparisonTable.map((row, rIdx) => (
+                          <tr key={rIdx} className="border-b border-stone-100 hover:bg-stone-50/50">
+                            <td className="p-2 font-semibold text-stone-700">{row.factor}</td>
+                            <td className="p-2 font-medium text-emerald-900">{row.option_1}</td>
+                            <td className="p-2 font-medium text-blue-900">{row.option_2}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* UdyamSarthi Dual Scores Badge */}
+              {msg.recommendationScore && (
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                  <span className="px-2.5 py-1 rounded-lg font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center space-x-1">
+                    <span>🌟 Suitability Score:</span>
+                    <span className="text-emerald-950 font-black">{msg.recommendationScore}/100</span>
+                  </span>
+                  {msg.confidenceScore && (
+                    <span className="px-2.5 py-1 rounded-lg font-bold bg-blue-100 text-blue-900 border border-blue-300 flex items-center space-x-1">
+                      <span>🎯 Data Confidence:</span>
+                      <span className="text-blue-950 font-black">{msg.confidenceScore}/100</span>
+                    </span>
+                  )}
                 </div>
               )}
 

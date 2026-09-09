@@ -12,7 +12,10 @@ import {
   Bot,
   User,
   Loader2,
-  Volume2
+  Volume2,
+  VolumeX,
+  ArrowRight,
+  Scale
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -20,7 +23,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: "Namaste! 👋\n\nI'm UdyamSaarthi, your business companion. Tell me what you want to do, and I'll guide you step by step.",
+      text: "Namaste! 👋\n\nI'm UdyamSarthi, your business companion. Tell me what you want to do, and I'll guide you step by step.",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -28,6 +31,18 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [speechError, setSpeechError] = useState(null);
+  const [autoVoice, setAutoVoice] = useState(true);
+
+  const speakText = (text, targetLang = language) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/[*#•]/g, '');
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.lang = targetLang === 'hi' || targetLang === 'HINDI' ? 'hi-IN' : (targetLang === 'te' || targetLang === 'TELUGU' ? 'te-IN' : 'en-IN');
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -107,18 +122,34 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
       });
 
       const replyText = response.data?.reply || generateLocalSaarthiReply(text);
+      const actionType = response.data?.action_type;
+      const comparisonTable = response.data?.comparison_table;
+      const recScore = response.data?.recommendation_score;
+      const confScore = response.data?.confidence_score;
+      const detectedLang = response.data?.detected_language || language;
       
       const aiMsg = {
         sender: 'ai',
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        actionType,
+        comparisonTable,
+        recScore,
+        confScore,
+        detectedLang,
         recommendations: response.data?.recommendations
       };
 
       setMessages((prev) => [...prev, aiMsg]);
 
+      if (autoVoice) {
+        speakText(replyText, detectedLang);
+      }
+
       // If backend returned profile updates
-      if (response.data?.updatedProfile && onProfileUpdate) {
+      if (response.data?.updated_profile && onProfileUpdate) {
+        onProfileUpdate(response.data.updated_profile);
+      } else if (response.data?.updatedProfile && onProfileUpdate) {
         onProfileUpdate(response.data.updatedProfile);
       }
     } catch (err) {
@@ -194,19 +225,34 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-xl border border-emerald-900/10 flex flex-col justify-between">
       
       {/* Top Header inside Saarthi Card */}
-      <div className="flex items-center space-x-3 pb-4 border-b border-stone-100">
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0F3D2E] to-[#17523f] text-amber-300 flex items-center justify-center shadow-md">
-          <Bot className="w-6 h-6" />
-        </div>
-        <div>
-          <div className="flex items-center space-x-2">
-            <h2 className="text-lg font-extrabold text-stone-900">Saarthi AI</h2>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#0F3D2E]">
-              Online Companion
-            </span>
+      <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+        <div className="flex items-center space-x-3">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0F3D2E] to-[#17523f] text-amber-300 flex items-center justify-center shadow-md">
+            <Bot className="w-6 h-6" />
           </div>
-          <p className="text-xs text-stone-500 font-medium">Your 24/7 Rural Business Companion</p>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-lg font-extrabold text-stone-900">UdyamSarthi AI</h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#0F3D2E]">
+                Active Advisory
+              </span>
+            </div>
+            <p className="text-xs text-stone-500 font-medium">Trilingual Rural Business Advisor (HI / TE / EN)</p>
+          </div>
         </div>
+
+        <button
+          onClick={() => setAutoVoice(!autoVoice)}
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs ${
+            autoVoice 
+              ? 'bg-[#0F3D2E] text-amber-300 hover:bg-[#144d3b]' 
+              : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+          }`}
+          title="Toggle Auto Voice Guidance"
+        >
+          {autoVoice ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          <span className="hidden sm:inline">{autoVoice ? 'Voice: ON' : 'Voice: OFF'}</span>
+        </button>
       </div>
 
       {/* Quick Action Cards (4 Cards) */}
@@ -257,7 +303,102 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
                 <span className="ml-auto">{msg.timestamp}</span>
               </div>
               <p className="whitespace-pre-line font-medium text-xs sm:text-sm">{msg.text}</p>
-            </div>
+
+              {/* UdyamSarthi Business Comparison Table */}
+              {msg.comparisonTable && msg.comparisonTable.length > 0 && (
+                <div className="bg-stone-50 rounded-xl p-2.5 border border-stone-200 mt-2 space-y-1.5">
+                  <div className="text-[11px] font-extrabold text-[#0F3D2E] flex items-center space-x-1">
+                    <Scale className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Side-by-Side Comparison</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[10px] text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-stone-200 text-stone-600 font-bold">
+                          <th className="p-1">Factor</th>
+                          <th className="p-1 text-[#0F3D2E]">Option 1</th>
+                          <th className="p-1 text-blue-800">Option 2</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {msg.comparisonTable.map((row, rIdx) => (
+                          <tr key={rIdx} className="border-b border-stone-100">
+                            <td className="p-1 font-semibold text-stone-600">{row.factor}</td>
+                            <td className="p-1 font-medium text-[#0F3D2E]">{row.option_1}</td>
+                            <td className="p-1 font-medium text-blue-900">{row.option_2}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* UdyamSarthi Dual Score Badges */}
+              {msg.recScore && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-[10px]">
+                  <span className="px-2 py-0.5 rounded-md font-bold bg-emerald-100 text-[#0F3D2E] border border-emerald-200">
+                    Suitability: {msg.recScore}/100
+                  </span>
+                  {msg.confScore && (
+                    <span className="px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                      Confidence: {msg.confScore}/100
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* UdyamSarthi Dynamic Action CTA Buttons */}
+              {msg.actionType === 'SHOW_SCHEMES' && (
+                <button
+                  onClick={() => setActiveTab('schemes')}
+                  className="w-full mt-2 bg-gradient-to-r from-purple-700 to-indigo-700 text-white font-bold py-1.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1 shadow-sm hover:brightness-110 transition"
+                >
+                  <span>🏛️ View Matching Concessional Schemes</span>
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </button>
+              )}
+              {msg.actionType === 'SHOW_MAP' && (
+                <button
+                  onClick={() => setActiveTab('market')}
+                  className="w-full mt-2 bg-gradient-to-r from-emerald-800 to-teal-800 text-white font-bold py-1.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1 shadow-sm hover:brightness-110 transition"
+                >
+                  <span>📍 Open 10km Hyper-Local Map</span>
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </button>
+              )}
+              {msg.actionType === 'SHOW_FINANCE' && (
+                <button
+                  onClick={() => setActiveTab('finance')}
+                  className="w-full mt-2 bg-gradient-to-r from-blue-700 to-cyan-700 text-white font-bold py-1.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1 shadow-sm hover:brightness-110 transition"
+                >
+                  <span>📊 Open Concessional Finance Calculator</span>
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </button>
+              )}
+              {msg.actionType === 'START_FORM_FILLING' && (
+                <button
+                  onClick={() => setActiveTab('profile')}
+                  className="w-full mt-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold py-1.5 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1 shadow-sm hover:brightness-110 transition"
+                >
+                  <span>🎙️ Start Interactive Voice Form</span>
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </button>
+              )}
+
+              {/* Replay Voice Button */}
+              {msg.sender === 'ai' && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={() => speakText(msg.text, msg.detectedLang)}
+                    className="flex items-center space-x-1 text-stone-400 hover:text-[#0F3D2E] text-[10px] font-semibold transition"
+                    title="Replay Voice Audio"
+                  >
+                    <Volume2 className="w-3 h-3" />
+                    <span>Replay Voice</span>
+                  </button>
+                </div>
+              )}
           </div>
         ))}
 
