@@ -48,57 +48,178 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const isListeningRef = useRef(false);
+  const accumulatedTranscriptRef = useRef('');
+  const silenceTimeoutRef = useRef(null);
+  const maxSessionTimeoutRef = useRef(null);
+  const langRef = useRef(lang);
+  const handleSendRef = useRef(null);
 
-  // Initialize Web Speech API Recognition
+  useEffect(() => {
+    langRef.current = lang;
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+    }
+  }, [lang]);
+
+  const submitSpokenAnswer = (transcriptToSubmit = null) => {
+    const raw = (transcriptToSubmit || accumulatedTranscriptRef.current || inputText || '').trim();
+    isListeningRef.current = false;
+    setIsListening(false);
+
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+    if (maxSessionTimeoutRef.current) {
+      clearTimeout(maxSessionTimeoutRef.current);
+      maxSessionTimeoutRef.current = null;
+    }
+
+    try {
+      if (recognitionRef.current) recognitionRef.current.stop();
+    } catch (e) {}
+
+    if (raw) {
+      setInputText(raw);
+      accumulatedTranscriptRef.current = '';
+      handleSendRef.current?.(raw);
+    }
+  };
+
+  // Initialize Web Speech API Recognition with keep-alive
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = langRef.current === 'hi' ? 'hi-IN' : (langRef.current === 'te' ? 'te-IN' : 'en-IN');
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        isListeningRef.current = true;
+      };
 
       recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInputText(transcript);
-        setIsListening(false);
-        // Automatically send and evaluate voice transcript!
-        handleSend(transcript);
+        let interim = '';
+        let final = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        if (final) {
+          accumulatedTranscriptRef.current = (accumulatedTranscriptRef.current + ' ' + final).trim();
+        }
+
+        const combined = (accumulatedTranscriptRef.current + ' ' + interim).trim();
+        if (combined) {
+          setInputText(combined);
+        }
+
+        if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+        if (combined.length > 0) {
+          silenceTimeoutRef.current = setTimeout(() => {
+            if (isListeningRef.current) {
+              submitSpokenAnswer();
+            }
+          }, 2000);
+        }
       };
 
       recognition.onerror = (event) => {
         console.warn("Speech recognition error:", event.error);
-        setIsListening(false);
+        if (event.error === 'no-speech') return; // Do not abort, keep listening
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          isListeningRef.current = false;
+          setIsListening(false);
+          alert("Microphone access is blocked. Please allow mic access in your browser address bar.");
+          return;
+        }
       };
 
       recognition.onend = () => {
-        setIsListening(false);
+        if (isListeningRef.current) {
+          try {
+            recognition.lang = langRef.current === 'hi' ? 'hi-IN' : (langRef.current === 'te' ? 'te-IN' : 'en-IN');
+            recognition.start();
+          } catch (err) {
+            setTimeout(() => {
+              if (isListeningRef.current) {
+                try { recognition.start(); } catch (e) {
+                  isListeningRef.current = false;
+                  setIsListening(false);
+                }
+              }
+            }, 300);
+          }
+        } else {
+          setIsListening(false);
+        }
       };
 
       recognitionRef.current = recognition;
     }
-  }, [lang, profile]);
+
+    return () => {
+      isListeningRef.current = false;
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (maxSessionTimeoutRef.current) clearTimeout(maxSessionTimeoutRef.current);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch (e) {}
+      }
+    };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading, isListening]);
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
     if (!recognitionRef.current) {
       alert("Microphone speech recognition is not supported in this browser. Please type your message.");
       return;
     }
 
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
+    if (isListening || isListeningRef.current) {
+      submitSpokenAnswer();
+      return;
+    }
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
-        recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
-        recognitionRef.current.start();
-        setIsListening(true);
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
       } catch (err) {
-        console.error("Error starting speech recognition:", err);
+        if (err.name === 'NotAllowedError') {
+          alert("Microphone access is blocked. Please allow mic access in your browser settings.");
+          return;
+        }
+      }
+    }
+
+    try {
+      accumulatedTranscriptRef.current = '';
+      recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      isListeningRef.current = true;
+      setIsListening(true);
+      recognitionRef.current.start();
+
+      if (maxSessionTimeoutRef.current) clearTimeout(maxSessionTimeoutRef.current);
+      maxSessionTimeoutRef.current = setTimeout(() => {
+        if (isListeningRef.current) submitSpokenAnswer();
+      }, 15000);
+    } catch (err) {
+      if (err.name === 'InvalidStateError') {
+        isListeningRef.current = true;
+        setIsListening(true);
+      } else {
+        isListeningRef.current = false;
+        setIsListening(false);
       }
     }
   };
@@ -231,6 +352,8 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
       setIsLoading(false);
     }
   };
+
+  handleSendRef.current = handleSend;
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">

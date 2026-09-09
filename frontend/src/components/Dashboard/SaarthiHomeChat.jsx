@@ -72,6 +72,17 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const isListeningRef = useRef(false);
+  const accumulatedTranscriptRef = useRef('');
+  const interimTranscriptRef = useRef('');
+  const silenceTimeoutRef = useRef(null);
+  const maxSessionTimeoutRef = useRef(null);
+  const languageRef = useRef(language);
+  const modeRef = useRef(mode);
+  const currentStepRef = useRef(currentStep);
+  const stepDataRef = useRef(stepData);
+  const handleStepResponseRef = useRef(null);
+  const handleSendRef = useRef(null);
 
   // Configuration for 5 Interview Steps
   const STEPS_CONFIG = [
@@ -197,14 +208,91 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     }
   }, []);
 
-  // Web Speech API STT setup with graceful fallback
+  // Sync state to refs for resilient asynchronous STT event handlers
+  useEffect(() => { languageRef.current = language; }, [language]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { currentStepRef.current = currentStep; }, [currentStep]);
+  useEffect(() => { stepDataRef.current = stepData; }, [stepData]);
+
+  // Keep recognition language synchronized
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
+    }
+  }, [language]);
+
+  // Submit and finalize spoken answer
+  const submitSpokenAnswer = (directTranscript = null) => {
+    const raw = (
+      directTranscript || 
+      accumulatedTranscriptRef.current || 
+      interimTranscriptRef.current || 
+      ''
+    ).trim();
+
+    isListeningRef.current = false;
+    setIsListening(false);
+
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+    if (maxSessionTimeoutRef.current) {
+      clearTimeout(maxSessionTimeoutRef.current);
+      maxSessionTimeoutRef.current = null;
+    }
+
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    } catch (e) {
+      console.warn("STT stop warning:", e);
+    }
+
+    setInterimTranscript('');
+    interimTranscriptRef.current = '';
+
+    if (raw) {
+      setInputText(raw);
+      setSpeechHelper(null);
+      accumulatedTranscriptRef.current = '';
+      if (modeRef.current === 'interview') {
+        handleStepResponseRef.current?.(raw);
+      } else {
+        handleSendRef.current?.(raw);
+      }
+    } else {
+      setSpeechHelper(
+        languageRef.current === 'hi'
+          ? "आवाज नहीं आई। पुनः बोलने के लिए माइक दबाएं या नीचे विकल्प चुनें।"
+          : (languageRef.current === 'te'
+              ? "ఏమీ వినబడలేదు. మళ్లీ మైక్ నొక్కండి లేదా కింద ఉన్న ఎంపికలను ఎంచుకోండి."
+              : "Didn't catch audio. Tap the mic when ready, or select an option below.")
+      );
+    }
+  };
+
+  // Robust Web Speech API setup with continuous listening and keep-alive
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true; // Show live transcription as user speaks!
-      recognition.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
+      recognition.continuous = true;     // Stay on while speaking, no premature cut-off!
+      recognition.interimResults = true; // Show live transcription as user speaks
+      recognition.maxAlternatives = 1;
+      recognition.lang = languageRef.current === 'hi' ? 'hi-IN' : (languageRef.current === 'te' ? 'te-IN' : 'en-IN');
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        isListeningRef.current = true;
+        setSpeechError(null);
+        setSpeechHelper(
+          languageRef.current === 'hi'
+            ? "माइक सक्रिय है... कृपया बोलें"
+            : (languageRef.current === 'te' ? "మైక్ ఆన్ చేయబడింది... మాట్లాడండి" : "Microphone active... please speak now")
+        );
+      };
 
       recognition.onresult = (event) => {
         let interim = '';
@@ -217,74 +305,156 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
           }
         }
 
-        if (interim) {
-          setInterimTranscript(interim);
+        if (final) {
+          accumulatedTranscriptRef.current = (accumulatedTranscriptRef.current + ' ' + final).trim();
         }
 
-        if (final) {
-          setInterimTranscript('');
-          setInputText(final);
-          setIsListening(false);
-          setSpeechError(null);
-          setSpeechHelper(null);
+        const combined = (accumulatedTranscriptRef.current + ' ' + interim).trim();
+        if (combined) {
+          interimTranscriptRef.current = combined;
+          setInterimTranscript(combined);
+          setInputText(combined);
+        }
 
-          if (mode === 'interview') {
-            handleStepResponse(final);
-          } else {
-            handleSend(final);
-          }
+        // Reset silence timer on every new word detected
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+        }
+
+        // Auto-finalize after 2.0s of silence once speech has been spoken
+        if (combined.length > 0) {
+          silenceTimeoutRef.current = setTimeout(() => {
+            if (isListeningRef.current) {
+              submitSpokenAnswer();
+            }
+          }, 2000);
         }
       };
 
       recognition.onerror = (event) => {
         console.warn("STT warning:", event.error);
-        setIsListening(false);
-        setInterimTranscript('');
-
         if (event.error === 'no-speech') {
-          // Graceful prompt - not a failure!
-          setSpeechHelper("Didn't catch audio. Tap the mic when ready to speak, or tap any option below.");
-          setSpeechError(null);
-        } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          // Chrome fires 'no-speech' if the user pauses.
+          // DO NOT abort! With keep-alive, onend will auto-restart if isListeningRef.current is true.
+          return;
+        }
+
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          isListeningRef.current = false;
+          setIsListening(false);
           setSpeechError("Microphone access is blocked. Click the lock/camera icon in your address bar to allow mic access.");
           setSpeechHelper(null);
-        } else if (event.error === 'audio-capture') {
+          return;
+        }
+
+        if (event.error === 'audio-capture') {
+          isListeningRef.current = false;
+          setIsListening(false);
           setSpeechError("No microphone found. Please connect a mic or type/tap below.");
           setSpeechHelper(null);
-        } else {
-          setSpeechHelper("Tap the mic to try speaking again, or type below.");
-          setSpeechError(null);
+          return;
         }
       };
 
       recognition.onend = () => {
-        setIsListening(false);
-        setInterimTranscript('');
+        // If user is STILL in listening mode, auto-restart so the mic never closes after 1 second!
+        if (isListeningRef.current) {
+          try {
+            recognition.lang = languageRef.current === 'hi' ? 'hi-IN' : (languageRef.current === 'te' ? 'te-IN' : 'en-IN');
+            recognition.start();
+          } catch (err) {
+            console.warn("STT restart retry:", err);
+            setTimeout(() => {
+              if (isListeningRef.current) {
+                try {
+                  recognition.start();
+                } catch (e) {
+                  isListeningRef.current = false;
+                  setIsListening(false);
+                }
+              }
+            }, 250);
+          }
+        } else {
+          setIsListening(false);
+          setInterimTranscript('');
+          interimTranscriptRef.current = '';
+        }
       };
 
       recognitionRef.current = recognition;
     }
-  }, [language, mode, currentStep, stepData]);
 
-  const toggleListening = () => {
+    return () => {
+      isListeningRef.current = false;
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (maxSessionTimeoutRef.current) clearTimeout(maxSessionTimeoutRef.current);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+    };
+  }, []);
+
+  const toggleListening = async () => {
     if (!recognitionRef.current) {
       setSpeechError("Speech recognition is not supported in this browser. Please use Chrome or Edge.");
       return;
     }
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      setInterimTranscript('');
-    } else {
-      stopSpeaking();
-      setSpeechError(null);
-      setSpeechHelper("Listening... speak naturally now");
+
+    // If currently listening, tap again to immediately finish and submit what was spoken
+    if (isListening || isListeningRef.current) {
+      submitSpokenAnswer();
+      return;
+    }
+
+    // Start listening
+    stopSpeaking(); // Stop any bot voice playback
+    setSpeechError(null);
+    setSpeechHelper(
+      language === 'hi' ? "माइक चालू है... बोलिए" : (language === 'te' ? "మైక్ ఆన్ చేయబడింది... మాట్లాడండి" : "Listening... speak naturally now")
+    );
+    accumulatedTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
+    setInterimTranscript('');
+
+    // Pre-prompt microphone permission with getUserMedia to ensure permission is active
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
-        recognitionRef.current.start();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      } catch (permErr) {
+        console.warn("Microphone permission check:", permErr);
+        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          setSpeechError("Microphone access is blocked. Click the lock icon 🔒 in your address bar to allow mic access.");
+          return;
+        }
+      }
+    }
+
+    try {
+      recognitionRef.current.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
+      isListeningRef.current = true;
+      setIsListening(true);
+      recognitionRef.current.start();
+
+      // Generous 15s max window so microphone doesn't stay open indefinitely if no one speaks
+      if (maxSessionTimeoutRef.current) clearTimeout(maxSessionTimeoutRef.current);
+      maxSessionTimeoutRef.current = setTimeout(() => {
+        if (isListeningRef.current) {
+          submitSpokenAnswer();
+        }
+      }, 15000);
+    } catch (err) {
+      console.warn("Mic start error:", err);
+      if (err.name === 'InvalidStateError') {
+        isListeningRef.current = true;
         setIsListening(true);
-      } catch (err) {
-        console.warn("Mic start retry:", err);
+      } else {
+        isListeningRef.current = false;
         setIsListening(false);
+        setSpeechError("Could not start microphone. Please check your browser mic permissions.");
       }
     }
   };
@@ -597,6 +767,9 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
       setIsLoading(false);
     }
   };
+
+  handleStepResponseRef.current = handleStepResponse;
+  handleSendRef.current = handleSend;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
