@@ -231,6 +231,8 @@ export default function App() {
                 <FinanceDashboard
                   recommendations={recommendations}
                   profile={profile}
+                  setProfile={setProfile}
+                  onProfileUpdate={handleProfileUpdate}
                   lang={lang}
                 />
               )}
