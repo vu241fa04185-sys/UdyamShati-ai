@@ -28,10 +28,10 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
     {
       sender: 'ai',
       text: lang === 'hi' 
-        ? "नमस्ते! मैं आपका उद्यमसेतु एआई सलाहकार हूँ। आप बोलकर या लिखकर सवाल पूछ सकते हैं — जैसे 'मेरा करंट लोकेशन क्या है?', 'मेरे पास 3 लाख रुपये हैं', या 'डेयरी लोन की ईएमआई कितनी होगी?'।"
+        ? "नमस्ते! मैं आपका उद्यमसारथी एआई सलाहकार हूँ। आप बोलकर या लिखकर सवाल पूछ सकते हैं — जैसे 'मेरा करंट लोकेशन क्या है?', 'मेरे पास 3 लाख रुपये हैं', या 'डेयरी लोन की ईएमआई कितनी होगी?'।"
         : lang === 'te'
-        ? "నమస్కారం! నేను మీ ఉద్యమ్ సేతు ఏఐ సలహాదారుని. మాట్లాడండి — మీ వివరాలు మరియు ప్రశ్నలకు తక్షణ సమాధానం లభిస్తుంది."
-        : "Welcome to UdyamSetu AI! Speak or type naturally — ask about your location, suggest a business for your capital, or calculate loan EMIs.",
+        ? "నమస్కారం! నేను మీ ఉద్యమ్ సారథి ఏఐ సలహాదారుని. మాట్లాడండి — మీ వివరాలు మరియు ప్రశ్నలకు తక్షణ సమాధానం లభిస్తుంది."
+        : "Welcome to UdyamSarthi AI! Speak or type naturally — ask about your location, suggest a business for your capital, or calculate loan EMIs.",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       entities: null,
       topRec: null,
