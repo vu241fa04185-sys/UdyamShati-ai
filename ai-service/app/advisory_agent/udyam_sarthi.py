@@ -277,7 +277,7 @@ class UdyamSarthiAgent:
         name_match = re.search(r'(?:mera naam|my name is|na peru|naam|main hoon|i am)\s+([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+(?:\s+[a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+)?)', t)
         if name_match:
             raw_n = name_match.group(1).strip()
-            raw_n = re.sub(r'\b(hai|hoon|kisan|farmer|ji|గారు|అండి)\b', '', raw_n).strip()
+            raw_n = re.sub(r'\b(hai|hoon|ji|గారు|అండి)\b', '', raw_n).strip()
             if len(raw_n) >= 2:
                 entities["name"] = " ".join([w.capitalize() for w in raw_n.split()])
 
@@ -335,7 +335,15 @@ class UdyamSarthiAgent:
         elif re.search(r'\b(general|सामान्य|open|ఓపెన్)\b', t):
             entities["social_category"] = "GENERAL"
 
-        # 9. Goal
+        # 9. Location / Village / City Extraction
+        loc_match1 = re.search(r'([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]{3,})\s+(?:village|gaon|shehar|district|se hoon|me rehta|nunchi)', t)
+        loc_match2 = re.search(r'(?:from|in|district|gaon|village)\s+([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]{3,})', t)
+        if loc_match1 and loc_match1.group(1).lower() not in ["hai", "hoon", "naam", "mera", "main", "kisan", "farmer", "this"]:
+            entities["village"] = loc_match1.group(1).capitalize()
+        elif loc_match2 and loc_match2.group(1).lower() not in ["hai", "hoon", "this", "village", "gaon"]:
+            entities["village"] = loc_match2.group(1).capitalize()
+
+        # 10. Goal
         if any(w in t for w in ["full time", "मुख्य", "పూర్తి కాలం"]):
             entities["goal"] = "Full-Time Enterprise"
         elif any(w in t for w in ["additional", "extra income", "अतिरिक्त", "అదనపు ఆదాయం"]):
@@ -361,10 +369,12 @@ class UdyamSarthiAgent:
             if len(t.split()) <= 3:
                 return "GREETING"
 
-        # Form filling intent
+        # Form filling / Step-by-step interview intent
         if any(w in t for w in [
             "fill form", "fill the form", "filling the form", "form bhar do", "form bharna",
-            "details pucho", "ask details", "start form", "start interview", "पंजीकरण", "फॉर्म", "నమోదు", "ఫారమ్"
+            "details pucho", "ask details", "start form", "start interview", "पंजीकरण", "फॉर्म", "నమోదు", "ఫారమ్",
+            "ask me", "pucho", "sawal pucho", "step by step", "guide me", "advisory shuru karo",
+            "ask everything", "start questioning", "profile bharo", "register me", "talk to me", "batao kya chahiye"
         ]):
             return "FORM_FILLING"
 
@@ -434,6 +444,8 @@ class UdyamSarthiAgent:
         extracted = self.extract_entities(user_message)
         if extracted.get("name"):
             profile["name"] = extracted["name"]
+        if extracted.get("village"):
+            profile["location"]["village"] = extracted["village"]
         if extracted.get("capital") is not None:
             profile["financial"]["capital"] = extracted["capital"]
             profile["financial"]["investable_capital"] = extracted["capital"] * 0.9
@@ -511,8 +523,10 @@ class UdyamSarthiAgent:
 
         # --- CASE H: INTERACTIVE FORM FILLING (Section 10) ---
         elif intent == "FORM_FILLING":
-            reply = self._format_form_filling(profile, detected_lang)
-            action_type = "START_FORM_FILLING"
+            reply, action_type = self._format_form_filling(profile, detected_lang)
+            if action_type == "SHOW_RECOMMENDATIONS":
+                recommendation_score = 88
+                confidence_score = 90
 
         # --- CASE I: START BUSINESS / RECOMMENDATION (Section 13, 14, 16, 21, 30, 31, 35) ---
         else:
@@ -864,23 +878,90 @@ class UdyamSarthiAgent:
 
         return reply, sources, 88
 
-    def _format_form_filling(self, profile: Dict[str, Any], lang: str) -> str:
-        """Section 10 & 11: Voice-Guided Step-by-Step Form Filling."""
-        if lang == "HINDI":
-            return (
-                "बिल्कुल! चलिए आपका उद्यम प्रोफाइल चरण-दर-चरण पूरा करते हैं। 😊\n\n"
-                "**पहला कदम:** कृपया अपना **शुभ नाम** और अपने **गांव/कस्बे का नाम** बताएं।"
-            )
-        elif lang == "TELUGU":
-            return (
-                "తప్పకుండా! మీ వ్యాపార ప్రొఫైల్‌ను సులభంగా పూర్తి చేద్దాం. 😊\n\n"
-                "**మొదటి ప్రశ్న:** దయచేసి మీ **పూర్తి పేరు** మరియు మీ **గ్రామం లేదా పట్టణం పేరు** చెప్పండి."
-            )
-        else:
-            return (
-                "Certainly! Let us complete your enterprise profile step by step. 😊\n\n"
-                "**Step 1:** Please share your **full name** and your **village/town location**."
-            )
+    def _format_form_filling(self, profile: Dict[str, Any], lang: str) -> Tuple[str, str]:
+        """Section 10 & 11: Voice-Guided Step-by-Step Questioning and Form Filling."""
+        name = profile.get("name")
+        vil = profile.get("location", {}).get("village")
+        cap = profile.get("financial", {}).get("capital")
+        land = profile.get("resources", {}).get("land_acres")
+        cat = profile.get("social_category")
+
+        # Step 1: Name & Location
+        if not name or not vil:
+            if lang == "HINDI":
+                return (
+                    "बिल्कुल! चलिए आपका उद्यम प्रोफाइल चरण-दर-चरण तैयार करते हैं। 😊\n\n"
+                    "**पहला कदम:** कृपया अपना **शुभ नाम** और अपने **गांव/कस्बे का नाम** बताएं।"
+                ), "ASK_LOCATION"
+            elif lang == "TELUGU":
+                return (
+                    "తప్పకుండా! మీ వ్యాపార ప్రొఫైల్‌ను సులభంగా పూర్తి చేద్దాం. 😊\n\n"
+                    "**మొదటి ప్రశ్న:** దయచేసి మీ **పూర్తి పేరు** మరియు మీ **గ్రామం లేదా పట్టణం పేరు** చెప్పండి."
+                ), "ASK_LOCATION"
+            else:
+                return (
+                    "Certainly! Let us build your enterprise blueprint step by step. 😊\n\n"
+                    "**Step 1:** Please tell me your **full name** and your **village or town location**."
+                ), "ASK_LOCATION"
+
+        # Step 2: Available Capital
+        if cap is None:
+            if lang == "HINDI":
+                return (
+                    f"बहुत बढ़िया {name} जी! 👍\n\n"
+                    f"**दूसरा कदम:** व्यवसाय शुरू करने के लिए आपके पास अपनी खुद की कितनी **पूँजी या बचत (रुपये में)** उपलब्ध है?"
+                ), "ASK_CAPITAL"
+            elif lang == "TELUGU":
+                return (
+                    f"చాలా బాగుంది {name} గారు! 👍\n\n"
+                    f"**రెండవ ప్రశ్న:** ఈ వ్యాపారంలో పెట్టుబడి పెట్టడానికి మీ వద్ద ఎంత **సొంత నగదు/పొదుపు (రూపాయల్లో)** అందుబాటులో ఉంది?"
+                ), "ASK_CAPITAL"
+            else:
+                return (
+                    f"Great {name}! 👍\n\n"
+                    f"**Step 2:** How much personal liquid capital or savings (in ₹) do you have available to invest?"
+                ), "ASK_CAPITAL"
+
+        # Step 3: Land & Site Infrastructure
+        if land is None and not profile.get("resources", {}).get("water"):
+            cap_fmt = f"₹{cap:,.0f}"
+            if lang == "HINDI":
+                return (
+                    f"धन्यवाद, आपका बजट **{cap_fmt}** दर्ज हो गया है। 👍\n\n"
+                    f"**तीसरा कदम:** आपके पास कुल कितनी **जमीन (एकड़ में)** है, और क्या वहां **पानी/बोरवेल या 3-फेज बिजली** की सुविधा उपलब्ध है?"
+                ), "ASK_RESOURCES"
+            elif lang == "TELUGU":
+                return (
+                    f"ధన్యవాదాలు, మీ బడ్జెట్ **{cap_fmt}** నమోదైంది. 👍\n\n"
+                    f"**మూడవ ప్రశ్న:** మీ వద్ద ఎన్ని **ఎకరాల భూమి** ఉంది, మరియు అక్కడ **నీరు లేదా కరెంట్ సదుపాయం** ఉందా?"
+                ), "ASK_RESOURCES"
+            else:
+                return (
+                    f"Thank you, budget of **{cap_fmt}** is noted. 👍\n\n"
+                    f"**Step 3:** How many **acres of land** do you have, and do you have **water/borewell or 3-phase electricity** at the site?"
+                ), "ASK_RESOURCES"
+
+        # Step 4: Social Category & Background
+        if not cat:
+            if lang == "HINDI":
+                return (
+                    f"संसाधन दर्ज हो गए। 🌾\n\n"
+                    f"**चौथा कदम:** सरकारी 90% रियायती ऋण योजनाओं (जैसे NBCFDC, NSFDC, PMEGP) के लिए आपकी **सामाजिक श्रेणी (OBC, SC, ST, या General)** क्या है?"
+                ), "ASK_CATEGORY"
+            elif lang == "TELUGU":
+                return (
+                    f"వనరుల వివరాలు నమోదయ్యాయి. 🌾\n\n"
+                    f"**నాల్గవ ప్రశ్న:** ప్రభుత్వ 90% రాయితీ రుణాల అర్హత కోసం మీ **సామాజిక వర్గం (OBC, SC, ST, లేదా General)** ఏమిటి?"
+                ), "ASK_CATEGORY"
+            else:
+                return (
+                    f"Site details recorded. 🌾\n\n"
+                    f"**Step 4:** Which **social category (OBC, SC, ST, or General)** do you belong to, to check 90% concessional government loan schemes?"
+                ), "ASK_CATEGORY"
+
+        # Step 5: Full recommendations if all filled
+        rec_reply, _, _ = self._format_full_recommendation(profile, lang)
+        return rec_reply, "SHOW_RECOMMENDATIONS"
 
     def _format_full_recommendation(self, profile: Dict[str, Any], lang: str) -> Tuple[str, Dict[str, Any], List[Dict[str, Any]]]:
         """Section 30, 31, 42: Comprehensive 9-part explainable recommendation."""

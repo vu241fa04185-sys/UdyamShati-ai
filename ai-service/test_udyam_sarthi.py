@@ -101,7 +101,25 @@ def test_udyam_sarthi_suite():
     assert len(t8["sources"]) >= 1
     print("✔ Passed Test 8!")
 
-    print("\n🎉 ALL 8 UDYAMSARTHI SUITE TESTS PASSED WITH 100% SUCCESS!")
+    # TEST 9: Step-by-Step Guided Form Filling & Location Ingestion (Rule 10, 11)
+    print("\n--- Test 9: Step-by-Step Guided Form Filling ---")
+    t9_a = agent.process_turn("Mujhe form bharna hai, sawal pucho step by step")
+    print("Step 1 Intent:", t9_a["intent"], "Action:", t9_a["action_type"])
+    assert t9_a["intent"] == "FORM_FILLING"
+    assert t9_a["action_type"] == "ASK_LOCATION"
+
+    t9_b = agent.process_turn("Mera naam Ramesh Kisan hai, Pimpalgaon village se hoon", t9_a["updated_profile"])
+    print("Extracted Name:", t9_b["updated_profile"]["name"])
+    print("Extracted Village:", t9_b["updated_profile"]["location"]["village"])
+    assert t9_b["updated_profile"]["name"] == "Ramesh Kisan"
+    assert t9_b["updated_profile"]["location"]["village"] == "Pimpalgaon"
+
+    t9_c = agent.process_turn("Mere paas 2 lakh rupaye hain", t9_b["updated_profile"])
+    print("Extracted Capital:", t9_c["updated_profile"]["financial"]["capital"])
+    assert t9_c["updated_profile"]["financial"]["capital"] == 200000.0
+    print("✔ Passed Test 9!")
+
+    print("\n🎉 ALL 9 UDYAMSARTHI SUITE TESTS PASSED WITH 100% SUCCESS!")
 
 if __name__ == "__main__":
     test_udyam_sarthi_suite()
