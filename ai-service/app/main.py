@@ -12,9 +12,10 @@ from app.simulation_engine.whatif_simulator import SimulationEngine
 from app.rag_engine.retriever import RAGRetriever
 from app.nlu_engine.multilingual_parser import MultilingualParser
 from app.explainability.explanation_generator import ExplanationGenerator
+from app.advisory_agent.udyam_sarthi import UdyamSarthiAgent
 
 app = FastAPI(
-    title="UdyamSetu AI Specialist Analytics Microservice",
+    title="UdyamSarthi AI Specialist Analytics Microservice",
     description="Deterministic and ML engines for Hyper-Local Rural Micro-Enterprise Decision Support (MoSJE)",
     version="1.0.0"
 )
@@ -38,6 +39,7 @@ simulation_engine = SimulationEngine()
 rag_retriever = RAGRetriever()
 nlu_parser = MultilingualParser()
 explainability_engine = ExplanationGenerator()
+udyam_sarthi_agent = UdyamSarthiAgent()
 
 # -----------------------------------------------------------------------------
 # Request Schemas
@@ -90,6 +92,11 @@ class RAGRequest(BaseModel):
     query: str
     top_k: int = 3
 
+class AgentChatRequest(BaseModel):
+    message: str
+    profile: Optional[Dict[str, Any]] = None
+    session_id: Optional[str] = "default_session"
+
 # -----------------------------------------------------------------------------
 # API Endpoints
 # -----------------------------------------------------------------------------
@@ -97,9 +104,18 @@ class RAGRequest(BaseModel):
 def health():
     return {
         "status": "healthy",
-        "service": "UdyamSetu AI Microservice",
-        "engines_loaded": ["Market", "Finance", "Scheme", "Risk", "Recommendation", "Simulation", "RAG", "NLU"]
+        "service": "UdyamSarthi AI Microservice",
+        "engines_loaded": ["Market", "Finance", "Scheme", "Risk", "Recommendation", "Simulation", "RAG", "NLU", "UdyamSarthiAgent"]
     }
+
+@app.post("/api/agent/chat")
+def chat_with_agent(req: AgentChatRequest):
+    """
+    Direct interface to UdyamSarthi Advisory Agent adhering to all 59 rules:
+    Trilingual (HI/TE/EN/MIXED), zero hallucination, Section 12 profile tracking,
+    deterministic math/schemes, what-if simulations, and explainability.
+    """
+    return udyam_sarthi_agent.process_turn(req.message, req.profile)
 
 @app.post("/api/nlp/parse")
 def parse_multilingual_query(req: ParseRequest):

@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
 import { Info, ChevronDown, ChevronUp, Layers } from 'lucide-react';
+import { translations } from '../../locales/translations';
 
-export default function MapLegend({ isHeatmapActive, onToggleHeatmap }) {
+export default function MapLegend({ isHeatmapActive, setIsHeatmapActive, lang = 'en' }) {
+  const t = translations[lang] || translations.en;
   const [isOpen, setIsOpen] = useState(false);
 
   const legendItems = [
-    { icon: '📍', label: 'Entrepreneur Location', color: '#047857', badge: 'Center' },
-    { icon: '🐄', label: 'Dairy & Milk', color: '#2563eb' },
-    { icon: '🐔', label: 'Poultry & Broiler', color: '#ea580c' },
-    { icon: '🌾', label: 'Agri Inputs & Seeds', color: '#16a34a' },
-    { icon: '📦', label: 'Food Processing Mill', color: '#d97706' },
-    { icon: '🏪', label: 'Retail & Kirana', color: '#7c3aed' },
-    { icon: '🏥', label: 'Veterinary & Healthcare', color: '#dc2626' },
-    { icon: '⛽', label: 'Fuel & Logistics', color: '#0891b2' },
-    { icon: '🚜', label: 'Banking & Machinery Hub', color: '#475569' },
-    { icon: '🛒', label: 'APMC Regional Mandi', color: '#6d28d9', badge: 'Mandi' }
+    { icon: '📍', label: t.entrepreneurLocation || 'Entrepreneur Location', color: '#047857', badge: t.centerBadge || 'Center' },
+    { icon: '🐄', label: t.dairyCategory || 'Dairy & Milk', color: '#2563eb' },
+    { icon: '🐔', label: t.poultryCategory || 'Poultry & Broiler', color: '#ea580c' },
+    { icon: '🌾', label: t.agriCategory || 'Agri & Seeds', color: '#16a34a' },
+    { icon: '📦', label: t.foodCategory || 'Food Processing', color: '#d97706' },
+    { icon: '🏪', label: t.retailCategory || 'Retail & Kirana', color: '#7c3aed' },
+    { icon: '🏥', label: t.healthcareCategory || 'Healthcare & Vet', color: '#dc2626' },
+    { icon: '⛽', label: t.transportCategory || 'Fuel & Logistics', color: '#0891b2' },
+    { icon: '🚜', label: t.servicesCategory || 'Banking & Machinery', color: '#475569' },
+    { icon: '🛒', label: t.apmcMandi || 'APMC Regional Mandi', color: '#6d28d9', badge: t.mandiBadge || 'Mandi' }
   ];
 
   return (
@@ -22,22 +24,22 @@ export default function MapLegend({ isHeatmapActive, onToggleHeatmap }) {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center space-x-2">
           <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
-          <span className="font-bold text-slate-800">Map Legend & Layers</span>
+          <span className="font-bold text-slate-800">{t.mapLegendTitle || "Map Legend & Layers"}</span>
         </div>
 
         <div className="flex items-center space-x-2">
-          {onToggleHeatmap && (
+          {setIsHeatmapActive && (
             <button
               type="button"
-              onClick={onToggleHeatmap}
-              className={`px-2 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1 transition ${
+              onClick={() => setIsHeatmapActive(!isHeatmapActive)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1 transition ${
                 isHeatmapActive
                   ? 'bg-rose-600 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <Layers className="w-3 h-3" />
-              <span>{isHeatmapActive ? 'Heatmap: ON' : 'Heatmap: OFF'}</span>
+              <span>{isHeatmapActive ? (t.heatmapOn || 'Heatmap: ON') : (t.heatmapOff || 'Heatmap: OFF')}</span>
             </button>
           )}
 

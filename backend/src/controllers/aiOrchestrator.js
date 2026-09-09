@@ -150,3 +150,19 @@ exports.getLocations = (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// 10. Natural Language Parser (multilingual NLU entity extractor)
+exports.parseNLP = async (req, res) => {
+  try {
+    const result = await callAI('/api/nlp/parse', req.body);
+    res.json(result);
+  } catch (err) {
+    console.warn('NLP parse fallback:', err.message);
+    res.json({
+      raw_input: req.body?.text || '',
+      detected_language: 'en',
+      intent: 'GENERAL_CONVERSATION',
+      entities: {}
+    });
+  }
+};

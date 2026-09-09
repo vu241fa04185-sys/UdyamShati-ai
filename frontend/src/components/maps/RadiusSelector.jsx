@@ -1,11 +1,14 @@
 import React from 'react';
-import { Target, Compass } from 'lucide-react';
+import { Target } from 'lucide-react';
+import { translations } from '../../locales/translations';
 
-export default function RadiusSelector({ radiusKm, onRadiusChange, disabled = false }) {
+export default function RadiusSelector({ radiusKm, setRadiusKm, disabled = false, lang = 'en' }) {
+  const t = translations[lang] || translations.en;
+
   const options = [
-    { km: 5.0, area: '78.5 sq km', desc: 'Immediate Village Catchment' },
-    { km: 10.0, area: '314.2 sq km', desc: 'Cluster & Mandi Corridor' },
-    { km: 15.0, area: '706.9 sq km', desc: 'Regional Tehsil Belt' }
+    { km: 5.0, area: '78.5 sq km', desc: t.radius5kmDesc || 'Immediate Village Catchment' },
+    { km: 10.0, area: '314.2 sq km', desc: t.radius10kmDesc || 'Cluster & Mandi Corridor' },
+    { km: 15.0, area: '706.9 sq km', desc: t.radius15kmDesc || 'Regional Tehsil Belt' }
   ];
 
   const currentOption = options.find((o) => o.km === radiusKm) || options[1];
@@ -18,15 +21,15 @@ export default function RadiusSelector({ radiusKm, onRadiusChange, disabled = fa
         </div>
         <div>
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-            Catchment Analysis Radius
+            {t.catchmentRadiusLabel || "Catchment Analysis Radius"}
           </span>
           <div className="flex items-center space-x-2 text-xs">
             <span className="font-extrabold text-slate-800">
-              {radiusKm} km Radius
+              {radiusKm} {t.km || "km"} Radius
             </span>
             <span className="text-slate-300">•</span>
             <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-bold text-[11px]">
-              {currentOption.area} Analyzed
+              {currentOption.area} {t.analyzedText || "Analyzed"}
             </span>
           </div>
         </div>
@@ -41,7 +44,7 @@ export default function RadiusSelector({ radiusKm, onRadiusChange, disabled = fa
               key={opt.km}
               type="button"
               disabled={disabled}
-              onClick={() => onRadiusChange(opt.km)}
+              onClick={() => setRadiusKm && setRadiusKm(opt.km)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 flex items-center space-x-1.5 ${
                 isActive
                   ? 'bg-emerald-700 text-white shadow-sm scale-100'

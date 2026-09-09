@@ -9,8 +9,10 @@ import {
 } from 'lucide-react';
 import { translations } from '../../locales/translations';
 
-export default function RightContextPanel({ profile, onProfileUpdate, setActiveTab, language = 'en' }) {
-  const t = translations[language] || translations.en;
+export default function RightContextPanel({ profile, onProfileUpdate, setActiveTab, language = 'en', lang }) {
+  const activeLang = language || lang || 'en';
+  const t = translations[activeLang] || translations.en;
+
   const [isChangingLoc, setIsChangingLoc] = useState(false);
   const [inputDistrict, setInputDistrict] = useState(profile?.district || 'Guntur');
   const [inputState, setInputState] = useState(profile?.state || 'Andhra Pradesh');
@@ -43,7 +45,9 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
             <div className="p-2 rounded-xl bg-amber-500/15 text-[#C28A17]">
               <MapPin className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-extrabold text-stone-900">{t.yourLocation || 'Your Location'}</h3>
+            <h3 className="text-sm font-extrabold text-stone-900">
+              {t.yourLocation || t.yourLocationTitle || 'Your Location'}
+            </h3>
           </div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#0F3D2E]">
             {t.activeContext || 'Active Context'}
@@ -60,8 +64,8 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                 {profile.address} {profile.pincode ? `• PIN ${profile.pincode}` : ''}
               </p>
             )}
-            <p className="text-xs text-stone-500 mt-0.5">
-              {t.marketFiltered || 'Market opportunities & schemes filtered for this area.'}
+            <p className="text-xs text-stone-500 mt-0.5 leading-snug">
+              {t.marketFiltered || t.locationSubtext || 'Market opportunities & schemes filtered for this area.'}
             </p>
 
             <div className="flex items-center space-x-2 mt-4">
@@ -76,7 +80,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                 className="py-2 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition flex items-center space-x-1"
               >
                 <Edit2 className="w-3 h-3 text-stone-500" />
-                <span>{t.changeLocBtn || 'Change'}</span>
+                <span>{t.changeLocBtn || t.changeLocation || 'Change'}</span>
               </button>
             </div>
           </div>
@@ -84,7 +88,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
           <form onSubmit={handleSaveLocation} className="space-y-3 mt-2">
             <div>
               <label className="text-[11px] font-bold text-stone-600 block mb-1">
-                {language === 'hi' ? 'जिला / शहर' : (language === 'te' ? 'జిల్లా / పట్టణం' : 'District / Town')}
+                {t.districtLabel || (activeLang === 'hi' ? 'जिला / शहर' : (activeLang === 'te' ? 'జిల్లా / పట్టణం' : 'District / Town'))}
               </label>
               <input
                 type="text"
@@ -96,7 +100,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
             </div>
             <div>
               <label className="text-[11px] font-bold text-stone-600 block mb-1">
-                {language === 'hi' ? 'राज्य' : (language === 'te' ? 'రాష్ట్రం' : 'State')}
+                {t.stateLabel || (activeLang === 'hi' ? 'राज्य' : (activeLang === 'te' ? 'రాష్ట్రం' : 'State'))}
               </label>
               <input
                 type="text"
@@ -111,14 +115,14 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                 type="submit"
                 className="flex-1 py-1.5 rounded-xl bg-[#0F3D2E] text-white text-xs font-bold"
               >
-                {language === 'hi' ? 'स्थान अपडेट करें' : (language === 'te' ? 'స్థానం మార్చండి' : 'Update Location')}
+                {t.updateLocation || (activeLang === 'hi' ? 'स्थान अपडेट करें' : (activeLang === 'te' ? 'స్థానం మార్చండి' : 'Update Location'))}
               </button>
               <button
                 type="button"
                 onClick={() => setIsChangingLoc(false)}
                 className="py-1.5 px-3 rounded-xl bg-stone-100 text-stone-600 text-xs font-bold"
               >
-                {language === 'hi' ? 'रद्द करें' : (language === 'te' ? 'రద్దు' : 'Cancel')}
+                {t.cancel || (activeLang === 'hi' ? 'रद्द करें' : (activeLang === 'te' ? 'రద్దు' : 'Cancel'))}
               </button>
             </div>
           </form>
@@ -130,7 +134,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
         <div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">
-              🌱 {t.tabMarketMap || 'HYPER-LOCAL INSIGHTS'}
+              {t.hyperLocalTag || (activeLang === 'hi' ? '🌱 स्थानीय अवसर' : '🌱 HYPER-LOCAL INSIGHTS')}
             </span>
             <span className="text-[11px] bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-full font-semibold">
               {districtOnly}
@@ -138,7 +142,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
           </div>
 
           <h3 className="text-base font-extrabold text-amber-100 mb-4">
-            {t.greenOppTitle || 'Opportunity Dashboard'}
+            {t.greenOppTitle || t.opportunityDashboardTitle || 'Opportunity Dashboard'}
           </h3>
 
           <div className="space-y-3">
@@ -149,7 +153,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                 </div>
                 <div>
                   <p className="text-[11px] text-emerald-100 font-medium">
-                    {language === 'hi' ? 'बढ़ते अवसर' : (language === 'te' ? 'పెరుగుతున్న అవకాశాలు' : 'Growing Opportunities')}
+                    {t.growingOpportunities || (activeLang === 'hi' ? 'बढ़ते अवसर' : (activeLang === 'te' ? 'పెరుగుతున్న అవకాశాలు' : 'Growing Opportunities'))}
                   </p>
                   <p className="text-lg font-black text-amber-300">24+</p>
                 </div>
@@ -163,7 +167,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                 </div>
                 <div>
                   <p className="text-[11px] text-emerald-100 font-medium">
-                    {t.navGovtSchemes || 'Active Schemes'}
+                    {t.navGovtSchemes || t.activeSchemes || 'Active Schemes'}
                   </p>
                   <p className="text-lg font-black text-amber-300">12+</p>
                 </div>
@@ -177,7 +181,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
                 </div>
                 <div>
                   <p className="text-[11px] text-emerald-100 font-medium">
-                    {language === 'hi' ? 'सफल उद्यमी' : (language === 'te' ? 'మద్దతు పొందిన పారిశ్రామికవేత్తలు' : 'Supported Entrepreneurs')}
+                    {t.supportedEntrepreneurs || (activeLang === 'hi' ? 'सफल उद्यमी' : (activeLang === 'te' ? 'మద్దతు పొందిన పారిశ్రామికవేత్తలు' : 'Supported Entrepreneurs'))}
                   </p>
                   <p className="text-lg font-black text-amber-300">1K+</p>
                 </div>
@@ -190,7 +194,7 @@ export default function RightContextPanel({ profile, onProfileUpdate, setActiveT
           onClick={() => setActiveTab('market')}
           className="w-full mt-5 py-2.5 rounded-2xl bg-[#C28A17] hover:bg-[#b07d14] text-white text-xs font-bold text-center transition flex items-center justify-center space-x-2 shadow-md"
         >
-          <span>{language === 'hi' ? 'बाजार अंतर्दृष्टि नक्शा देखें →' : (language === 'te' ? 'మార్కెట్ మ్యాప్ చూడండి →' : 'Explore Market Insights Map →')}</span>
+          <span>{t.exploreMarketMapBtn || (activeLang === 'hi' ? 'बाजार अंतर्दृष्टि नक्शा देखें →' : (activeLang === 'te' ? 'మార్కెట్ మ్యాప్ చూడండి →' : 'Explore Market Insights Map →'))}</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

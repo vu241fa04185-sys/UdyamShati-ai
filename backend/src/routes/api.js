@@ -29,6 +29,7 @@ router.post('/rag/search', verifyToken, aiOrchestrator.searchRAG);
 // Meta data routes
 router.get('/catalog', aiOrchestrator.getCatalog);
 router.get('/locations', aiOrchestrator.getLocations);
+router.post('/nlp/parse', aiOrchestrator.parseNLP);
 
 // Google Maps & Hyper-Local Intelligence routes
 router.post('/maps/nearby', mapsController.getNearbyPlaces);

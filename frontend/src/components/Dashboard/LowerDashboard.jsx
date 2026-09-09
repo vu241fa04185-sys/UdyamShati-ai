@@ -6,8 +6,9 @@ import {
 } from 'lucide-react';
 import { translations } from '../../locales/translations';
 
-export default function LowerDashboard({ language = 'en' }) {
-  const t = translations[language] || translations.en;
+export default function LowerDashboard({ language = 'en', lang }) {
+  const activeLang = language || lang || 'en';
+  const t = translations[activeLang] || translations.en;
 
   return (
     <div className="space-y-6 mt-8">
@@ -17,36 +18,36 @@ export default function LowerDashboard({ language = 'en' }) {
         <div className="flex items-center space-x-2 mb-4">
           <Sparkles className="w-5 h-5 text-[#C28A17]" />
           <h3 className="text-base font-extrabold text-[#0F3D2E]">
-            {t.whyUdyamSaarthi || 'Why UdyamSaarthi?'}
+            {t.whyUdyamSaarthi || t.whyUdyamSaarthiTitle || 'Why UdyamSaarthi?'}
           </h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex items-start space-x-2.5 bg-white/80 p-3 rounded-2xl border border-emerald-900/10">
+          <div className="flex items-start space-x-2.5 bg-white/80 p-3.5 rounded-2xl border border-emerald-900/10 shadow-2xs">
             <CheckCircle2 className="w-4 h-4 text-[#0F3D2E] shrink-0 mt-0.5" />
             <span className="text-xs font-semibold text-stone-700 leading-snug">
-              {t.reason1 || 'Personalized recommendations based on your location'}
+              {t.reason1 || t.whyPoint1 || 'Personalized recommendations based on your location'}
             </span>
           </div>
 
-          <div className="flex items-start space-x-2.5 bg-white/80 p-3 rounded-2xl border border-emerald-900/10">
+          <div className="flex items-start space-x-2.5 bg-white/80 p-3.5 rounded-2xl border border-emerald-900/10 shadow-2xs">
             <CheckCircle2 className="w-4 h-4 text-[#0F3D2E] shrink-0 mt-0.5" />
             <span className="text-xs font-semibold text-stone-700 leading-snug">
-              {t.reason2 || 'Access to government schemes & concessional loans'}
+              {t.reason2 || t.whyPoint2 || 'Access to government schemes & concessional loans'}
             </span>
           </div>
 
-          <div className="flex items-start space-x-2.5 bg-white/80 p-3 rounded-2xl border border-emerald-900/10">
+          <div className="flex items-start space-x-2.5 bg-white/80 p-3.5 rounded-2xl border border-emerald-900/10 shadow-2xs">
             <CheckCircle2 className="w-4 h-4 text-[#0F3D2E] shrink-0 mt-0.5" />
             <span className="text-xs font-semibold text-stone-700 leading-snug">
-              {t.reason3 || 'Financial planning made simple'}
+              {t.reason3 || t.whyPoint3 || 'Financial planning made simple'}
             </span>
           </div>
 
-          <div className="flex items-start space-x-2.5 bg-white/80 p-3 rounded-2xl border border-emerald-900/10">
+          <div className="flex items-start space-x-2.5 bg-white/80 p-3.5 rounded-2xl border border-emerald-900/10 shadow-2xs">
             <CheckCircle2 className="w-4 h-4 text-[#0F3D2E] shrink-0 mt-0.5" />
             <span className="text-xs font-semibold text-stone-700 leading-snug">
-              {t.reason4 || 'Guidance you can trust step by step'}
+              {t.reason4 || t.whyPoint4 || 'Guidance you can trust step by step'}
             </span>
           </div>
         </div>
@@ -60,26 +61,26 @@ export default function LowerDashboard({ language = 'en' }) {
           </div>
           <div>
             <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
-              {t.needHelp || 'Need Help?'}
+              {t.needHelp || t.needHelpTitle || 'Need Help?'}
             </span>
             <h4 className="text-base font-extrabold text-white">
               {t.callHelpline || 'Call Our Helpline'}
             </h4>
             <p className="text-xs text-emerald-100">
-              {language === 'hi' ? 'MoSJE उद्यमी परामर्श एवं सहायता' : (language === 'te' ? 'MoSJE పారిశ్రామికవేత్త సలహా & మద్దతు' : 'MoSJE Entrepreneur Advisory & Support')}
+              {t.helplineSubtitle || (activeLang === 'hi' ? 'MoSJE उद्यमी परामर्श एवं सहायता' : (activeLang === 'te' ? 'MoSJE పారిశ్రామికవేత్త సలహా & మద్దతు' : 'MoSJE Entrepreneur Advisory & Support'))}
             </p>
           </div>
         </div>
 
         <div className="flex items-center space-x-4">
           <span className="text-xl sm:text-2xl font-black text-amber-400 tracking-wider">
-            1800-11-2001
+            {t.helplineNumber || "1800-11-2001"}
           </span>
           <a 
             href="tel:1800112001"
             className="px-5 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-[#0F3D2E] font-extrabold text-xs shadow-md transition"
           >
-            {language === 'hi' ? 'कॉल करें' : (language === 'te' ? 'కాల్ చేయండి' : 'Call Now')}
+            {t.callNow || (activeLang === 'hi' ? 'कॉल करें' : (activeLang === 'te' ? 'కాల్ చేయండి' : 'Call Now'))}
           </a>
         </div>
       </div>

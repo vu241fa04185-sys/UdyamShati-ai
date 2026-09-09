@@ -11,7 +11,7 @@ export default function HomeDashboard({
   setActiveTab, 
   language 
 }) {
-  const userName = auth?.user?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
+  const userName = auth?.name || auth?.user?.name || profile?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
 
   return (
     <div className="space-y-8 pb-12">
@@ -20,6 +20,7 @@ export default function HomeDashboard({
         userName={userName} 
         onStartAnalysis={() => setActiveTab('recommendations')} 
         language={language}
+        lang={language} 
       />
 
       {/* 2. Main Content Grid (Central Voice AI Chat + Right Context Panel) */}
@@ -42,13 +43,14 @@ export default function HomeDashboard({
             onProfileUpdate={onProfileUpdate}
             setActiveTab={setActiveTab}
             language={language}
+            lang={language}
           />
         </div>
 
       </div>
 
       {/* 3. Lower Home Content: Why UdyamSaarthi + Helpline */}
-      <LowerDashboard language={language} />
+      <LowerDashboard language={language} lang={language} />
     </div>
   );
 }

@@ -15,7 +15,7 @@ app.use(morgan('dev'));
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
-    service: 'UdyamSetu National Advisory Platform - Node.js Express Orchestrator',
+    service: 'UdyamSarthi National Advisory Platform - Node.js Express Orchestrator',
     port: config.PORT,
     ai_service_url: config.AI_SERVICE_URL
   });
@@ -32,7 +32,7 @@ app.use((err, req, res, next) => {
 
 app.listen(config.PORT, () => {
   console.log('=======================================================');
-  console.log(`🚀 UdyamSetu Backend Orchestrator running on port ${config.PORT}`);
+  console.log(`🚀 UdyamSarthi Backend Orchestrator running on port ${config.PORT}`);
   console.log(`🔗 AI Microservice Target: ${config.AI_SERVICE_URL}`);
   console.log('=======================================================');
 });
