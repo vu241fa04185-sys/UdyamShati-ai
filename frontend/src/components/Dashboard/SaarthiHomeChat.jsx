@@ -21,6 +21,7 @@ import {
 import axios from 'axios';
 import { translations } from '../../locales/translations';
 import { cleanSpeechText, configureFemaleUtterance } from '../../utils/speechVoice';
+import { processSaarthiMessage } from '../../services/saarthiAgentService';
 
 export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language = 'en' }) {
   const t = translations[language] || translations.en;
@@ -299,15 +300,38 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         speakVoice(speakTextToUse, response.data?.session_state?.lang || language);
       }
     } catch (err) {
-      console.warn("Chat API error:", err);
-      const fallbackReply = "Main aapke vyavasayik prashna ko samajh raha hoon. Kripya apna budget aur location batayein taaki main vishleshan kar sakoon.";
-      const aiMsg = {
-        sender: 'ai',
-        text: fallbackReply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-      if (autoSpeak) speakVoice(fallbackReply, language);
+      console.warn("Backend chat API unreachable, utilizing Saarthi local agent engine:", err);
+      try {
+        const localResult = processSaarthiMessage({
+          message: text,
+          history: nextMessages,
+          dossier: {
+            name: sessionState.name || profile?.name || '',
+            businessIdea: sessionState.business || profile?.business_idea || '',
+            capital: sessionState.budget || profile?.available_capital || null,
+            district: sessionState.district || profile?.district || ''
+          },
+          profile: profile || {},
+          language: language
+        });
+        const fallbackReply = localResult?.reply || "Main aapki sahayata karne ke liye taiyyar hoon. Kripya apna business idea ya prashna batayein.";
+        const aiMsg = {
+          sender: 'ai',
+          text: fallbackReply,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        if (autoSpeak) speakVoice(fallbackReply, language);
+      } catch (fallbackErr) {
+        const fallbackReply = "Main aapke vyavasayik prashna ko samajh raha hoon. Kripya apna budget aur location batayein taaki main vishleshan kar sakoon.";
+        const aiMsg = {
+          sender: 'ai',
+          text: fallbackReply,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        if (autoSpeak) speakVoice(fallbackReply, language);
+      }
     } finally {
       setIsLoading(false);
     }
