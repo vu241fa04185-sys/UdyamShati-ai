@@ -29,6 +29,7 @@ import { detectAccurateLocation } from '../../utils/geolocation';
 import { translations } from '../../locales/translations';
 import { useSaarthi } from '../../context/SaarthiContext';
 import { extractBusinessIntent } from '../../utils/businessPlanEngine';
+import { processSaarthiMessage } from '../../services/saarthiAgentService';
 
 export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language = 'en' }) {
   const t = translations[language] || translations.en;
@@ -48,11 +49,15 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
   const [dossier, setDossier] = useState({
     name: userName,
     businessIdea: profile?.business_idea || '',
+    categoryCode: 'GENERAL_ENTERPRISE',
     location: `${profile?.village_name || 'Village'}, ${profile?.district || 'District'}`,
     capital: profile?.available_capital || 300000,
     land: `${profile?.land_acres || 2} Acres`,
+    landOwnership: 'owned',
+    infrastructure: { water: 'Available', electricity: 'Available' },
     experience: (profile?.skills || ['Agriculture']).join(', '),
-    scale: 'Small'
+    scale: 'Small',
+    completeness: profile?.business_idea ? 60 : 30
   });
 
   const [editingField, setEditingField] = useState(null);
@@ -84,7 +89,6 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
-
 
   // Initialize Web Speech Recognition
   useEffect(() => {
@@ -182,9 +186,13 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     setIsLoading(true);
     const targetIntent = intentData || pendingBusinessIdea || {
       businessIdea: dossier.businessIdea || "Rural Micro-Enterprise",
-      location: { village: profile?.village_name || "Village", district: profile?.district || "District", state: profile?.state || "State" },
+      location: { 
+        village: profile?.village_name || "Guntur", 
+        district: profile?.district || "Guntur", 
+        state: profile?.state || "Andhra Pradesh" 
+      },
       capital: typeof dossier.capital === 'number' ? dossier.capital : parseInt(dossier.capital) || 300000,
-      scale: dossier.scale,
+      scale: dossier.scale || 'Small',
       rawQuery: inputText
     };
 
@@ -214,7 +222,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     setIsLoading(false);
 
     if (autoVoice) {
-      speakText(successMsg.text, language);
+      speakText(successMsg.text);
     }
   };
 
@@ -239,7 +247,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     setIsLoading(false);
 
     if (autoVoice) {
-      speakText(updatedMsg.text, language);
+      speakText(updatedMsg.text);
     }
   };
 
@@ -257,107 +265,59 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     setInputText('');
     setIsLoading(true);
 
-    // Extract business intent from Voice/Text input
-    const extractedIntent = extractBusinessIntent(messageToSend, profile);
-
-    // Check if prompt expresses clear business creation intent
-    const hasIntent = messageToSend.toLowerCase().includes('want') || 
-                      messageToSend.toLowerCase().includes('start') || 
-                      messageToSend.toLowerCase().includes('open') || 
-                      messageToSend.toLowerCase().includes('business') || 
-                      messageToSend.toLowerCase().includes('farm') || 
-                      messageToSend.toLowerCase().includes('poultry') || 
-                      messageToSend.toLowerCase().includes('dairy') ||
-                      messageToSend.toLowerCase().includes('mushroom') ||
-                      messageToSend.toLowerCase().includes('processing') ||
-                      messageToSend.toLowerCase().includes('chahata') ||
-                      messageToSend.toLowerCase().includes('shuru') ||
-                      messageToSend.toLowerCase().includes('karna');
-
-    if (hasIntent && extractedIntent.businessIdea && extractedIntent.businessIdea !== 'Rural Micro-Enterprise') {
-      setPendingBusinessIdea(extractedIntent);
-
-      // Check if user already has an active plan of similar type
-      const existingPlan = personalPlans.find(p => 
-        p.businessName.toLowerCase().includes(extractedIntent.businessIdea.toLowerCase()) ||
-        extractedIntent.businessIdea.toLowerCase().includes(p.businessName.toLowerCase())
-      );
-
-      if (existingPlan) {
-        setIsLoading(false);
-        const dupMessage = {
-          sender: 'ai',
-          text: language === 'hi'
-            ? `आपकी प्रोफ़ाइल में पहले से ही **${existingPlan.businessName}** की योजना सुरक्षित है। क्या आप इसे नए विवरणों के साथ अपडेट करना चाहते हैं या नई अलग योजना बनाना चाहते हैं?`
-            : (language === 'te'
-              ? `మీ వద్ద ఇప్పటికే **${existingPlan.businessName}** ప్రణాళిక భద్రపరచబడి ఉంది. దాన్ని నవీకరించాలా లేదా కొత్త ప్రణాళికను సృష్టించాలా?`
-              : `You already have a **${existingPlan.businessName}** plan. Would you like to update it or create a new separate plan?`),
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          actionType: 'UPDATE_OR_CREATE_PLAN',
-          existingPlanId: existingPlan.id,
-          existingPlanName: existingPlan.businessName,
-          intentData: extractedIntent
-        };
-        setMessages(prev => [...prev, dupMessage]);
-        if (autoVoice) speakText(dupMessage.text, language);
-        return;
-      }
-
-      // Show confirmation prompt before running business analysis
-      setIsLoading(false);
-      const confirmMessage = {
-        sender: 'ai',
-        text: language === 'hi'
-          ? `मैंने आपके विचार से यह विवरण समझा:\n• व्यवसाय: **${extractedIntent.businessIdea}**\n• स्थान: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• उपलब्ध पूँजी: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nक्या मैं इस व्यावसायिक अवसर का विश्लेषण करूँ?`
-          : (language === 'te'
-            ? `మీ ఆలోచన నుండి నేను గ్రహించిన వివరాలు:\n• వ్యాపారం: **${extractedIntent.businessIdea}**\n• ప్రాంతం: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• అందుబాటులో ఉన్న పెట్టుబడి: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nనేను ఈ అవకాశాన్ని విశ్లేషించమంటారా?`
-            : `Here's what I understood about your business idea:\n• Business: **${extractedIntent.businessIdea}**\n• Location: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• Available Capital: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nShould I analyze this business opportunity now?`),
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        actionType: 'CONFIRM_BUSINESS_PLAN',
-        intentData: extractedIntent
-      };
-      setMessages(prev => [...prev, confirmMessage]);
-      if (autoVoice) speakText(confirmMessage.text, language);
-      return;
-    }
-
     try {
-      const res = await axios.post('/api/chat', {
+      // Process user message through intelligent multilingual agent engine
+      const agentResult = processSaarthiMessage({
         message: messageToSend,
+        history: messages,
+        dossier: dossier,
         profile: profile,
         language: language
       });
 
-      const responseText = res.data?.response || res.data?.reply || "I have recorded your request. Let me assist you further.";
+      if (agentResult.updatedDossier) {
+        setDossier(agentResult.updatedDossier);
+      }
+
+      const intentPayload = {
+        businessIdea: agentResult.updatedDossier.businessIdea,
+        location: {
+          village: profile?.village_name || 'Guntur',
+          district: profile?.district || 'Guntur',
+          state: profile?.state || 'Andhra Pradesh'
+        },
+        capital: agentResult.updatedDossier.capital,
+        scale: agentResult.updatedDossier.scale || 'Small'
+      };
+
       const aiMessage = {
         sender: 'ai',
-        text: responseText,
+        text: agentResult.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        recScore: res.data?.suitability_score,
-        confScore: res.data?.confidence_score,
-        actionType: res.data?.action_type
+        actionType: agentResult.actionType,
+        intentData: intentPayload
       };
 
       setMessages((prev) => [...prev, aiMessage]);
 
-      if (autoVoice) {
-        speakText(responseText, language);
+      if (autoVoice && agentResult.reply) {
+        speakText(agentResult.reply);
       }
 
-      if (res.data?.updated_profile && onProfileUpdate) {
-        onProfileUpdate(res.data.updated_profile);
+      if (agentResult.readyForAnalysis && agentResult.updatedDossier.businessIdea) {
+        setPendingBusinessIdea(intentPayload);
       }
     } catch (err) {
-      console.error("Chat API error:", err);
+      console.error("Saarthi Agent Error:", err);
       setMessages((prev) => [
         ...prev,
         {
           sender: 'ai',
           text: language === 'hi'
-            ? "क्षमा करें, नेटवर्क समस्या के कारण उत्तर प्राप्त नहीं हो सका। कृपया पुनः प्रयास करें।"
+            ? "क्षमा करें, उत्तर संसाधित करने में समस्या आई। कृपया पुनः प्रयास करें।"
             : (language === 'te'
-              ? "క్షమించండి, నెట్‌వర్క్ సమస్య ఉంది. దయచేసి మళ్లీ ప్రయత్నించండి."
-              : "Apologies, I encountered a temporary connection notice. Please ask again or select an option below."),
+              ? "క్షమించండి, ప్రతిస్పందనను ప్రక్రియ చేయడంలో సమస్య వచ్చింది. మళ్లీ ప్రయత్నించండి."
+              : "Apologies, I encountered a temporary notice. Please try asking again."),
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -636,7 +596,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         {/* Right Column: Live Business Plan Dossier Widget */}
         <div className="bg-gradient-to-br from-[#0F3D2E]/5 to-emerald-50/60 rounded-2xl p-4 border border-emerald-900/15 flex flex-col justify-between space-y-3">
           <div>
-            <div className="flex items-center justify-between pb-2 border-b border-emerald-900/10 mb-3">
+            <div className="flex items-center justify-between pb-2 border-b border-emerald-900/10 mb-2">
               <div className="flex items-center space-x-2">
                 <FileText className="w-4 h-4 text-[#0F3D2E]" />
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0F3D2E]">
@@ -646,6 +606,20 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
               <span className="bg-emerald-100 text-[#0F3D2E] text-[10px] font-bold px-2 py-0.5 rounded-full">
                 Auto-Updating
               </span>
+            </div>
+
+            {/* Completeness Progress Bar */}
+            <div className="mb-3 bg-white p-2 rounded-xl border border-emerald-900/10">
+              <div className="flex justify-between items-center text-[10px] font-bold text-stone-700 mb-1">
+                <span>Dossier Completeness</span>
+                <span className="text-emerald-700">{dossier.completeness || 30}%</span>
+              </div>
+              <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
+                <div 
+                  className="bg-emerald-600 h-1.5 rounded-full transition-all duration-500" 
+                  style={{ width: `${dossier.completeness || 30}%` }}
+                />
+              </div>
             </div>
 
             <div className="space-y-2 text-xs">
@@ -686,7 +660,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
                   <span className="font-bold text-stone-900">{dossier.location}</span>
                 </div>
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-600" /> Profile
+                  <Check className="w-3 h-3 text-emerald-600" /> Captured
                 </span>
               </div>
 
