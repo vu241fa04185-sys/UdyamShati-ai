@@ -6,12 +6,13 @@ export default function RadiusSelector({ radiusKm, setRadiusKm, disabled = false
   const t = translations[lang] || translations.en;
 
   const options = [
-    { km: 5.0, area: '78.5 sq km', desc: t.radius5kmDesc || 'Immediate Village Catchment' },
-    { km: 10.0, area: '314.2 sq km', desc: t.radius10kmDesc || 'Cluster & Mandi Corridor' },
-    { km: 15.0, area: '706.9 sq km', desc: t.radius15kmDesc || 'Regional Tehsil Belt' }
+    { km: 1.0, area: '3.14 sq km', desc: t.radius1kmDesc || 'Immediate Neighborhood' },
+    { km: 2.0, area: '12.6 sq km', desc: t.radius2kmDesc || 'Local Village Catchment' },
+    { km: 5.0, area: '78.5 sq km', desc: t.radius5kmDesc || 'Standard Catchment (Default)' },
+    { km: 10.0, area: '314.2 sq km', desc: t.radius10kmDesc || 'Mandi & Tehsil Corridor' }
   ];
 
-  const currentOption = options.find((o) => o.km === radiusKm) || options[1];
+  const currentOption = options.find((o) => Math.abs(o.km - radiusKm) < 0.1) || options[2];
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">

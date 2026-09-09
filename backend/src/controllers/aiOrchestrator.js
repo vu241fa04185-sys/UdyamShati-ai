@@ -29,6 +29,35 @@ exports.handleChat = async (req, res) => {
       return res.status(400).json({ error: 'Message text is required' });
     }
 
+    // 1. Check if user is asking to search nearby places or view businesses on map
+    const lowerMsg = (message || '').toLowerCase();
+    const isNearbyQuery = /(nearby|paas ki|doodh ki dukan|kirana dukan|medical store|where is|kahan hai|chemist|pharmacy|fertilizer shop|petrol pump|shop in|दुकान|నందు|దుకాణం|daggara|దగ్గర)/i.test(lowerMsg);
+
+    if (isNearbyQuery) {
+      try {
+        const agentResult = await callAI('/api/agent/chat', { message, profile: profile || {} });
+        if (agentResult && agentResult.action_type === 'OPEN_MAP') {
+          return res.json({
+            reply: agentResult.reply,
+            response: agentResult.reply,
+            speak_text: agentResult.reply,
+            intent: agentResult.intent,
+            action_type: agentResult.action_type,
+            action_payload: agentResult.action_payload || (agentResult.map_action ? {
+              search_query: agentResult.map_action.query,
+              category: agentResult.map_action.category,
+              radius_km: agentResult.map_action.radius_km,
+              total_count: agentResult.map_action.total_count
+            } : null),
+            session_state: session_state || {},
+            updated_profile: profile || {}
+          });
+        }
+      } catch (err) {
+        console.warn('AI agent nearby search fallback to local advisor:', err.message);
+      }
+    }
+
     // Process chat through Dynamic AI Advisor Agent Reasoning
     const sarthiResult = await generateDynamicAdvisory({
       message,
@@ -49,8 +78,11 @@ exports.handleChat = async (req, res) => {
 
     return res.json({
       reply: sarthiResult.reply,
+      response: sarthiResult.reply,
       speak_text: sarthiResult.speak_text,
       intent: sarthiResult.intent,
+      action_type: sarthiResult.action_type || null,
+      action_payload: sarthiResult.action_payload || null,
       session_state: state,
       updated_profile: updatedProfile
     });

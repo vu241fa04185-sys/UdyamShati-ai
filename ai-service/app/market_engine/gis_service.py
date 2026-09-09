@@ -96,6 +96,65 @@ class MarketEngine:
         results.sort(key=lambda x: x["distance_km"])
         return results
 
+    def search_places(
+        self,
+        lat: float,
+        lon: float,
+        query: str = "",
+        category: str = "ALL",
+        radius_km: float = 5.0
+    ) -> Dict[str, Any]:
+        """
+        Searches places within radius with strict Haversine filtering and keyword/category matching.
+        Zero hallucination: uses verified local places catalog.
+        """
+        self._load_data()
+        q_lower = query.lower().strip()
+        filtered = []
+
+        for p in self.places:
+            dist = haversine_distance_km(lat, lon, p["latitude"], p["longitude"])
+            if dist > radius_km:
+                continue
+
+            # Check category match
+            p_cat = (p.get("category_code") or p.get("category_id") or "").upper()
+            if category and category != "ALL":
+                if p_cat == category.upper():
+                    filtered.append({**p, "distance_km": dist})
+                    continue
+
+            # Check keyword match
+            if q_lower:
+                name = p.get("name", "").lower()
+                addr = p.get("address", "").lower()
+                cat_label = p.get("category_label", "").lower()
+                if q_lower in name or q_lower in addr or q_lower in cat_label or name in q_lower:
+                    filtered.append({**p, "distance_km": dist})
+                    continue
+            elif not category or category == "ALL":
+                filtered.append({**p, "distance_km": dist})
+
+        filtered.sort(key=lambda x: x["distance_km"])
+        count = len(filtered)
+        area = round(math.pi * (radius_km ** 2), 2)
+        density = round(count / area, 2) if area > 0 else 0.0
+        nearest = filtered[0]["distance_km"] if count > 0 else None
+
+        comp_level = "None" if count == 0 else ("Low" if count <= 2 else ("Moderate" if count <= 5 else "High"))
+
+        return {
+            "query": query,
+            "category": category,
+            "radius_km": radius_km,
+            "total_count": count,
+            "places": filtered,
+            "nearest_km": nearest,
+            "density_per_sq_km": density,
+            "competition_level": comp_level,
+            "area_sq_km": area
+        }
+
     def get_nearby_competitors(self, lat: float, lon: float, radius_km: float = 10.0) -> List[Dict[str, Any]]:
         """Finds all competitors within the specified radius in km."""
         results = []

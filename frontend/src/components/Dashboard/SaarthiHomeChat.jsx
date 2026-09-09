@@ -26,6 +26,8 @@ import { processSaarthiMessage } from '../../services/saarthiAgentService';
 export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language = 'en' }) {
   const t = translations[language] || translations.en;
 
+  const { setMapSearchState } = useSaarthi();
+
   // Canonical UdyamSarthi Greeting per Specification Section 11 (Female Persona)
   const getInitialGreeting = (lang) => {
     if (lang === 'hi') {
@@ -285,7 +287,9 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         sender: 'ai',
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        recommendations: response.data?.top_recommendation
+        recommendations: response.data?.top_recommendation,
+        actionType: response.data?.action_type,
+        actionPayload: response.data?.action_payload
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -590,6 +594,34 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
                 <span className="ml-auto">{msg.timestamp}</span>
               </div>
               <p className="whitespace-pre-line font-medium text-xs sm:text-sm">{msg.text}</p>
+
+              {msg.actionType === 'OPEN_MAP' && (
+                <div className="mt-3 pt-2 border-t border-stone-100 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (msg.actionPayload) {
+                        setMapSearchState({
+                          query: msg.actionPayload.search_query || msg.actionPayload.category || '',
+                          category: msg.actionPayload.category || 'ALL',
+                          radius_km: msg.actionPayload.radius_km || 5.0
+                        });
+                      }
+                      setActiveTab('market');
+                    }}
+                    className="bg-[#0F3D2E] hover:bg-[#165440] text-amber-300 font-bold py-2 px-3.5 rounded-xl text-xs flex items-center space-x-1.5 transition shadow-sm"
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-amber-300" />
+                    <span>
+                      {language === 'hi' 
+                        ? `📍 मानचित्र पर खोजें (${msg.actionPayload?.search_query || 'बाज़ार'})`
+                        : (language === 'te' 
+                            ? `📍 మ్యాప్‌లో చూడండి (${msg.actionPayload?.search_query || 'వ్యాపారాలు'})`
+                            : `📍 Open on Map (${msg.actionPayload?.search_query || 'Nearby Places'})`)}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}

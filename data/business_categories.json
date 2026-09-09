@@ -9,82 +9,172 @@
   },
   {
     "id": "DAIRY",
-    "name": "Dairy & Milk",
+    "name": "Milk & Dairy",
     "icon": "🐄",
     "color": "#2563eb",
     "group": "Dairy",
-    "description": "Dairy farms, chilling centers, and milk collection cooperatives.",
-    "related_suppliers": ["FEED_SUPPLIER", "VETERINARY", "PHARMACY"],
+    "description": "Dairy farms, milk chilling centers, and collection cooperatives.",
+    "related_suppliers": ["AGRICULTURE_SEEDS", "PHARMACY"],
     "is_competitor_to": ["DAIRY_FARMING"]
   },
   {
-    "id": "POULTRY",
-    "name": "Poultry & Broiler",
-    "icon": "🐔",
-    "color": "#ea580c",
-    "group": "Poultry",
-    "description": "Broiler units, hatcheries, and egg collection centers.",
-    "related_suppliers": ["FEED_SUPPLIER", "VETERINARY"],
-    "is_competitor_to": ["POULTRY_BROILER"]
-  },
-  {
-    "id": "AGRICULTURE",
-    "name": "Agri & Seeds",
-    "icon": "🌾",
-    "color": "#16a34a",
-    "group": "Agriculture",
-    "description": "Fertilizers, hybrid seeds, and drip irrigation providers.",
-    "related_suppliers": ["FARM_EQUIPMENT", "MARKET_MANDI"],
-    "is_competitor_to": ["VEGETABLE_FARMING"]
-  },
-  {
-    "id": "FOOD",
-    "name": "Food Processing",
-    "icon": "📦",
-    "color": "#d97706",
-    "group": "Food",
-    "description": "Flour mills, spice grinders, packaging, and village dhabas.",
-    "related_suppliers": ["MARKET_MANDI", "GROCERY"],
-    "is_competitor_to": ["FOOD_PROCESSING_MILL"]
-  },
-  {
-    "id": "RETAIL",
-    "name": "Retail & Kirana",
+    "id": "GROCERY",
+    "name": "Grocery & Kirana",
     "icon": "🏪",
     "color": "#7c3aed",
     "group": "Retail",
-    "description": "Daily provisions, grocery stores, and consumer goods outlets.",
-    "related_suppliers": ["MARKET_MANDI", "WAREHOUSE"],
-    "is_competitor_to": ["KIRANA_DAILY_NEEDS"]
+    "description": "Daily provisions, grocery stores, and rural consumer goods outlets.",
+    "related_suppliers": ["WAREHOUSE"],
+    "is_competitor_to": ["RURAL_RETAIL_KIRANA"]
   },
   {
-    "id": "HEALTHCARE",
-    "name": "Healthcare & Vet",
-    "icon": "🏥",
+    "id": "PHARMACY",
+    "name": "Pharmacy & Medical",
+    "icon": "💊",
     "color": "#dc2626",
     "group": "Healthcare",
-    "description": "Veterinary dispensaries, hospitals, and medical pharmacies.",
+    "description": "Medical stores, veterinary dispensaries, and chemists.",
     "related_suppliers": [],
     "is_competitor_to": []
   },
   {
-    "id": "TRANSPORT",
-    "name": "Fuel & Logistics",
+    "id": "BAKERY",
+    "name": "Bakery & Sweets",
+    "icon": "🍞",
+    "color": "#b45309",
+    "group": "Food",
+    "description": "Bakeries, toast makers, cake shops, and traditional confectionery.",
+    "related_suppliers": ["GROCERY"],
+    "is_competitor_to": []
+  },
+  {
+    "id": "RESTAURANT",
+    "name": "Restaurant & Dhaba",
+    "icon": "🍽️",
+    "color": "#ea580c",
+    "group": "Food",
+    "description": "Family dhabas, highway hotels, and village bhojanalayas.",
+    "related_suppliers": ["GROCERY", "VEGETABLE"],
+    "is_competitor_to": []
+  },
+  {
+    "id": "HARDWARE",
+    "name": "Hardware & Building",
+    "icon": "🔨",
+    "color": "#475569",
+    "group": "Retail",
+    "description": "Building materials, cement, steel, plumbing, and sanitary goods.",
+    "related_suppliers": [],
+    "is_competitor_to": []
+  },
+  {
+    "id": "MOBILE_REPAIR",
+    "name": "Mobile Repair & Tech",
+    "icon": "📱",
+    "color": "#0284c7",
+    "group": "Services",
+    "description": "Smartphone repair, accessories, digital recharge, and CSC seva.",
+    "related_suppliers": [],
+    "is_competitor_to": []
+  },
+  {
+    "id": "TAILOR",
+    "name": "Tailor & Garments",
+    "icon": "✂️",
+    "color": "#db2777",
+    "group": "Services",
+    "description": "Stitching, tailoring, garment alterations, and cloth centers.",
+    "related_suppliers": [],
+    "is_competitor_to": []
+  },
+  {
+    "id": "SALON",
+    "name": "Salon & Barber",
+    "icon": "💈",
+    "color": "#9333ea",
+    "group": "Services",
+    "description": "Men's salon, hair stylists, and beauty parlours.",
+    "related_suppliers": [],
+    "is_competitor_to": []
+  },
+  {
+    "id": "VEGETABLE",
+    "name": "Vegetables & Mandi",
+    "icon": "🥦",
+    "color": "#16a34a",
+    "group": "Agriculture",
+    "description": "Fresh produce shops, weekly haat stalls, and sabzi mandis.",
+    "related_suppliers": ["AGRICULTURE_SEEDS"],
+    "is_competitor_to": ["VEGETABLE_FARMING"]
+  },
+  {
+    "id": "AGRICULTURE_SEEDS",
+    "name": "Fertilizers & Seeds",
+    "icon": "🌾",
+    "color": "#15803d",
+    "group": "Agriculture",
+    "description": "Agro-chemical depots, certified seeds, pesticides, and drip equipment.",
+    "related_suppliers": [],
+    "is_competitor_to": []
+  },
+  {
+    "id": "POULTRY",
+    "name": "Poultry & Chicken",
+    "icon": "🐔",
+    "color": "#c2410c",
+    "group": "Poultry",
+    "description": "Broiler units, commercial chicken centers, and fresh egg depots.",
+    "related_suppliers": ["AGRICULTURE_SEEDS"],
+    "is_competitor_to": ["POULTRY_BROILER"]
+  },
+  {
+    "id": "MECHANIC",
+    "name": "Auto & Tractor Garage",
+    "icon": "🔧",
+    "color": "#334155",
+    "group": "Services",
+    "description": "Tractor repair workshops, 2-wheeler garages, and hydraulic mechanics.",
+    "related_suppliers": ["HARDWARE"],
+    "is_competitor_to": []
+  },
+  {
+    "id": "PETROL_PUMP",
+    "name": "Petrol & Diesel Pump",
     "icon": "⛽",
     "color": "#0891b2",
     "group": "Transport",
-    "description": "Petrol pumps, tractor diesel depots, and rural transport operators.",
+    "description": "Fuel stations, highway petrol pumps, and tractor diesel depots.",
     "related_suppliers": [],
     "is_competitor_to": []
   },
   {
-    "id": "SERVICES",
-    "name": "Banking & Machinery",
+    "id": "FARM_EQUIPMENT",
+    "name": "Farm Machinery Rental",
     "icon": "🚜",
-    "color": "#475569",
+    "color": "#65a30d",
     "group": "Services",
-    "description": "Rural bank branches, ATMs, custom hiring equipment, and cold storages.",
+    "description": "Custom hiring centers, harvester rentals, and tractor equipment.",
+    "related_suppliers": ["MECHANIC"],
+    "is_competitor_to": []
+  },
+  {
+    "id": "BANK_ATM",
+    "name": "Bank & ATM",
+    "icon": "🏦",
+    "color": "#1e3a8a",
+    "group": "Services",
+    "description": "Rural bank branches, 24x7 ATMs, and Kisan Credit service points.",
     "related_suppliers": [],
-    "is_competitor_to": ["AGRI_EQUIPMENT_RENTAL"]
+    "is_competitor_to": []
+  },
+  {
+    "id": "WAREHOUSE",
+    "name": "Warehouse & Mandi",
+    "icon": "🏬",
+    "color": "#6d28d9",
+    "group": "Services",
+    "description": "APMC market yards, cold storage facilities, and agri godowns.",
+    "related_suppliers": [],
+    "is_competitor_to": []
   }
 ]

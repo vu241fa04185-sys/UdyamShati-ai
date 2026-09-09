@@ -41,6 +41,13 @@ export function SaarthiProvider({ children, auth, profile, onProfileUpdate, lang
   // Pending business idea state awaiting confirmation in chat
   const [pendingBusinessIdea, setPendingBusinessIdea] = useState(null);
 
+  // Cross-component map search state (e.g. when triggered from AI chat)
+  const [mapSearchState, setMapSearchState] = useState({
+    query: '',
+    category: 'ALL',
+    radius_km: 5.0
+  });
+
   // Sync personal plans to localStorage whenever modified
   useEffect(() => {
     try {
@@ -142,6 +149,8 @@ export function SaarthiProvider({ children, auth, profile, onProfileUpdate, lang
     getActiveRecommendationPayload,
     pendingBusinessIdea,
     setPendingBusinessIdea,
+    mapSearchState,
+    setMapSearchState,
     createPlanFromIntent,
     updatePlan,
     deletePlan
@@ -171,6 +180,8 @@ export function useSaarthi() {
       getActiveRecommendationPayload: () => null,
       pendingBusinessIdea: null,
       setPendingBusinessIdea: () => {},
+      mapSearchState: { query: '', category: 'ALL', radius_km: 5.0 },
+      setMapSearchState: () => {},
       createPlanFromIntent: () => defaultBusinessPlans[0],
       updatePlan: () => {},
       deletePlan: () => {}

@@ -34,6 +34,8 @@ router.post('/nlp/parse', aiOrchestrator.parseNLP);
 // Google Maps & Hyper-Local Intelligence routes
 router.post('/maps/nearby', mapsController.getNearbyPlaces);
 router.get('/maps/places', mapsController.getPlaces);
+router.get('/maps/search', mapsController.searchPlaces);
+router.post('/maps/search', mapsController.searchPlaces);
 router.get('/maps/place/:placeId', mapsController.getPlaceDetails);
 router.post('/maps/street-view', mapsController.checkStreetView);
 router.post('/maps/directions', mapsController.getDirections);

@@ -18,16 +18,29 @@ import { loadGoogleMaps, isGoogleMapsLoaded } from './GoogleMapsLoader';
 
 // Category color and icon map
 export const CATEGORY_STYLES = {
-  DAIRY: { icon: '🐄', color: '#2563eb', bg: '#dbeafe' },
-  POULTRY: { icon: '🐔', color: '#ea580c', bg: '#ffedd5' },
-  AGRICULTURE: { icon: '🌾', color: '#16a34a', bg: '#dcfce7' },
-  FOOD: { icon: '📦', color: '#d97706', bg: '#fef3c7' },
-  RETAIL: { icon: '🏪', color: '#7c3aed', bg: '#f3e8ff' },
-  HEALTHCARE: { icon: '🏥', color: '#dc2626', bg: '#fee2e2' },
-  TRANSPORT: { icon: '⛽', color: '#0891b2', bg: '#cffafe' },
-  SERVICES: { icon: '🚜', color: '#475569', bg: '#f1f5f9' },
-  MANDI: { icon: '🛒', color: '#6d28d9', bg: '#ede9fe' },
-  DEFAULT: { icon: '🏢', color: '#059669', bg: '#d1fae5' }
+  DAIRY: { icon: '🐄', color: '#2563eb', bg: '#dbeafe', label: 'Milk & Dairy' },
+  GROCERY: { icon: '🏪', color: '#7c3aed', bg: '#f3e8ff', label: 'Grocery / Kirana' },
+  PHARMACY: { icon: '💊', color: '#dc2626', bg: '#fee2e2', label: 'Pharmacy & Medical' },
+  BAKERY: { icon: '🍞', color: '#b45309', bg: '#fef3c7', label: 'Bakery & Sweets' },
+  RESTAURANT: { icon: '🍽️', color: '#ea580c', bg: '#ffedd5', label: 'Restaurant & Dhaba' },
+  HARDWARE: { icon: '🔨', color: '#475569', bg: '#f1f5f9', label: 'Hardware Store' },
+  MOBILE_REPAIR: { icon: '📱', color: '#0284c7', bg: '#e0f2fe', label: 'Mobile Repair' },
+  TAILOR: { icon: '✂️', color: '#db2777', bg: '#fce7f3', label: 'Tailor & Cloth' },
+  SALON: { icon: '💈', color: '#9333ea', bg: '#fae8ff', label: 'Salon & Barber' },
+  VEGETABLE: { icon: '🥦', color: '#16a34a', bg: '#dcfce7', label: 'Vegetables & Mandi' },
+  AGRICULTURE_SEEDS: { icon: '🌾', color: '#15803d', bg: '#dcfce7', label: 'Fertilizers & Seeds' },
+  POULTRY: { icon: '🐔', color: '#c2410c', bg: '#ffedd5', label: 'Poultry & Chicken' },
+  MECHANIC: { icon: '🔧', color: '#334155', bg: '#f1f5f9', label: 'Auto & Tractor Garage' },
+  PETROL_PUMP: { icon: '⛽', color: '#0891b2', bg: '#cffafe', label: 'Petrol Pump' },
+  FARM_EQUIPMENT: { icon: '🚜', color: '#65a30d', bg: '#ecfccb', label: 'Farm Machinery' },
+  BANK_ATM: { icon: '🏦', color: '#1e3a8a', bg: '#dbeafe', label: 'Bank & ATM' },
+  WAREHOUSE: { icon: '🏬', color: '#6d28d9', bg: '#ede9fe', label: 'Cold Storage / Mandi' },
+  FOOD: { icon: '📦', color: '#d97706', bg: '#fef3c7', label: 'Food Processing' },
+  RETAIL: { icon: '🏪', color: '#7c3aed', bg: '#f3e8ff', label: 'Retail & Kirana' },
+  HEALTHCARE: { icon: '🏥', color: '#dc2626', bg: '#fee2e2', label: 'Healthcare' },
+  TRANSPORT: { icon: '⛽', color: '#0891b2', bg: '#cffafe', label: 'Fuel & Logistics' },
+  SERVICES: { icon: '🚜', color: '#475569', bg: '#f1f5f9', label: 'Rural Services' },
+  DEFAULT: { icon: '🏢', color: '#059669', bg: '#d1fae5', label: 'Business' }
 };
 
 export const getCategoryStyle = (catId = '') => {
@@ -36,11 +49,13 @@ export const getCategoryStyle = (catId = '') => {
 };
 
 export default function GoogleMap({
-  latitude = 20.1706,
-  longitude = 73.984,
-  radiusKm = 10.0,
+  latitude,
+  longitude,
+  lat,
+  lon,
+  radiusKm = 5.0,
   places = [],
-  entrepreneurName = 'Entrepreneur Location',
+  entrepreneurName = 'Search Center',
   selectedPlace = null,
   activeRoute = null, // { waypoints: [[lat, lng], ...], distance_km, ... }
   isHeatmapActive = false,
@@ -48,11 +63,14 @@ export default function GoogleMap({
   onLocationChange,
   onSelectPlace
 }) {
+  const mapLat = parseFloat(latitude ?? lat) || 20.1706;
+  const mapLon = parseFloat(longitude ?? lon) || 73.9840;
+
   const containerRef = useRef(null);
   const [mapEngine, setMapEngine] = useState('LEAFLET_HYBRID'); // 'GOOGLE_MAPS' | 'LEAFLET_HYBRID'
   const [mapType, setMapType] = useState('ROADMAP'); // 'ROADMAP' | 'SATELLITE' | 'TERRAIN'
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(radiusKm <= 5 ? 13 : 12);
+  const [zoomLevel, setZoomLevel] = useState(radiusKm <= 2 ? 14 : radiusKm <= 5 ? 13 : 12);
 
   // References for Google Maps instance and overlays
   const gMapRef = useRef(null);
@@ -98,7 +116,12 @@ export default function GoogleMap({
 
   // Adjust zoom when radius changes
   useEffect(() => {
-    const newZoom = radiusKm <= 5 ? 13 : 12;
+    let newZoom = 13;
+    if (radiusKm <= 1.5) newZoom = 15;
+    else if (radiusKm <= 3.0) newZoom = 14;
+    else if (radiusKm <= 6.0) newZoom = 13;
+    else newZoom = 12;
+
     setZoomLevel(newZoom);
     if (gMapRef.current && mapEngine === 'GOOGLE_MAPS') {
       gMapRef.current.setZoom(newZoom);
@@ -107,6 +130,20 @@ export default function GoogleMap({
       lMapRef.current.setZoom(newZoom);
     }
   }, [radiusKm, mapEngine]);
+
+  // Smooth pan to selectedPlace
+  useEffect(() => {
+    if (!selectedPlace) return;
+    const pLat = parseFloat(selectedPlace.latitude);
+    const pLon = parseFloat(selectedPlace.longitude);
+    if (isNaN(pLat) || isNaN(pLon)) return;
+
+    if (mapEngine === 'GOOGLE_MAPS' && gMapRef.current) {
+      gMapRef.current.panTo({ lat: pLat, lng: pLon });
+    } else if (mapEngine === 'LEAFLET_HYBRID' && lMapRef.current) {
+      lMapRef.current.panTo([pLat, pLon]);
+    }
+  }, [selectedPlace, mapEngine]);
 
   // =========================================================================
   // GOOGLE MAPS ENGINE INITIALIZATION & UPDATES
@@ -123,7 +160,7 @@ export default function GoogleMap({
     }
 
     const google = window.google;
-    const center = new google.maps.LatLng(latitude, longitude);
+    const center = new google.maps.LatLng(mapLat, mapLon);
 
     if (!gMapRef.current) {
       const gMap = new google.maps.Map(containerRef.current, {
@@ -137,12 +174,14 @@ export default function GoogleMap({
         gestureHandling: 'greedy'
       });
 
-      // Click to pin on map
+      // Click to pin on map / relocate search center
       gMap.addListener('click', (e) => {
         if (onLocationChange && e.latLng) {
           onLocationChange({
-            lat: e.latLng.lat(),
-            lng: e.latLng.lng()
+            lat: Number(e.latLng.lat().toFixed(4)),
+            lng: Number(e.latLng.lng().toFixed(4)),
+            latitude: Number(e.latLng.lat().toFixed(4)),
+            longitude: Number(e.latLng.lng().toFixed(4))
           });
         }
       });
@@ -170,7 +209,7 @@ export default function GoogleMap({
       radius: radiusKm * 1000
     });
 
-    // Entrepreneur Marker
+    // Entrepreneur / Search Center Marker
     if (gEntrepreneurMarkerRef.current) {
       gEntrepreneurMarkerRef.current.setMap(null);
     }
@@ -194,7 +233,7 @@ export default function GoogleMap({
     gPlaceMarkersRef.current = [];
 
     places.forEach((place) => {
-      const style = getCategoryStyle(place.category_id || place.category);
+      const style = getCategoryStyle(place.category_code || place.category_id || place.category);
       const isSelected = selectedPlace && (selectedPlace.place_id === place.place_id || selectedPlace.id === place.id);
 
       const marker = new google.maps.Marker({
@@ -203,16 +242,34 @@ export default function GoogleMap({
         title: place.name,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          scale: isSelected ? 11 : 8,
+          scale: isSelected ? 12 : 9,
           fillColor: style.color,
           fillOpacity: 1,
           strokeColor: '#ffffff',
-          strokeWeight: isSelected ? 3 : 2
+          strokeWeight: isSelected ? 3.5 : 2
         }
+      });
+
+      const distStr = `${place.straight_distance_km || place.road_distance_km || 0} km away`;
+      const ratingStr = place.rating ? `⭐ ${place.rating} (${place.user_ratings_total || 0} reviews)` : '';
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div style="font-family: sans-serif; font-size: 12px; max-width: 220px; line-height: 1.4; padding: 2px;">
+            <div style="font-size: 10px; font-weight: bold; color: ${style.color}; text-transform: uppercase;">
+              ${style.icon} ${style.label || place.category_code || place.category}
+            </div>
+            <strong style="font-size: 13px; color: #0f172a; display: block; margin: 2px 0;">${place.name}</strong>
+            <div style="color: #047857; font-weight: bold; margin-bottom: 2px;">📍 ${distStr}</div>
+            ${ratingStr ? `<div style="color: #d97706; font-size: 11px; margin-bottom: 3px;">${ratingStr}</div>` : ''}
+            <div style="color: #64748b; font-size: 11px; margin-bottom: 6px;">${place.address || place.formatted_address || ''}</div>
+            <a href="https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #0F3D2E; color: #fef08a; padding: 3px 8px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 11px;">🧭 Get Directions</a>
+          </div>
+        `
       });
 
       marker.addListener('click', () => {
         if (onSelectPlace) onSelectPlace(place);
+        infoWindow.open(map, marker);
       });
 
       gPlaceMarkersRef.current.push(marker);
@@ -254,8 +311,8 @@ export default function GoogleMap({
     }
   }, [
     mapEngine,
-    latitude,
-    longitude,
+    mapLat,
+    mapLon,
     radiusKm,
     places,
     mapType,
@@ -298,7 +355,7 @@ export default function GoogleMap({
 
     if (!lMapRef.current) {
       const map = L.map(containerRef.current, {
-        center: [latitude, longitude],
+        center: [mapLat, mapLon],
         zoom: zoomLevel,
         zoomControl: false,
         attributionControl: false
@@ -311,12 +368,14 @@ export default function GoogleMap({
 
       lMarkersGroupRef.current = L.layerGroup().addTo(map);
 
-      // Click to pin on map
+      // Click to pin on map / relocate search center
       map.on('click', (e) => {
         if (onLocationChange && e.latlng) {
           onLocationChange({
-            lat: e.latlng.lat,
-            lng: e.latlng.lng
+            lat: Number(e.latlng.lat.toFixed(4)),
+            lng: Number(e.latlng.lng.toFixed(4)),
+            latitude: Number(e.latlng.lat.toFixed(4)),
+            longitude: Number(e.latlng.lng.toFixed(4))
           });
         }
       });
@@ -324,7 +383,7 @@ export default function GoogleMap({
       lMapRef.current = map;
     } else {
       const map = lMapRef.current;
-      map.setView([latitude, longitude], zoomLevel);
+      map.setView([mapLat, mapLon], zoomLevel);
 
       // Switch tile layer if changed
       if (lTileLayerRef.current) {
@@ -347,7 +406,7 @@ export default function GoogleMap({
     if (lCircleRef.current) {
       lCircleRef.current.remove();
     }
-    lCircleRef.current = L.circle([latitude, longitude], {
+    lCircleRef.current = L.circle([mapLat, mapLon], {
       color: '#059669',
       fillColor: '#10b981',
       fillOpacity: 0.12,
@@ -359,7 +418,7 @@ export default function GoogleMap({
     const group = lMarkersGroupRef.current;
     group.clearLayers();
 
-    // Entrepreneur Marker
+    // Entrepreneur / Search Center Marker
     const entrepreneurIcon = L.divIcon({
       className: 'custom-beacon-icon',
       html: `<div style="background-color: #047857; color: white; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 3px solid white; box-shadow: 0 4px 12px rgba(4,120,87,0.45); animation: pulse 2s infinite;">📍</div>`,
@@ -367,19 +426,19 @@ export default function GoogleMap({
       iconAnchor: [17, 17]
     });
 
-    L.marker([latitude, longitude], { icon: entrepreneurIcon, zIndexOffset: 1000 })
+    L.marker([mapLat, mapLon], { icon: entrepreneurIcon, zIndexOffset: 1000 })
       .addTo(group)
       .bindPopup(
         `<div style="font-family: sans-serif; padding: 2px;">
-          <strong style="color: #047857; font-size: 12px;">📍 Entrepreneur Location</strong><br/>
+          <strong style="color: #047857; font-size: 12px;">📍 Search Center Location</strong><br/>
           <b>${entrepreneurName}</b><br/>
-          <small style="color: #64748b;">${latitude.toFixed(4)}° N, ${longitude.toFixed(4)}° E</small>
+          <small style="color: #64748b;">${mapLat.toFixed(4)}° N, ${mapLon.toFixed(4)}° E</small>
         </div>`
       );
 
     // Place Markers
     places.forEach((place) => {
-      const style = getCategoryStyle(place.category_id || place.category);
+      const style = getCategoryStyle(place.category_code || place.category_id || place.category);
       const isSelected = selectedPlace && (selectedPlace.place_id === place.place_id || selectedPlace.id === place.id);
 
       const placeIcon = L.divIcon({
@@ -391,11 +450,27 @@ export default function GoogleMap({
 
       const m = L.marker([place.latitude, place.longitude], { icon: placeIcon }).addTo(group);
 
+      const distStr = `${place.straight_distance_km || place.road_distance_km || 0} km away`;
+      const ratingStr = place.rating ? `⭐ ${place.rating} (${place.user_ratings_total || 0} reviews)` : '';
+
+      m.bindPopup(
+        `<div style="font-family: sans-serif; font-size: 11px; max-width: 220px; line-height: 1.4; padding: 2px;">
+          <div style="font-size: 9px; font-weight: bold; color: ${style.color}; text-transform: uppercase;">
+            ${style.icon} ${style.label || place.category_code || place.category}
+          </div>
+          <strong style="font-size: 13px; color: #0f172a; display: block; margin: 2px 0;">${place.name}</strong>
+          <div style="color: #047857; font-weight: bold; margin-bottom: 2px;">📍 ${distStr}</div>
+          ${ratingStr ? `<div style="color: #d97706; font-size: 10px; margin-bottom: 3px;">${ratingStr}</div>` : ''}
+          <div style="color: #64748b; font-size: 10px; margin-bottom: 6px;">${place.address || place.formatted_address || ''}</div>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #0F3D2E; color: #fef08a; padding: 3px 8px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 10px;">🧭 Get Directions</a>
+        </div>`
+      );
+
       m.on('click', () => {
         if (onSelectPlace) onSelectPlace(place);
       });
 
-      m.bindTooltip(`<b>${place.name}</b><br/>${place.category || 'Shop'} • ${place.road_distance_km || place.straight_distance_km} km`, {
+      m.bindTooltip(`<b>${place.name}</b><br/>${style.label || place.category || 'Shop'} • ${place.straight_distance_km || place.road_distance_km} km`, {
         direction: 'top',
         offset: [0, -12]
       });
@@ -418,8 +493,8 @@ export default function GoogleMap({
     }
   }, [
     mapEngine,
-    latitude,
-    longitude,
+    mapLat,
+    mapLon,
     radiusKm,
     places,
     mapType,
@@ -448,9 +523,9 @@ export default function GoogleMap({
 
   const handleCenter = () => {
     if (mapEngine === 'GOOGLE_MAPS' && gMapRef.current && window.google) {
-      gMapRef.current.panTo(new window.google.maps.LatLng(latitude, longitude));
+      gMapRef.current.panTo(new window.google.maps.LatLng(mapLat, mapLon));
     } else if (lMapRef.current) {
-      lMapRef.current.setView([latitude, longitude], zoomLevel);
+      lMapRef.current.setView([mapLat, mapLon], zoomLevel);
     }
   };
 

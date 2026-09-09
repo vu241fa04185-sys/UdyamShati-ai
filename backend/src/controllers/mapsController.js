@@ -7,22 +7,120 @@ const config = require('../config');
 let localPlaces = [];
 let localCategories = [];
 
-try {
-  const catalogPath = path.join(config.DATA_DIR, 'places_catalog.json');
-  if (fs.existsSync(catalogPath)) {
-    localPlaces = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+function loadCatalog() {
+  try {
+    const catalogPath = path.join(config.DATA_DIR, 'places_catalog.json');
+    if (fs.existsSync(catalogPath)) {
+      localPlaces = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+    }
+  } catch (e) {
+    console.warn('Could not load local places_catalog.json:', e.message);
   }
-} catch (e) {
-  console.warn('Could not load local places_catalog.json:', e.message);
+
+  try {
+    const catPath = path.join(config.DATA_DIR, 'business_categories.json');
+    if (fs.existsSync(catPath)) {
+      localCategories = JSON.parse(fs.readFileSync(catPath, 'utf8'));
+    }
+  } catch (e) {
+    console.warn('Could not load local business_categories.json:', e.message);
+  }
 }
 
-try {
-  const catPath = path.join(config.DATA_DIR, 'business_categories.json');
-  if (fs.existsSync(catPath)) {
-    localCategories = JSON.parse(fs.readFileSync(catPath, 'utf8'));
+loadCatalog();
+
+// Multilingual keyword dictionary mapping terms in English, Hindi, Hinglish, Telugu to category codes
+const CATEGORY_KEYWORDS = {
+  DAIRY: [
+    'milk shop', 'milk', 'dairy', 'dairy shop', 'doodh', 'dudh', 'दूध की दुकान', 'दूध', 'डेयरी',
+    'పాల దుకాణం', 'పాల', 'డైరీ', 'chilling center', 'milk parlour', 'cooperative dairy', 'पाडी', 'పాడి'
+  ],
+  GROCERY: [
+    'grocery store', 'grocery', 'kirana', 'provisions', 'general store', 'rashan', 'किराना दुकान',
+    'किराना', 'राशन', 'కిరాణా దుకాణం', 'కిరాణా', 'ప్రొవిజన్స్', 'super store', 'daily needs', 'दुकान'
+  ],
+  PHARMACY: [
+    'pharmacy', 'medical store', 'medical', 'chemist', 'medicine', 'chemist shop', 'दवाई की दुकान',
+    'दवा', 'मेडिकल स्टोर', 'మందుల దుకాణం', 'ఫార్మసీ', 'మందులు', 'jan aushadhi'
+  ],
+  BAKERY: [
+    'bakery', 'cake shop', 'sweets', 'confectionery', 'बेकरी', 'केक', 'మిఠాయి', 'బేకరీ'
+  ],
+  RESTAURANT: [
+    'restaurant', 'hotel', 'dhaba', 'food', 'tiffin', 'mess', 'bhojanalaya', 'ढाबा', 'होटल',
+    'भोजनालय', 'రెస్టారెంట్', 'దాబా', 'హోటల్', 'టిఫిన్'
+  ],
+  HARDWARE: [
+    'hardware', 'hardware shop', 'cement', 'building material', 'sanitary', 'steel', 'हार्डवेयर',
+    'सीमेंट', 'लोहा', 'हार्डवेयर दुकान', 'హార్డ్‌వేర్', 'సిమెంట్', 'భవన నిర్మాణ'
+  ],
+  MOBILE_REPAIR: [
+    'mobile repair', 'phone shop', 'mobile care', 'mobile', 'recharge', 'phone repair',
+    'मोबाइल रिपेयर', 'मोबाइल दुकान', 'మొబైల్ మరమ్మతు', 'మొబైల్ షాప్', 'మొబైల్ రిపేర్'
+  ],
+  TAILOR: [
+    'tailor', 'tailoring', 'darzi', 'stitching', 'cloth store', 'दर्जी', 'सिलाई',
+    'दर्जी की दुकान', 'టెయిలర్', 'దర్జీ', 'కుట్లు', 'టైలరింగ్'
+  ],
+  SALON: [
+    'salon', 'barber', 'hair salon', 'parlour', 'hair cut', 'saloon', 'नाई', 'सलून',
+    'हजामत', 'बाल काटने की दुकान', 'సెలూన్', 'క్షౌరశాల', 'కటింగ్ షాప్'
+  ],
+  VEGETABLE: [
+    'vegetable shop', 'vegetable', 'sabzi', 'sabji', 'mandi', 'fresh vegetable',
+    'सब्जी की दुकान', 'सब्जी मंडी', 'सब्जी', 'కూరగాయల దుకాణం', 'కూరగాయలు', 'సంత'
+  ],
+  AGRICULTURE_SEEDS: [
+    'fertilizer', 'fertilizer shop', 'seed shop', 'seeds', 'pesticides', 'krishi kendra',
+    'खाद बीज', 'खाद की दुकान', 'कीटनाशक', 'कृषि केंद्र', 'ఎరువుల దుకాణం', 'విత్తనాల దుకాణం', 'పురుగుమందులు', 'రైతు భరోసా'
+  ],
+  POULTRY: [
+    'poultry', 'poultry shop', 'poultry farm', 'chicken shop', 'chicken', 'murgi farm',
+    'egg store', 'पोल्ट्री', 'मुर्गी फार्म', 'चिकन दुकान', 'కోళ్ల ఫారమ్', 'చికెన్ షాప్', 'కోళ్లు'
+  ],
+  MECHANIC: [
+    'mechanic', 'garage', 'auto repair', 'tractor repair', 'puncture', 'repair shop',
+    'गैरेज', 'मैकेनिक', 'ट्रैक्टर रिपेयर', 'ऑटो रिपेयर', 'మెకానిక్', 'గ్యారేజ్', 'మరమ్మతు'
+  ],
+  PETROL_PUMP: [
+    'petrol pump', 'petrol', 'diesel', 'fuel station', 'gas station',
+    'पेट्रोल पंप', 'डीजल', 'इंधन', 'పెట్రోల్ బంక్', 'డీజిల్', 'ఇంధనం'
+  ],
+  FARM_EQUIPMENT: [
+    'farm equipment', 'tractor', 'machinery rental', 'custom hiring', 'harvester',
+    'कृषि यंत्र', 'ट्रैक्टर किराया', 'కస్టమ్ హైరింగ్', 'వ్యవసాయ పరికరాలు', 'ట్రాక్టర్ అద్దె'
+  ],
+  BANK_ATM: [
+    'bank', 'atm', 'cash', 'kisan credit', 'csp', 'बैंक', 'एटीएम', 'బ్యాంక్', 'ఏటీఎం'
+  ],
+  WAREHOUSE: [
+    'warehouse', 'cold storage', 'godown', 'packhouse', 'कोल्ड स्टोरेज', 'गोदाम',
+    'వేర్‌హౌస్', 'కోల్డ్ స్టోరేజ్', 'గిడ్డంగి'
+  ]
+};
+
+function detectCategoryFromQuery(queryStr) {
+  if (!queryStr) return null;
+  const q = queryStr.toLowerCase().trim();
+  for (const [catCode, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const kw of keywords) {
+      if (q.includes(kw.toLowerCase())) {
+        return catCode;
+      }
+    }
   }
-} catch (e) {
-  console.warn('Could not load local business_categories.json:', e.message);
+  return null;
+}
+
+function extractRadiusFromQuery(queryStr, defaultRadius = 5.0) {
+  if (!queryStr) return defaultRadius;
+  const q = queryStr.toLowerCase();
+  const m = q.match(/(\d+(?:\.\d+)?)\s*(?:km|kms|किलोमीटर|किमी|కిమీ|కి\.మీ)/i);
+  if (m) {
+    const val = parseFloat(m[1]);
+    if (val > 0 && val <= 50) return val;
+  }
+  return defaultRadius;
 }
 
 // Haversine distance in kilometers
@@ -141,13 +239,16 @@ exports.getNearbyPlaces = async (req, res) => {
               source: 'google_places'
             };
           });
+          // STRICT Haversine distance filter: <= radius
+          googleResults = googleResults.filter((p) => p.straight_distance_km <= radius);
         }
       } catch (gErr) {
         console.warn('Google Places API call skipped/failed, using PostGIS local catalog:', gErr.message);
       }
     }
 
-    // Always fetch & blend local verified catalog places
+    // Always ensure catalog is loaded & blend local verified catalog places
+    loadCatalog();
     const catalogMerged = localPlaces
       .map((p) => {
         const dist = haversineDistance(lat, lon, p.latitude, p.longitude);
@@ -167,7 +268,7 @@ exports.getNearbyPlaces = async (req, res) => {
         if (p.straight_distance_km > radius) return false;
         // Filter by category
         if (category && category !== 'ALL') {
-          if (p.category_id !== category && p.category !== category) return false;
+          if (p.category_id !== category && p.category !== category && p.category_code !== category) return false;
         }
         // Filter by min_rating if requested
         if (min_rating && p.rating < parseFloat(min_rating)) return false;
@@ -186,8 +287,8 @@ exports.getNearbyPlaces = async (req, res) => {
       }
     }
 
-    // Sort by road travel distance
-    combinedPlaces.sort((a, b) => a.road_distance_km - b.road_distance_km);
+    // Sort by straight travel distance
+    combinedPlaces.sort((a, b) => a.straight_distance_km - b.straight_distance_km);
 
     const area_sq_km = Number((Math.PI * radius * radius).toFixed(1));
 
@@ -216,6 +317,203 @@ exports.getPlaces = async (req, res) => {
     apiKey: req.query.apiKey
   };
   return exports.getNearbyPlaces(req, res);
+};
+
+// 2b. GET and POST /api/maps/search
+// Real hyper-local business search with multilingual keyword parsing,
+// strict Haversine radius filtering (1km, 2km, 5km, 10km), and zero-hallucination Business Intelligence.
+exports.searchPlaces = async (req, res) => {
+  try {
+    loadCatalog();
+
+    const data = req.method === 'POST' ? req.body : req.query;
+    const rawQuery = (data.query || data.q || data.search || '').trim();
+    const lat = parseFloat(data.latitude || data.lat) || 20.1706;
+    const lon = parseFloat(data.longitude || data.lon || data.lng) || 73.984;
+
+    // Detect radius from query string if present (e.g., "within 2 km", "5 km ke andar")
+    let radius = parseFloat(data.radius_km || data.radius);
+    if (!radius || isNaN(radius)) {
+      radius = extractRadiusFromQuery(rawQuery, 5.0);
+    }
+    // Cap radius between 0.5 and 50 km (default 5.0 km)
+    radius = Math.max(0.5, Math.min(radius, 50.0));
+
+    // Multilingual Category Detection
+    let category = (data.category || '').toUpperCase().trim();
+    const detectedCategory = detectCategoryFromQuery(rawQuery);
+    if ((!category || category === 'ALL') && detectedCategory) {
+      category = detectedCategory;
+    }
+
+    const key = data.apiKey || config.GOOGLE_MAPS_SERVER_KEY || '';
+    let googleResults = [];
+    let googleUsed = false;
+
+    // Optional Google Places API TextSearch/NearbySearch fallback
+    if (key && key.trim().length > 10 && rawQuery) {
+      try {
+        const radiusMeters = Math.min(radius * 1000, 50000);
+        const gUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(rawQuery)}&location=${lat},${lon}&radius=${radiusMeters}&key=${key}`;
+        const gRes = await axios.get(gUrl, { timeout: 4000 });
+        if (gRes.data && gRes.data.status === 'OK' && Array.isArray(gRes.data.results)) {
+          googleUsed = true;
+          googleResults = gRes.data.results
+            .map((p) => {
+              const pLat = p.geometry.location.lat;
+              const pLon = p.geometry.location.lng;
+              const dist = haversineDistance(lat, lon, pLat, pLon);
+              const roadDist = Number((dist * 1.25).toFixed(2));
+              const travelMinutes = Math.round((roadDist / 30) * 60);
+
+              let photoUrl = null;
+              if (p.photos && p.photos.length > 0) {
+                photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${p.photos[0].photo_reference}&key=${key}`;
+              }
+
+              return {
+                id: p.place_id,
+                place_id: p.place_id,
+                name: p.name,
+                category: category || (p.types && p.types[0] ? p.types[0].toUpperCase() : 'BUSINESS'),
+                category_id: category || 'ALL',
+                latitude: pLat,
+                longitude: pLon,
+                straight_distance_km: Number(dist.toFixed(2)),
+                road_distance_km: roadDist,
+                estimated_travel_time_minutes: travelMinutes,
+                rating: p.rating || 4.2,
+                user_ratings_total: p.user_ratings_total || 10,
+                vicinity: p.vicinity || p.formatted_address || '',
+                formatted_address: p.formatted_address || p.vicinity || 'Rural Commercial Corridor',
+                business_status: p.business_status || 'OPERATIONAL',
+                is_open_now: p.opening_hours ? p.opening_hours.open_now : true,
+                photos: photoUrl ? [{ photo_url: photoUrl, attribution: 'Google Maps' }] : [],
+                street_view: { available: false },
+                source: 'google_places'
+              };
+            })
+            // STRICT Haversine distance filter: <= radius
+            .filter((p) => p.straight_distance_km <= radius);
+        }
+      } catch (gErr) {
+        console.warn('Google Places textsearch fallback:', gErr.message);
+      }
+    }
+
+    // Filter verified local catalog
+    const qLower = rawQuery.toLowerCase();
+    const catalogMerged = localPlaces
+      .map((p) => {
+        const dist = haversineDistance(lat, lon, p.latitude, p.longitude);
+        const roadDist = Number((dist * 1.25).toFixed(2));
+        const travelMinutes = Math.round((roadDist / 30) * 60);
+
+        return {
+          ...p,
+          straight_distance_km: Number(dist.toFixed(2)),
+          road_distance_km: roadDist,
+          estimated_travel_time_minutes: travelMinutes,
+          source: p.source || 'postgis_database'
+        };
+      })
+      .filter((p) => {
+        // 1. STRICT Haversine radius filter: <= radius
+        if (p.straight_distance_km > radius) return false;
+
+        // 2. Category matching
+        if (category && category !== 'ALL') {
+          const matchCode = (p.category_code === category || p.category_id === category || p.category === category);
+          if (!matchCode && !rawQuery) return false;
+          if (matchCode) return true;
+        }
+
+        // 3. Keyword / Free-text matching
+        if (qLower) {
+          const nameMatch = p.name && p.name.toLowerCase().includes(qLower);
+          const addrMatch = p.address && p.address.toLowerCase().includes(qLower);
+          const catLabelMatch = p.category_label && p.category_label.toLowerCase().includes(qLower);
+          const catGroupMatch = p.category_group && p.category_group.toLowerCase().includes(qLower);
+          if (nameMatch || addrMatch || catLabelMatch || catGroupMatch) return true;
+
+          // Check against known multilingual keywords for the place's category
+          const placeCat = p.category_code || p.category_id;
+          const kws = CATEGORY_KEYWORDS[placeCat] || [];
+          if (kws.some((kw) => qLower.includes(kw.toLowerCase()) || kw.toLowerCase().includes(qLower))) {
+            return true;
+          }
+
+          // If a search query was provided and nothing matched, exclude this place
+          return false;
+        }
+
+        return true;
+      });
+
+    // Merge and deduplicate
+    const existingIds = new Set(googleResults.map((p) => p.place_id));
+    const combinedPlaces = [...googleResults];
+
+    for (const cp of catalogMerged) {
+      if (!existingIds.has(cp.place_id)) {
+        combinedPlaces.push(cp);
+      }
+    }
+
+    // STRICT SORT: Ascending by straight_distance_km (nearest first)
+    combinedPlaces.sort((a, b) => a.straight_distance_km - b.straight_distance_km);
+
+    // Apply min_rating if requested
+    let finalPlaces = combinedPlaces;
+    if (data.min_rating) {
+      const minR = parseFloat(data.min_rating);
+      finalPlaces = finalPlaces.filter((p) => (p.rating || 0) >= minR);
+    }
+    // Apply open_now if requested
+    if (data.open_now) {
+      finalPlaces = finalPlaces.filter((p) => p.business_status === 'OPERATIONAL' || p.is_open_now);
+    }
+
+    const totalCount = finalPlaces.length;
+    const nearestKm = totalCount > 0 ? finalPlaces[0].straight_distance_km : null;
+    const areaSqKm = Number((Math.PI * radius * radius).toFixed(2));
+    const density = Number((totalCount / areaSqKm).toFixed(2));
+
+    let compLevel = 'Low';
+    if (totalCount === 0) {
+      compLevel = 'None';
+    } else if (totalCount >= 6) {
+      compLevel = 'High';
+    } else if (totalCount >= 3) {
+      compLevel = 'Moderate';
+    }
+
+    return res.json({
+      success: true,
+      query: rawQuery,
+      category: category || 'ALL',
+      search_center: {
+        latitude: lat,
+        longitude: lon
+      },
+      radius_km: radius,
+      area_sq_km: areaSqKm,
+      total: totalCount,
+      places: finalPlaces,
+      source: googleUsed ? 'google_places_hybrid' : 'postgis_database',
+      business_intelligence: {
+        total_count: totalCount,
+        nearest_competitor_km: nearestKm,
+        business_density_per_sq_km: density,
+        competition_level: compLevel,
+        area_sq_km: areaSqKm,
+        disclaimer: 'Demand data is currently unavailable. Lower business density was observed. Demand should be verified using additional market data.'
+      }
+    });
+  } catch (err) {
+    console.error('searchPlaces error:', err);
+    res.status(500).json({ error: err.message });
+  }
 };
 
 // 3. GET /api/maps/place/:placeId

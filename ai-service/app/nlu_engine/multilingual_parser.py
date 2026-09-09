@@ -142,6 +142,54 @@ class MultilingualParser:
             "map", "naksha", "radius", "competitor", "mandi", "दूरी", "नक्शा", "మ్యాప్"
         ])
 
+        # E2. Nearby Real Business Search (e.g. "milk shop near me", "दूध की दुकान 5 km", "కిరాణా దుకాణాలు")
+        biz_search_map = {
+            "DAIRY": ["milk shop", "dairy shop", "doodh", "दूध की दुकान", "పాల దుకాణం", "dairy", "dudh", "డైరీ", "పాల"],
+            "GROCERY": ["grocery store", "grocery shop", "grocery", "kirana", "किराना दुकान", "కిరాణా దుకాణం", "కిరాణా"],
+            "PHARMACY": ["medical store", "pharmacy", "दवाई की दुकान", "మందుల దుకాణం", "chemist", "दवा", "jan aushadhi"],
+            "BAKERY": ["bakery", "cake shop", "बेकरी", "బేకరీ"],
+            "RESTAURANT": ["restaurant", "dhaba", "hotel", "ढाबा", "రెస్టారెంట్", "దాబా"],
+            "HARDWARE": ["hardware shop", "hardware", "हार्डवेयर", "హార్డ్‌వేర్"],
+            "MOBILE_REPAIR": ["mobile repair", "मोबाइल रिपेयर", "మొబైల్ మరమ్మతు", "mobile care"],
+            "TAILOR": ["tailor", "darzi", "दर्जी", "టెయిలర్"],
+            "SALON": ["salon", "barber", "सलून", "नाई", "సెలూన్"],
+            "VEGETABLE": ["vegetable shop", "vegetable", "sabzi", "sabji", "सब्जी की दुकान", "కూరగాయల దుకాణం", "కూరగాయలు"],
+            "AGRICULTURE_SEEDS": ["fertilizer shop", "seed shop", "fertilizer", "खाद बीज", "ఎరువుల దుకాణం", "విత్తనాల దుకాణం"],
+            "POULTRY": ["poultry shop", "poultry farm", "murgi farm", "पोल्ट्री", "కోళ్ల ఫారమ్", "chicken shop"],
+            "MECHANIC": ["mechanic", "garage", "tractor repair", "मैकेनिक", "గ్యారేజ్", "మెకానిక్"],
+            "PETROL_PUMP": ["petrol pump", "fuel station", "पेट्रोल पंप", "పెట్రోల్ బంక్"],
+            "FARM_EQUIPMENT": ["tractor rental", "farm equipment", "कृषि यंत्र", "ట్రాక్టర్ అద్దె"],
+            "BANK_ATM": ["bank", "atm", "बैंक", "బ్యాంక్"],
+            "WAREHOUSE": ["cold storage", "warehouse", "कोल्ड स्टोरेज", "వేర్‌హౌస్"]
+        }
+
+        search_category = None
+        search_keyword = None
+        for cat_code, kws in biz_search_map.items():
+            for kw in kws:
+                if kw in text_lower:
+                    search_category = cat_code
+                    search_keyword = kw
+                    break
+            if search_category:
+                break
+
+        # Extract radius if specified (e.g. "5 km", "2 km", "5 కిమీ", "2 किमी")
+        search_radius = 5.0
+        rad_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:km|kms|किलोमीटर|किमी|కిమీ|కి\.మీ)', text_lower)
+        if rad_match:
+            try:
+                search_radius = float(rad_match.group(1))
+            except ValueError:
+                pass
+
+        is_search_indicator = any(w in text_lower for w in [
+            "near me", "mere paas", "aas paas", "dikhao", "dikhaye", "show me", "within",
+            "ke andar", "chupinchu", "na daggara", "daggara", "nearby", "shop", "store",
+            "दुकान", "దుకాణం", "pass", "around", "km", "కిమీ", "కిలోమీటర్ల"
+        ])
+        is_nearby_biz_search = bool(search_category and (is_search_indicator or "dukan" in text_lower or "shop" in text_lower))
+
         # F. Form Filling & Interactive Registration Queries
         is_form_query = any(phrase in text_lower for phrase in [
             "fill form", "filling the form", "fill the form", "ask me details", "ask with me",
@@ -152,6 +200,8 @@ class MultilingualParser:
 
         if is_form_query:
             detected_intent = "FORM_FILLING"
+        elif is_nearby_biz_search:
+            detected_intent = "NEARBY_BUSINESS_SEARCH"
         elif is_location_query:
             detected_intent = "LOCATION_QUERY"
         elif is_profile_query:
@@ -181,6 +231,9 @@ class MultilingualParser:
                 "has_water_source": has_water if has_water else None,
                 "has_electricity": has_power if has_power else None,
                 "has_vehicle": has_vehicle if has_vehicle else None,
-                "has_shop_building": has_shop if has_shop else None
+                "has_shop_building": has_shop if has_shop else None,
+                "search_category": search_category,
+                "search_keyword": search_keyword,
+                "radius_km": search_radius
             }
         }
