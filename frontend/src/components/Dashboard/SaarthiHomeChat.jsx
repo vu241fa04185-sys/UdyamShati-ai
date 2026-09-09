@@ -16,12 +16,15 @@ import {
   VolumeX, 
   Square,
   Radio,
-  Headphones
+  Headphones,
+  MapPin,
+  ArrowRight
 } from 'lucide-react';
 import axios from 'axios';
 import { translations } from '../../locales/translations';
 import { cleanSpeechText, configureFemaleUtterance } from '../../utils/speechVoice';
 import { processSaarthiMessage } from '../../services/saarthiAgentService';
+import { useSaarthi } from '../../context/SaarthiContext';
 
 export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language = 'en' }) {
   const t = translations[language] || translations.en;
