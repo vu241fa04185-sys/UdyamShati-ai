@@ -74,7 +74,16 @@ exports.handleChat = async (req, res) => {
     let alternatives = [];
 
     // Step 2: Handle specific conversational intents intelligently!
-    if (intent === 'LOCATION_QUERY') {
+    if (intent === 'FORM_FILLING') {
+      actionType = 'START_FORM_FILLING';
+      if (lang === 'hi') {
+        replyText = `बिल्कुल! चलिए आपका उद्यम पंजीकरण शुरू करते हैं। मैं आपसे एक-एक करके सारे विवरण पूछूँगा और आपका फ़ॉर्म भर दूँगा।\n\n**पहला सवाल:** कृपया अपना **शुभ नाम (Full Name)** बताएं।`;
+      } else if (lang === 'te') {
+        replyText = `తప్పకుండా! మీ వ్యాపార నమోదును ప్రారంభిద్దాం. నేను ఒక్కొక్క వివరాలను అడుగుతాను. మొదట మీ **పూర్తి పేరు (Full Name)** చెప్పండి.`;
+      } else {
+        replyText = `Certainly! Let's fill out your enterprise registration together step-by-step. I will ask you all the details one by one.\n\n**Step 1:** What is your **full name**?`;
+      }
+    } else if (intent === 'LOCATION_QUERY') {
       actionType = 'SHOW_LOCATION_ACTIONS';
       const village = updatedProfile.village_name || 'Pimpalgaon Baswant';
       const dist = updatedProfile.district || 'Nashik';

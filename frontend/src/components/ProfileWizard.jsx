@@ -39,8 +39,9 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
   // Step-by-step conversational interview state
   // Steps: 0: name, 1: location, 2: capital, 3: land, 4: social_category, 5: utilities, 6: skills, 7: review
   const [stepIndex, setStepIndex] = useState(0);
-  const [voiceGuidance, setVoiceGuidance] = useState(false); // Mute by default, easy toggle
+  const [voiceGuidance, setVoiceGuidance] = useState(true); // Voice ON by default so AI talks with user
   const [isAiListening, setIsAiListening] = useState(false);
+  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiInputText, setAiInputText] = useState('');
   const [newlyFilledFields, setNewlyFilledFields] = useState([]);
@@ -178,7 +179,7 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
   // AI Chat Conversation Stream
   const [aiChatMessages, setAiChatMessages] = useState([]);
 
-  // Audio Speech Synthesis helper
+  // Audio Speech Synthesis helper - AI talks out loud to farmer
   const speakText = (text) => {
     if (!voiceGuidance || !('speechSynthesis' in window)) return;
     try {
@@ -186,10 +187,34 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
       const clean = text.replace(/[*•#_]/g, '');
       const u = new SpeechSynthesisUtterance(clean);
       u.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
-      u.rate = 0.95;
+      u.rate = 1.0;
+
+      u.onstart = () => {
+        setIsAiSpeaking(true);
+      };
+
+      u.onend = () => {
+        setIsAiSpeaking(false);
+        // Automatically start listening after question is spoken
+        if (voiceGuidance && aiRecognitionRef.current && !isAiListening) {
+          try {
+            aiRecognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+            aiRecognitionRef.current.start();
+            setIsAiListening(true);
+          } catch (e) {
+            console.warn("Auto-mic start info:", e.message);
+          }
+        }
+      };
+
+      u.onerror = () => {
+        setIsAiSpeaking(false);
+      };
+
       window.speechSynthesis.speak(u);
     } catch (e) {
       console.warn("TTS error:", e);
+      setIsAiSpeaking(false);
     }
   };
 
@@ -736,27 +761,39 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                   </div>
                 </div>
 
-                {/* Voice Guidance Toggle */}
-                <button
-                  onClick={() => {
-                    const next = !voiceGuidance;
-                    setVoiceGuidance(next);
-                    if (next) {
-                      speakText(getStepQuestion(stepIndex, profile));
-                    } else {
-                      window.speechSynthesis?.cancel();
-                    }
-                  }}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
-                    voiceGuidance 
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-sm' 
-                      : 'bg-slate-50 text-slate-600 border-slate-200'
-                  }`}
-                  title="Toggle audio voice reading"
-                >
-                  {voiceGuidance ? <Volume2 className="w-3.5 h-3.5 text-emerald-600" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
-                  <span>{voiceGuidance ? 'Audio ON' : 'Audio OFF'}</span>
-                </button>
+                {/* Voice Guidance & Replay Audio Controls */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => speakText(getStepQuestion(stepIndex, profile))}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-xs"
+                    title="Replay question voice"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-amber-700" />
+                    <span>{lang === 'hi' ? 'आवाज़ दोबारा सुनें' : 'Replay Voice'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const next = !voiceGuidance;
+                      setVoiceGuidance(next);
+                      if (next) {
+                        speakText(getStepQuestion(stepIndex, profile));
+                      } else {
+                        window.speechSynthesis?.cancel();
+                        setIsAiSpeaking(false);
+                      }
+                    }}
+                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                      voiceGuidance 
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' 
+                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}
+                    title="Toggle audio voice reading"
+                  >
+                    {voiceGuidance ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
+                    <span>{voiceGuidance ? 'Audio ON' : 'Audio OFF'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Chat Stream with Interactive Action Prompts */}
@@ -996,11 +1033,29 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
 
             {/* Bottom Input: Microphone (STT) + Free-form text */}
             <div className="pt-3 border-t border-slate-100 space-y-2">
+              {isAiSpeaking && (
+                <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-2 rounded-xl text-xs flex items-center justify-between font-bold animate-pulse">
+                  <div className="flex items-center space-x-2">
+                    <Volume2 className="w-4 h-4 text-emerald-600 animate-bounce" />
+                    <span>🔊 AI बोल रहा है... सुनिए (AI is Speaking Question...)</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      window.speechSynthesis?.cancel();
+                      setIsAiSpeaking(false);
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-800 underline font-normal"
+                  >
+                    Skip Audio
+                  </button>
+                </div>
+              )}
+
               {isAiListening && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded-xl text-xs flex items-center justify-between font-bold animate-pulse">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
-                    <span>Listening... Speak your answer naturally in Hindi, English, or Telugu</span>
+                    <span>🎙️ Listening... Speak your answer naturally in Hindi, English, or Telugu</span>
                   </div>
                   <button onClick={toggleAiListening} className="text-xs underline">Stop</button>
                 </div>

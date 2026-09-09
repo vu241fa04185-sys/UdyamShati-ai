@@ -142,7 +142,17 @@ class MultilingualParser:
             "map", "naksha", "radius", "competitor", "mandi", "दूरी", "नक्शा", "మ్యాప్"
         ])
 
-        if is_location_query:
+        # F. Form Filling & Interactive Registration Queries
+        is_form_query = any(phrase in text_lower for phrase in [
+            "fill form", "filling the form", "fill the form", "ask me details", "ask with me",
+            "form bharna", "form bhar do", "register karo", "registration", "register me",
+            "nayi profile", "profile banao", "details pucho", "talk with me", "ask details",
+            "shuru karo", "start form", "start interview", "पंजीकरण", "फ़ॉर्म", "फॉर्म", "నమోదు", "ఫారమ్"
+        ])
+
+        if is_form_query:
+            detected_intent = "FORM_FILLING"
+        elif is_location_query:
             detected_intent = "LOCATION_QUERY"
         elif is_profile_query:
             detected_intent = "PROFILE_QUERY"

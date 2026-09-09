@@ -41,7 +41,7 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [autoSpeak, setAutoSpeak] = useState(false); // Default off so it doesn't disturb unless wanted
+  const [autoSpeak, setAutoSpeak] = useState(true); // Default ON so AI talks with user
   const [lastExtractedNotice, setLastExtractedNotice] = useState(null);
   const [gpsDetecting, setGpsDetecting] = useState(false);
 
@@ -313,12 +313,55 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
         </div>
       )}
 
+      {/* Hero CTA Banner: Talk with AI to Fill Farmer Form */}
+      <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white rounded-2xl p-4 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 border border-emerald-600/50">
+        <div className="flex items-center space-x-3">
+          <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center font-bold text-amber-300 text-xl shrink-0 shadow-inner">
+            🎙️
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-black/20 px-2 py-0.5 rounded-full">
+                Interactive Voice Interview
+              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
+            </div>
+            <h3 className="text-sm md:text-base font-black text-white mt-0.5">
+              {lang === 'hi' 
+                ? 'एआई से बोलकर किसान फ़ॉर्म भरें (Talk with AI to Fill Form)'
+                : lang === 'te'
+                ? 'ఏఐ తో మాట్లాడి ఫారమ్ పూరించండి (Talk with AI to Fill Form)'
+                : 'Talk with AI to Fill Your Entrepreneur Form'}
+            </h3>
+            <p className="text-[11px] text-emerald-100">
+              {lang === 'hi'
+                ? 'एआई आपसे नाम, गाँव, पूँजी, जमीन और कौशल बोलकर एक-एक करके पूछेगा और फ़ॉर्म भर देगा।'
+                : 'The AI interviewer asks all 7 details step-by-step with voice and fills your form.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setActiveTab('profile')}
+          className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-lg transition transform hover:scale-105 flex items-center space-x-2 shrink-0"
+        >
+          <span>{lang === 'hi' ? '🎙️ बोलकर फ़ॉर्म शुरू करें' : '🎙️ Start AI Voice Interview'}</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* Quick Suggestions Row */}
       <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex items-center space-x-2 overflow-x-auto text-xs">
         <span className="font-semibold text-slate-500 whitespace-nowrap flex items-center">
           <HelpCircle className="w-3.5 h-3.5 mr-1 text-emerald-600" />
           Quick Queries:
         </span>
+        <button
+          onClick={() => handleSend("mujhe ai ke sath baat karke form bharna hai saari details pucho")}
+          className="bg-amber-50 hover:bg-amber-100 text-amber-900 px-3 py-1.5 rounded-full whitespace-nowrap transition border border-amber-300 font-bold flex items-center space-x-1"
+        >
+          <span>🎙️ {lang === 'hi' ? 'बोलकर फ़ॉर्म भरें' : 'Fill Form with AI'}</span>
+        </button>
         <button
           onClick={() => handleSend("kya aap mera location bata sakte hain current location")}
           className="bg-blue-50 hover:bg-blue-100 text-blue-900 px-3 py-1.5 rounded-full whitespace-nowrap transition border border-blue-200 font-bold"
@@ -395,6 +438,32 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* Interactive Form Filling Trigger Card */}
+              {msg.actionType === 'START_FORM_FILLING' && (
+                <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xl">🎙️</span>
+                    <div>
+                      <h4 className="font-bold text-xs text-emerald-950">
+                        {lang === 'hi' ? 'एआई वॉइस फ़ॉर्म इंटरव्यूअर तैयार है!' : 'AI Voice Form Interviewer is Ready!'}
+                      </h4>
+                      <p className="text-[11px] text-emerald-800">
+                        {lang === 'hi'
+                          ? 'सभी 7 विवरण बोलकर भरें — एआई आपसे एक-एक करके सवाल पूछेगा।'
+                          : 'Speak to fill all 7 details — AI asks questions step-by-step.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('profile')}
+                    className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 shadow-md transition transform hover:-translate-y-0.5"
+                  >
+                    <span>🎙️ {lang === 'hi' ? 'बोलकर फ़ॉर्म स्टूडियो खोलें (Start Voice Interview)' : 'Open Voice Registration Studio'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
                 </div>
               )}
 
