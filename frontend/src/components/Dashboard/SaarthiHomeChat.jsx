@@ -84,6 +84,19 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
   const recognitionRef = useRef(null);
   const synthRef = useRef(window.speechSynthesis || null);
 
+  const isListeningRef = useRef(false);
+  const accumulatedTranscriptRef = useRef('');
+  const silenceTimeoutRef = useRef(null);
+  const languageRef = useRef(language);
+
+  // Synchronize language ref
+  useEffect(() => {
+    languageRef.current = language;
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
+    }
+  }, [language]);
+
   // Synchronize greeting when language changes if brand new conversation
   useEffect(() => {
     setMessages((prev) => {
@@ -119,9 +132,10 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
       utterance.onstart = () => {
         setIsSpeaking(true);
         // Pause listening while AI speaks to prevent echo feedback
-        if (isListening && recognitionRef.current) {
-          try { recognitionRef.current.stop(); } catch (e) {}
+        if (isListeningRef.current && recognitionRef.current) {
+          isListeningRef.current = false;
           setIsListening(false);
+          try { recognitionRef.current.stop(); } catch (e) {}
         }
       };
 
@@ -130,14 +144,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         // Hands-free continuous voice: automatically activate microphone for user's voice reply!
         if (handsFreeMode && recognitionRef.current) {
           setTimeout(() => {
-            try {
-              recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
-              recognitionRef.current.start();
-              setIsListening(true);
-              setSpeechError(null);
-            } catch (err) {
-              // Ignore if already started
-            }
+            startListeningVoice();
           }, 600);
         }
       };
@@ -160,46 +167,159 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     }
   };
 
-  // Initialize Speech Recognition
+  const startListeningVoice = () => {
+    if (!recognitionRef.current) {
+      setSpeechError("Microphone speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
+      return;
+    }
+
+    if (isSpeaking) {
+      stopSpeaking();
+    }
+
+    setSpeechError(null);
+    setLiveTranscript('');
+    accumulatedTranscriptRef.current = '';
+    isListeningRef.current = true;
+    setIsListening(true);
+
+    try {
+      recognitionRef.current.lang = languageRef.current === 'hi' ? 'hi-IN' : (languageRef.current === 'te' ? 'te-IN' : 'en-IN');
+      recognitionRef.current.start();
+    } catch (err) {
+      console.warn("Speech start notice:", err);
+      setIsListening(true);
+    }
+  };
+
+  const stopListeningVoice = (shouldSubmit = false) => {
+    isListeningRef.current = false;
+    setIsListening(false);
+
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+
+    try {
+      if (recognitionRef.current) recognitionRef.current.stop();
+    } catch (e) {}
+
+    const fullSpoken = (accumulatedTranscriptRef.current + ' ' + liveTranscript).trim();
+    accumulatedTranscriptRef.current = '';
+    setLiveTranscript('');
+
+    if (shouldSubmit && fullSpoken) {
+      handleSend(fullSpoken);
+    }
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListeningVoice(true);
+    } else {
+      startListeningVoice();
+    }
+  };
+
+  // Initialize Speech Recognition with continuous listening and keep-alive
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
+      recognition.continuous = true;       // Continuous: DO NOT cut off on natural pauses!
+      recognition.interimResults = true;   // Live transcript stream
+      recognition.maxAlternatives = 1;
+      recognition.lang = languageRef.current === 'hi' ? 'hi-IN' : (languageRef.current === 'te' ? 'te-IN' : 'en-IN');
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        isListeningRef.current = true;
+        setSpeechError(null);
+      };
 
       recognition.onresult = (event) => {
         let interim = '';
         let final = '';
-        for (let i = 0; i < event.results.length; i++) {
-          const trans = event.results[i][0].transcript;
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            final += trans;
+            final += event.results[i][0].transcript;
           } else {
-            interim += trans;
+            interim += event.results[i][0].transcript;
           }
         }
-        setLiveTranscript(interim || final);
 
-        if (final.trim()) {
-          setIsListening(false);
-          setLiveTranscript('');
-          handleSend(final.trim());
+        if (final) {
+          accumulatedTranscriptRef.current = (accumulatedTranscriptRef.current + ' ' + final).trim();
+        }
+
+        const combined = (accumulatedTranscriptRef.current + ' ' + interim).trim();
+        if (combined) {
+          setLiveTranscript(combined);
+          setInputText(combined);
+
+          if (silenceTimeoutRef.current) {
+            clearTimeout(silenceTimeoutRef.current);
+          }
+
+          // Auto-send after 2 seconds of silence once speech is detected
+          silenceTimeoutRef.current = setTimeout(() => {
+            if (isListeningRef.current) {
+              stopListeningVoice(true);
+            }
+          }, 2000);
         }
       };
 
       recognition.onerror = (event) => {
         console.warn("Speech recognition notice:", event.error);
-        setIsListening(false);
-        setLiveTranscript('');
-        if (event.error !== 'no-speech' && event.error !== 'aborted') {
-          setSpeechError("Speech input not heard clearly. Please try speaking again.");
+        if (event.error === 'no-speech') {
+          // Keep listening - do not abort or show error on natural pauses!
+          return;
         }
+
+        if (event.error === 'aborted') {
+          return;
+        }
+
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          isListeningRef.current = false;
+          setIsListening(false);
+          setSpeechError("Microphone access is blocked. Please allow microphone permission in your browser address bar.");
+          return;
+        }
+
+        if (event.error === 'network') {
+          isListeningRef.current = false;
+          setIsListening(false);
+          setSpeechError("Speech network service unavailable. (Note: If using Brave Browser, enable Google Services in brave://settings/system, switch to Chrome/Edge, or type below).");
+          return;
+        }
+
+        setSpeechError("Speech input not heard clearly. Please try speaking again or type your message.");
       };
 
       recognition.onend = () => {
-        setIsListening(false);
+        // Keep-alive loop: If user is actively listening, restart recognition automatically!
+        if (isListeningRef.current) {
+          try {
+            recognition.lang = languageRef.current === 'hi' ? 'hi-IN' : (languageRef.current === 'te' ? 'te-IN' : 'en-IN');
+            recognition.start();
+          } catch (err) {
+            setTimeout(() => {
+              if (isListeningRef.current) {
+                try {
+                  recognition.start();
+                } catch (e) {
+                  isListeningRef.current = false;
+                  setIsListening(false);
+                }
+              }
+            }, 300);
+          }
+        } else {
+          setIsListening(false);
+        }
       };
 
       recognitionRef.current = recognition;
@@ -207,54 +327,17 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
     return () => {
       if (synthRef.current) synthRef.current.cancel();
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     };
-  }, [language, handsFreeMode]);
-
-  const toggleListening = () => {
-    if (!recognitionRef.current) {
-      setSpeechError("Microphone speech recognition is not supported in this browser. Please use Chrome or Edge.");
-      return;
-    }
-
-    // If initial start of conversation and user taps mic, speak greeting first if unread
-    if (!hasVoiceStartedRef.current && messages.length === 1 && !isSpeaking) {
-      hasVoiceStartedRef.current = true;
-      handleStartVoiceConversation();
-      return;
-    }
-
-    hasVoiceStartedRef.current = true;
-
-    // If AI is speaking, tapping mic stops AI and starts user listening
-    if (isSpeaking) {
-      stopSpeaking();
-    }
-
-    if (isListening) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
-      setIsListening(false);
-      setLiveTranscript('');
-    } else {
-      setSpeechError(null);
-      try {
-        recognitionRef.current.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
-        recognitionRef.current.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error("Mic start error:", err);
-        setIsListening(false);
-      }
-    }
-  };
+  }, []);
 
   const handleSend = async (textToSend = inputText) => {
-    const text = textToSend.trim();
+    const text = (typeof textToSend === 'string' ? textToSend : inputText).trim();
     if (!text || isLoading) return;
 
-    // Stop speaking immediately upon user sending
+    // Stop speaking and listening immediately upon user sending
     stopSpeaking();
+    stopListeningVoice(false);
 
     // Append user message
     const userMsg = {
@@ -630,12 +713,45 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         ))}
 
         {/* Realtime Live Speech Feedback while speaking */}
-        {isListening && liveTranscript && (
-          <div className="flex justify-end animate-in fade-in duration-150">
-            <div className="bg-emerald-900/10 border border-emerald-600/30 text-emerald-950 rounded-2xl p-3 text-xs italic">
-              <span className="text-[10px] uppercase font-bold text-emerald-700 block mb-0.5">Hearing your voice:</span>
-              "{liveTranscript}..."
+        {isListening && (
+          <div className="flex justify-center my-2 animate-in fade-in duration-150">
+            <div className="bg-emerald-50 border-2 border-emerald-500/50 rounded-2xl p-3 text-xs max-w-lg w-full shadow-md">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center space-x-1.5 text-[11px] uppercase font-bold text-emerald-800">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                  <span>Listening to Your Voice:</span>
+                </span>
+                {liveTranscript && (
+                  <button
+                    type="button"
+                    onClick={() => stopListeningVoice(true)}
+                    className="px-2.5 py-1 bg-[#0F3D2E] text-amber-300 rounded-lg text-[10px] font-bold hover:bg-[#165440] transition shadow-xs"
+                  >
+                    Done Speaking (Send) ↵
+                  </button>
+                )}
+              </div>
+              <p className="text-stone-800 font-medium italic text-sm">
+                {liveTranscript ? `"${liveTranscript}"` : "Listening... Speak your name, village, or business question"}
+              </p>
             </div>
+          </div>
+        )}
+
+        {/* Quick Name Suggestions on initial greeting */}
+        {messages.length === 1 && !isLoading && !isListening && (
+          <div className="mt-2 pt-2 border-t border-stone-200/50 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-stone-500 font-medium">Quick suggestions:</span>
+            {['Ramesh Kumar', 'Suresh Maurya', 'Sunita Patil', 'Priya Sharma'].map((name, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleSend(name)}
+                className="px-2.5 py-1 rounded-full bg-white hover:bg-[#0F3D2E] text-stone-700 hover:text-amber-300 text-[11px] font-semibold border border-stone-200 shadow-2xs transition"
+              >
+                {name}
+              </button>
+            ))}
           </div>
         )}
 
@@ -673,6 +789,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
           )}
 
           <button
+            type="button"
             onClick={toggleListening}
             className={`
               relative z-10 w-22 h-22 sm:w-26 sm:h-26 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95
@@ -683,7 +800,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
                 : 'bg-gradient-to-br from-[#0F3D2E] via-[#144d3b] to-[#1c664f] text-amber-300 hover:shadow-2xl hover:scale-105'
               }
             `}
-            title="Tap to speak with UdyamSarthi"
+            title={isListening ? "Listening... Tap to finish & send" : isSpeaking ? "Speaking... Tap to interrupt" : "Tap Microphone to Talk with UdyamSarthi"}
           >
             {isListening ? (
               <MicOff className="w-10 h-10 animate-bounce" />
@@ -696,7 +813,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         </div>
 
         {/* Live Audio Equalizer Animation / Voice Status */}
-        <div className="mt-3.5 space-y-1">
+        <div className="mt-3.5 space-y-1 max-w-md mx-auto">
           <div className="flex items-center justify-center space-x-2">
             <span className={`inline-block w-2.5 h-2.5 rounded-full ${
               isListening ? 'bg-rose-500 animate-ping' : isSpeaking ? 'bg-amber-500 animate-pulse' : 'bg-emerald-600'
@@ -717,6 +834,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
           {/* Prompt to start initial voice conversation */}
           {messages.length === 1 && !isSpeaking && !isListening && (
             <button
+              type="button"
               onClick={handleStartVoiceConversation}
               className="mt-2 inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-emerald-50 text-[#0F3D2E] border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition shadow-2xs"
             >
@@ -726,7 +844,9 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
           )}
 
           {speechError && (
-            <p className="text-xs text-rose-600 mt-1 font-semibold">{speechError}</p>
+            <div className="mt-2 px-3 py-2 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium leading-relaxed shadow-xs">
+              <p>{speechError}</p>
+            </div>
           )}
         </div>
       </div>
