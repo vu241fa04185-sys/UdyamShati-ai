@@ -4,6 +4,7 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const profileController = require('../controllers/profileController');
 const aiOrchestrator = require('../controllers/aiOrchestrator');
+const mapsController = require('../controllers/mapsController');
 const { verifyToken } = require('../middleware/auth');
 
 // Auth routes
@@ -27,5 +28,14 @@ router.post('/rag/search', verifyToken, aiOrchestrator.searchRAG);
 // Meta data routes
 router.get('/catalog', aiOrchestrator.getCatalog);
 router.get('/locations', aiOrchestrator.getLocations);
+
+// Google Maps & Hyper-Local Intelligence routes
+router.post('/maps/nearby', mapsController.getNearbyPlaces);
+router.get('/maps/places', mapsController.getPlaces);
+router.get('/maps/place/:placeId', mapsController.getPlaceDetails);
+router.post('/maps/street-view', mapsController.checkStreetView);
+router.post('/maps/directions', mapsController.getDirections);
+router.post('/maps/market-analysis', mapsController.getMarketAnalysis);
+router.get('/maps/categories', mapsController.getCategories);
 
 module.exports = router;

@@ -1,0 +1,449 @@
+[
+  {
+    "place_id": "ChIJ_pimpalgaon_mandi_01",
+    "name": "Pimpalgaon Baswant APMC Market Yard",
+    "category_code": "MARKET_MANDI",
+    "category_group": "Market",
+    "category_label": "Wholesale APMC Mandi",
+    "icon": "🛒",
+    "latitude": 20.1685,
+    "longitude": 73.9815,
+    "address": "NH-3 Highway Market Yard, Pimpalgaon Baswant, Niphad, Nashik, Maharashtra 422209",
+    "rating": 4.6,
+    "user_ratings_total": 412,
+    "price_level": 2,
+    "phone": "+91 2550 250122",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Monday-Saturday: 05:00 AM - 08:00 PM", "Sunday: 06:00 AM - 02:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "apmc_mandi_pimpalgaon_01",
+        "url": "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "APMC Directory", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2024-03", "heading": 185.0, "pitch": 0 },
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": true
+  },
+  {
+    "place_id": "ChIJ_godavari_dairy_02",
+    "name": "Godavari Cooperative Dairy & Bulk Milk Chilling Center",
+    "category_code": "DAIRY",
+    "category_group": "Dairy",
+    "category_label": "Milk Collection & Chilling Center",
+    "icon": "🐄",
+    "latitude": 20.1740,
+    "longitude": 73.9870,
+    "address": "Near Station Road, Pimpalgaon Baswant, Nashik, Maharashtra 422209",
+    "rating": 4.5,
+    "user_ratings_total": 128,
+    "phone": "+91 2550 251400",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Everyday: 05:30 AM - 09:30 AM, 04:30 PM - 08:30 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "godavari_dairy_01",
+        "url": "https://images.unsplash.com/photo-1527153857715-3908f2bae5e8?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Nashik Milk Union", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2023-11", "heading": 90.0, "pitch": 5 },
+    "is_competitor": true,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_sai_krupa_dairy_03",
+    "name": "Sai Krupa Milk Chilling & Collection",
+    "category_code": "DAIRY",
+    "category_group": "Dairy",
+    "category_label": "Dairy Shop & Collection",
+    "icon": "🥛",
+    "latitude": 20.1880,
+    "longitude": 73.9650,
+    "address": "Shirwade Vani Road, Niphad, Nashik, Maharashtra",
+    "rating": 4.1,
+    "user_ratings_total": 64,
+    "phone": "+91 94222 18944",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Everyday: 06:00 AM - 10:00 AM, 05:00 PM - 09:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "sai_krupa_01",
+        "url": "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Sai Krupa", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": false,
+    "is_competitor": true,
+    "is_supplier": false,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_kisan_seva_agro_04",
+    "name": "Kisan Seva Krishi Agro & Fertilizer Center",
+    "category_code": "AGRICULTURE_SEEDS",
+    "category_group": "Agriculture",
+    "category_label": "Fertilizer, Seed & Drip Depot",
+    "icon": "🌾",
+    "latitude": 20.1690,
+    "longitude": 73.9820,
+    "address": "Opposite Panchayat Samiti, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.7,
+    "user_ratings_total": 189,
+    "phone": "+91 2550 252190",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Monday-Saturday: 08:30 AM - 08:30 PM", "Sunday: 09:00 AM - 01:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "kisan_agro_01",
+        "url": "https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Kisan Seva Kendra", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2024-01", "heading": 210.0, "pitch": -2 },
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_niphad_masala_mill_05",
+    "name": "Niphad Masala & Grain Processing Mill",
+    "category_code": "FOOD_PROCESSING",
+    "category_group": "Food",
+    "category_label": "Mini Processing & Flour Mill",
+    "icon": "📦",
+    "latitude": 20.1712,
+    "longitude": 73.9845,
+    "address": "Bazaar Peth, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.3,
+    "user_ratings_total": 76,
+    "phone": "+91 98231 44521",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Monday-Saturday: 09:00 AM - 07:30 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "flour_mill_01",
+        "url": "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Niphad Mills", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": false,
+    "is_competitor": true,
+    "is_supplier": false,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_shree_ram_kirana_06",
+    "name": "Shree Ram Super Kirana & Provisions",
+    "category_code": "GROCERY",
+    "category_group": "Retail",
+    "category_label": "Grocery Store & Daily Needs",
+    "icon": "🏪",
+    "latitude": 20.1715,
+    "longitude": 73.9830,
+    "address": "Near Old Bus Stand, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.4,
+    "user_ratings_total": 210,
+    "phone": "+91 2550 250889",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Everyday: 07:00 AM - 10:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "kirana_store_01",
+        "url": "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Shree Ram Kirana", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2023-12", "heading": 45.0, "pitch": 0 },
+    "is_competitor": true,
+    "is_supplier": false,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_vet_dispensary_07",
+    "name": "Government Veterinary Dispensary & Artificial Insemination Center",
+    "category_code": "VETERINARY",
+    "category_group": "Healthcare",
+    "category_label": "Veterinary Clinic & Hospital",
+    "icon": "🏥",
+    "latitude": 20.1728,
+    "longitude": 73.9805,
+    "address": "Behind Taluka Hospital, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.6,
+    "user_ratings_total": 92,
+    "phone": "+91 2550 250044",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Monday-Saturday: 08:00 AM - 01:00 PM, 03:00 PM - 05:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "vet_clinic_01",
+        "url": "https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Veterinary Services Dept", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2023-09", "heading": 130.0, "pitch": 0 },
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_tractor_machinery_08",
+    "name": "Mahindra & Swaraj Tractor Service & Farm Machinery Hire",
+    "category_code": "FARM_EQUIPMENT",
+    "category_group": "Services",
+    "category_label": "Tractor & Farm Equipment",
+    "icon": "🚜",
+    "latitude": 20.1650,
+    "longitude": 73.9860,
+    "address": "NH-3 Bypass Road, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.5,
+    "user_ratings_total": 140,
+    "phone": "+91 2550 254330",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Monday-Saturday: 09:00 AM - 07:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "tractor_depot_01",
+        "url": "https://images.unsplash.com/photo-1594771804886-a933bb2d609b?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Mahindra Rural Tractors", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2024-02", "heading": 300.0, "pitch": 2 },
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_feed_supplier_09",
+    "name": "Godrej Agrovet Cattle & Poultry Feed Distributor",
+    "category_code": "FEED_SUPPLIER",
+    "category_group": "Agriculture",
+    "category_label": "Cattle & Poultry Feed Supplier",
+    "icon": "🌾",
+    "latitude": 20.1700,
+    "longitude": 73.9880,
+    "address": "Station Link Road, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.4,
+    "user_ratings_total": 83,
+    "phone": "+91 98900 12345",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Monday-Saturday: 08:00 AM - 08:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "feed_supplier_01",
+        "url": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Godrej Agrovet", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": false,
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_sbi_bank_10",
+    "name": "State Bank of India & Agriculture Development Branch",
+    "category_code": "BANK_ATM",
+    "category_group": "Services",
+    "category_label": "Bank & Rural Micro-Credit Hub",
+    "icon": "🏦",
+    "latitude": 20.1718,
+    "longitude": 73.9810,
+    "address": "Bazaar Main Road, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.1,
+    "user_ratings_total": 310,
+    "phone": "+91 2550 250021",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Monday-Friday: 10:00 AM - 04:00 PM", "1st/3rd Saturday: 10:00 AM - 04:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "bank_sbi_01",
+        "url": "https://images.unsplash.com/photo-1501167786227-4cba60f6d58f?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "SBI Branch", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2023-10", "heading": 12.0, "pitch": 0 },
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_bharat_petroleum_11",
+    "name": "Bharat Petroleum Kisan Seva Kendra Fuel Station",
+    "category_code": "PETROL_PUMP",
+    "category_group": "Transport",
+    "category_label": "Petrol Pump & Tractor Diesel",
+    "icon": "⛽",
+    "latitude": 20.1620,
+    "longitude": 73.9780,
+    "address": "NH-3 Highway, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.3,
+    "user_ratings_total": 450,
+    "phone": "+91 2550 251100",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Open 24 Hours"]
+    },
+    "photos": [
+      {
+        "photo_reference": "petrol_pump_01",
+        "url": "https://images.unsplash.com/photo-1545459720-aac8509eb02c?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "BPCL Fuel", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2024-01", "heading": 270.0, "pitch": 0 },
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_sanjivani_pharmacy_12",
+    "name": "Sanjivani Medicos & Veterinary Medicines",
+    "category_code": "PHARMACY",
+    "category_group": "Healthcare",
+    "category_label": "Pharmacy & Vet Supplies",
+    "icon": "💊",
+    "latitude": 20.1708,
+    "longitude": 73.9835,
+    "address": "Near Civil Hospital Gate, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.5,
+    "user_ratings_total": 115,
+    "phone": "+91 2550 250555",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Everyday: 08:00 AM - 10:30 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "pharmacy_01",
+        "url": "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Sanjivani Medicos", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": false,
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_poultry_broiler_13",
+    "name": "Venkateshwara Modern Broiler Farm & Feed Unit",
+    "category_code": "POULTRY",
+    "category_group": "Poultry",
+    "category_label": "Poultry Broiler Farm",
+    "icon": "🐔",
+    "latitude": 20.1920,
+    "longitude": 73.9980,
+    "address": "Vadner Road, Niphad, Nashik, Maharashtra",
+    "rating": 4.2,
+    "user_ratings_total": 55,
+    "phone": "+91 98220 88911",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Everyday: 07:00 AM - 06:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "poultry_farm_01",
+        "url": "https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "VH Group Farmer", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": false,
+    "is_competitor": true,
+    "is_supplier": false,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_cold_storage_14",
+    "name": "Kisan Cold Storage & Agri Warehouse",
+    "category_code": "WAREHOUSE",
+    "category_group": "Services",
+    "category_label": "Cold Storage & Warehouse",
+    "icon": "🏬",
+    "latitude": 20.1580,
+    "longitude": 73.9750,
+    "address": "Industrial Corridor, Pimpalgaon Baswant, Nashik 422209",
+    "rating": 4.7,
+    "user_ratings_total": 88,
+    "phone": "+91 2550 258810",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Monday-Saturday: 07:00 AM - 09:00 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "cold_storage_01",
+        "url": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Agri Storage", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2023-08", "heading": 15.0, "pitch": 0 },
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  },
+  {
+    "place_id": "ChIJ_rural_restaurant_15",
+    "name": "Hotel Sai Krupa & Highway Family Dhaba",
+    "category_code": "RESTAURANT",
+    "category_group": "Food",
+    "category_label": "Restaurant & Rural Dhaba",
+    "icon": "🍴",
+    "latitude": 20.1665,
+    "longitude": 73.9855,
+    "address": "Mumbai-Agra Highway, Pimpalgaon Baswant 422209",
+    "rating": 4.2,
+    "user_ratings_total": 380,
+    "price_level": 1,
+    "phone": "+91 2550 253322",
+    "opening_hours": {
+      "open_now": true,
+      "weekday_text": ["Everyday: 06:30 AM - 11:30 PM"]
+    },
+    "photos": [
+      {
+        "photo_reference": "restaurant_dhaba_01",
+        "url": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80",
+        "author_attributions": [{ "display_name": "Sai Krupa Dhaba", "uri": "https://maps.google.com" }]
+      }
+    ],
+    "street_view_available": true,
+    "street_view_metadata": { "date": "2024-02", "heading": 180.0, "pitch": 0 },
+    "is_competitor": false,
+    "is_supplier": true,
+    "is_mandi": false
+  }
+]

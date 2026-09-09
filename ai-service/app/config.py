@@ -11,6 +11,8 @@ LOCATIONS_PATH = DATA_DIR / "villages_and_locations.json"
 COMPETITORS_PATH = DATA_DIR / "competitors.json"
 SCHEMES_PATH = DATA_DIR / "schemes.json"
 SCHEME_DOCS_PATH = DATA_DIR / "scheme_documents.json"
+PLACES_CATALOG_PATH = DATA_DIR / "places_catalog.json"
+CATEGORIES_PATH = DATA_DIR / "business_categories.json"
 
 # SIH26091 Concessional Financing Parameters (MoSJE Standards)
 BENEFICIARY_MARGIN_PCT = 10.0   # 10% own contribution

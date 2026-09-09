@@ -1,0 +1,90 @@
+[
+  {
+    "id": "ALL",
+    "name": "All Categories",
+    "icon": "🌐",
+    "color": "#059669",
+    "group": "All",
+    "description": "Show all hyper-local shops, suppliers, competitors, and institutions within radius."
+  },
+  {
+    "id": "DAIRY",
+    "name": "Dairy & Milk",
+    "icon": "🐄",
+    "color": "#2563eb",
+    "group": "Dairy",
+    "description": "Dairy farms, chilling centers, and milk collection cooperatives.",
+    "related_suppliers": ["FEED_SUPPLIER", "VETERINARY", "PHARMACY"],
+    "is_competitor_to": ["DAIRY_FARMING"]
+  },
+  {
+    "id": "POULTRY",
+    "name": "Poultry & Broiler",
+    "icon": "🐔",
+    "color": "#ea580c",
+    "group": "Poultry",
+    "description": "Broiler units, hatcheries, and egg collection centers.",
+    "related_suppliers": ["FEED_SUPPLIER", "VETERINARY"],
+    "is_competitor_to": ["POULTRY_BROILER"]
+  },
+  {
+    "id": "AGRICULTURE",
+    "name": "Agri & Seeds",
+    "icon": "🌾",
+    "color": "#16a34a",
+    "group": "Agriculture",
+    "description": "Fertilizers, hybrid seeds, and drip irrigation providers.",
+    "related_suppliers": ["FARM_EQUIPMENT", "MARKET_MANDI"],
+    "is_competitor_to": ["VEGETABLE_FARMING"]
+  },
+  {
+    "id": "FOOD",
+    "name": "Food Processing",
+    "icon": "📦",
+    "color": "#d97706",
+    "group": "Food",
+    "description": "Flour mills, spice grinders, packaging, and village dhabas.",
+    "related_suppliers": ["MARKET_MANDI", "GROCERY"],
+    "is_competitor_to": ["FOOD_PROCESSING_MILL"]
+  },
+  {
+    "id": "RETAIL",
+    "name": "Retail & Kirana",
+    "icon": "🏪",
+    "color": "#7c3aed",
+    "group": "Retail",
+    "description": "Daily provisions, grocery stores, and consumer goods outlets.",
+    "related_suppliers": ["MARKET_MANDI", "WAREHOUSE"],
+    "is_competitor_to": ["KIRANA_DAILY_NEEDS"]
+  },
+  {
+    "id": "HEALTHCARE",
+    "name": "Healthcare & Vet",
+    "icon": "🏥",
+    "color": "#dc2626",
+    "group": "Healthcare",
+    "description": "Veterinary dispensaries, hospitals, and medical pharmacies.",
+    "related_suppliers": [],
+    "is_competitor_to": []
+  },
+  {
+    "id": "TRANSPORT",
+    "name": "Fuel & Logistics",
+    "icon": "⛽",
+    "color": "#0891b2",
+    "group": "Transport",
+    "description": "Petrol pumps, tractor diesel depots, and rural transport operators.",
+    "related_suppliers": [],
+    "is_competitor_to": []
+  },
+  {
+    "id": "SERVICES",
+    "name": "Banking & Machinery",
+    "icon": "🚜",
+    "color": "#475569",
+    "group": "Services",
+    "description": "Rural bank branches, ATMs, custom hiring equipment, and cold storages.",
+    "related_suppliers": [],
+    "is_competitor_to": ["AGRI_EQUIPMENT_RENTAL"]
+  }
+]

@@ -1,492 +1,624 @@
-import React, { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import { 
-  MapPin, 
-  Users, 
-  Store, 
-  TrendingUp, 
-  Layers, 
-  ShieldAlert, 
-  CheckCircle2,
-  Navigation,
-  Crosshair,
-  Search,
-  RefreshCw,
-  AlertCircle
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import {
+  MapPin,
+  Crosshair,
+  Navigation,
+  Search,
+  Key,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Layers,
+  Sparkles,
+  Compass,
+  ArrowRight
+} from 'lucide-react';
+import GoogleMap from './maps/GoogleMap';
+import RadiusSelector from './maps/RadiusSelector';
+import MapLegend from './maps/MapLegend';
+import CategoryFilter from './maps/CategoryFilter';
+import NearbyPlaces from './maps/NearbyPlaces';
+import PlaceDetails from './maps/PlaceDetails';
+import MarketSummary from './maps/MarketSummary';
+import MarketOpportunity from './maps/MarketOpportunity';
+import CompetitionHeatmap from './maps/CompetitionHeatmap';
 import { translations } from '../locales/translations';
 
-// Fix standard Leaflet default icon issues
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
-
-export default function MarketMapView({ profile, setProfile, recommendations, lang, onLocationUpdate }) {
+export default function MarketMapView({
+  profile,
+  setProfile,
+  recommendations,
+  lang = 'en',
+  onLocationUpdate
+}) {
   const t = translations[lang] || translations.en;
-  const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const circleRef = useRef(null);
-  const markersGroupRef = useRef(null);
 
+  // Active Location Coordinates
+  const lat = profile.latitude || 20.1706;
+  const lon = profile.longitude || 73.984;
+  const villageName = profile.village_name || 'Pimpalgaon Baswant';
+  const district = profile.district || 'Nashik';
+  const state = profile.state || 'Maharashtra';
+
+  // State Management
   const [radiusKm, setRadiusKm] = useState(profile.analysis_radius_km || 10.0);
-  const [competitors, setCompetitors] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [categories, setCategories] = useState([]);
+  const [places, setPlaces] = useState([]);
+  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [activeRoute, setActiveRoute] = useState(null);
   const [marketAnalysis, setMarketAnalysis] = useState(null);
+  const [isHeatmapActive, setIsHeatmapActive] = useState(false);
+
+  // Search and Manual Coordinate Inputs
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [manualLat, setManualLat] = useState(lat.toFixed(4));
+  const [manualLon, setManualLon] = useState(lon.toFixed(4));
   const [isLocating, setIsLocating] = useState(false);
   const [locationStatus, setLocationStatus] = useState(null);
 
-  const lat = profile.latitude || 20.1706;
-  const lon = profile.longitude || 73.9840;
-  const topRec = recommendations?.top_recommendation;
-  const categoryCode = topRec?.category_code || 'VEGETABLE_FARMING';
+  // Google Maps API Key handling
+  const envKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+  const [apiKey, setApiKey] = useState(() => {
+    return localStorage.getItem('udyamsetu_gmaps_key') || envKey;
+  });
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [inputKey, setInputKey] = useState(apiKey);
 
-  // Popular Indian rural hubs for quick 1-click selection
+  // Popular Indian Rural Benchmark Hubs
   const popularHubs = [
-    { name: "Pimpalgaon Baswant (Nashik)", lat: 20.1706, lon: 73.9840, district: "Nashik", state: "Maharashtra" },
-    { name: "Kankipadu (Krishna)", lat: 16.4258, lon: 80.7712, district: "Krishna", state: "Andhra Pradesh" },
-    { name: "Chaubeypur (Varanasi)", lat: 25.4380, lon: 83.0560, district: "Varanasi", state: "Uttar Pradesh" },
-    { name: "Mogri Rural (Anand)", lat: 22.5360, lon: 72.9340, district: "Anand", state: "Gujarat" }
+    { name: 'Pimpalgaon Baswant (Nashik)', lat: 20.1706, lon: 73.984, district: 'Nashik', state: 'Maharashtra' },
+    { name: 'Kankipadu (Krishna)', lat: 16.4258, lon: 80.7712, district: 'Krishna', state: 'Andhra Pradesh' },
+    { name: 'Chaubeypur (Varanasi)', lat: 25.438, lon: 83.056, district: 'Varanasi', state: 'Uttar Pradesh' },
+    { name: 'Mogri Rural (Anand)', lat: 22.536, lon: 72.934, district: 'Anand', state: 'Gujarat' }
   ];
 
-  // 1. Live Device GPS Location Detection
-  const handleDetectLiveLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
-      return;
-    }
-
-    setIsLocating(true);
-    setLocationStatus("Detecting GPS satellites...");
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const userLat = pos.coords.latitude;
-        const userLon = pos.coords.longitude;
-        setLocationStatus("GPS coordinates acquired! Reverse geocoding address...");
-
-        let village = "My Current Location";
-        let district = profile.district || "Local District";
-        let state = profile.state || "India";
-
-        try {
-          // Reverse geocode via OpenStreetMap Nominatim
-          const geoRes = await axios.get(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLon}&zoom=14&addressdetails=1`
-          );
-          if (geoRes.data?.address) {
-            const addr = geoRes.data.address;
-            village = addr.village || addr.suburb || addr.town || addr.city || "Local Village";
-            district = addr.state_district || addr.county || addr.district || district;
-            state = addr.state || state;
-          }
-        } catch (geoErr) {
-          console.warn("Reverse geocode fallback:", geoErr);
-        }
-
-        const newProfile = {
-          ...profile,
-          latitude: userLat,
-          longitude: userLon,
-          village_name: village,
-          district: district,
-          state: state
-        };
-
-        if (setProfile) setProfile(newProfile);
-        if (onLocationUpdate) onLocationUpdate(newProfile);
-
-        setLocationStatus(`Locked on: ${village}, ${district} (${userLat.toFixed(4)}°, ${userLon.toFixed(4)}°)`);
-        setIsLocating(false);
-
-        // Center map
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.setView([userLat, userLon], 13);
-        }
-      },
-      (err) => {
-        console.error("GPS error:", err);
-        setIsLocating(false);
-        setLocationStatus("GPS permission denied or unavailable. Using benchmark coordinates.");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
-  // Load competitor and market analysis data
+  // Update manual inputs when coordinate props change
   useEffect(() => {
-    const fetchData = async () => {
+    setManualLat(lat.toFixed(4));
+    setManualLon(lon.toFixed(4));
+  }, [lat, lon]);
+
+  // Load Business Categories
+  useEffect(() => {
+    const fetchCategories = async () => {
       try {
-        const [compRes, marketRes] = await Promise.all([
-          axios.get('/api/competitors', {
-            params: { latitude: lat, longitude: lon, radius_km: radiusKm }
+        const res = await axios.get('/api/maps/categories');
+        if (Array.isArray(res.data)) {
+          setCategories(res.data);
+        }
+      } catch (err) {
+        console.warn('Could not load categories:', err.message);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Fetch Nearby Places & GIS Spatial Analysis
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchMapIntelligence = async () => {
+      try {
+        const topRec = recommendations?.top_recommendation;
+        const categoryCode = topRec?.category_code || 'VEGETABLE_FARMING';
+
+        const [placesRes, analysisRes] = await Promise.all([
+          axios.post('/api/maps/nearby', {
+            latitude: lat,
+            longitude: lon,
+            radius_km: radiusKm,
+            category: selectedCategory,
+            apiKey: apiKey
           }),
-          axios.post('/api/market-analysis', {
+          axios.post('/api/maps/market-analysis', {
             latitude: lat,
             longitude: lon,
             category_code: categoryCode,
             radius_km: radiusKm
           })
         ]);
-        setCompetitors(compRes.data || []);
-        setMarketAnalysis(marketRes.data || null);
+
+        if (isCancelled) return;
+
+        if (placesRes.data && placesRes.data.success) {
+          setPlaces(placesRes.data.places || []);
+        }
+        if (analysisRes.data) {
+          setMarketAnalysis(analysisRes.data);
+        }
       } catch (err) {
-        console.error("Error loading GIS market data:", err);
+        console.error('Error fetching hyper-local map intelligence:', err);
       }
     };
-    fetchData();
-  }, [lat, lon, radiusKm, categoryCode]);
 
-  // Initialize and update Leaflet map
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
+    fetchMapIntelligence();
 
-    if (!mapInstanceRef.current) {
-      const map = L.map(mapContainerRef.current, {
-        center: [lat, lon],
-        zoom: radiusKm <= 5 ? 13 : 12,
-        scrollWheelZoom: true
-      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [lat, lon, radiusKm, selectedCategory, apiKey, recommendations]);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors | UdyamSetu Spatial Engine',
-        maxZoom: 18,
-      }).addTo(map);
+  // Calculate place counts per category for pill badges
+  const placeCounts = places.reduce((acc, p) => {
+    const cat = p.category_id || p.category || 'OTHER';
+    acc[cat] = (acc[cat] || 0) + 1;
+    return acc;
+  }, {});
 
-      markersGroupRef.current = L.layerGroup().addTo(map);
+  // 1. Device Live GPS Geolocation
+  const handleDetectLiveLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
 
-      // Interactive Click to Set Location on Map!
-      map.on('click', async (e) => {
-        const clickedLat = e.latlng.lat;
-        const clickedLon = e.latlng.lng;
-        
-        let vName = "Selected Pin Location";
+    setIsLocating(true);
+    setLocationStatus('Acquiring high-accuracy GPS satellites...');
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const userLat = pos.coords.latitude;
+        const userLon = pos.coords.longitude;
+        setLocationStatus('GPS acquired! Reverse geocoding rural address...');
+
+        let village = 'My Live Location';
+        let dist = district;
+        let st = state;
+
         try {
-          const res = await axios.get(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${clickedLat}&lon=${clickedLon}&zoom=14&addressdetails=1`
+          const geoRes = await axios.get(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLon}&zoom=14&addressdetails=1`
           );
-          if (res.data?.address) {
-            vName = res.data.address.village || res.data.address.town || res.data.address.suburb || vName;
+          if (geoRes.data?.address) {
+            const addr = geoRes.data.address;
+            village = addr.village || addr.suburb || addr.town || addr.city || village;
+            dist = addr.state_district || addr.county || addr.district || dist;
+            st = addr.state || st;
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn('Reverse geocode error:', e);
+        }
 
         const updated = {
           ...profile,
-          latitude: clickedLat,
-          longitude: clickedLon,
-          village_name: vName
+          latitude: userLat,
+          longitude: userLon,
+          village_name: village,
+          district: dist,
+          state: st
         };
 
         if (setProfile) setProfile(updated);
         if (onLocationUpdate) onLocationUpdate(updated);
-      });
 
-      mapInstanceRef.current = map;
-    } else {
-      mapInstanceRef.current.setView([lat, lon], radiusKm <= 5 ? 13 : 12);
+        setLocationStatus(`Locked: ${village}, ${dist} (${userLat.toFixed(4)}°, ${userLon.toFixed(4)}°)`);
+        setIsLocating(false);
+      },
+      (err) => {
+        console.error('GPS error:', err);
+        setIsLocating(false);
+        setLocationStatus('GPS permission unavailable. Using current location.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  // 2. Village / Town Search via OpenStreetMap Geocoding
+  const handleSearchLocation = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsSearchingLocation(true);
+    try {
+      const res = await axios.get(
+        `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&q=${encodeURIComponent(
+          searchQuery
+        )}&limit=1`
+      );
+
+      if (res.data && res.data.length > 0) {
+        const item = res.data[0];
+        const newLat = parseFloat(item.lat);
+        const newLon = parseFloat(item.lon);
+        const nameParts = item.display_name.split(',');
+        const vName = nameParts[0].trim();
+
+        const updated = {
+          ...profile,
+          latitude: newLat,
+          longitude: newLon,
+          village_name: vName,
+          district: nameParts[1] ? nameParts[1].trim() : district
+        };
+
+        if (setProfile) setProfile(updated);
+        if (onLocationUpdate) onLocationUpdate(updated);
+        setLocationStatus(`Found and centered on: ${item.display_name.slice(0, 50)}...`);
+      } else {
+        alert('Could not find this location. Try specifying village name with district or state.');
+      }
+    } catch (err) {
+      console.error('Search location error:', err);
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  };
+
+  // 3. Manual Latitude / Longitude Submit
+  const handleManualCoordsSubmit = (e) => {
+    e.preventDefault();
+    const parsedLat = parseFloat(manualLat);
+    const parsedLon = parseFloat(manualLon);
+
+    if (isNaN(parsedLat) || isNaN(parsedLon)) {
+      alert('Please enter valid numeric latitude and longitude.');
+      return;
     }
 
-    const map = mapInstanceRef.current;
-    
-    // Invalidate size after mount to prevent gray tile rendering!
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 150);
+    const updated = {
+      ...profile,
+      latitude: parsedLat,
+      longitude: parsedLon,
+      village_name: `Custom (${parsedLat.toFixed(3)}°, ${parsedLon.toFixed(3)}°)`
+    };
 
-    const markersGroup = markersGroupRef.current;
-    markersGroup.clearLayers();
+    if (setProfile) setProfile(updated);
+    if (onLocationUpdate) onLocationUpdate(updated);
+    setLocationStatus(`Updated origin to coordinates: ${parsedLat}°, ${parsedLon}°`);
+  };
 
-    // 1. Draw 5-10km Radius Catchment Circle
-    if (circleRef.current) {
-      circleRef.current.remove();
-    }
-    const circle = L.circle([lat, lon], {
-      color: '#059669',
-      fillColor: '#10b981',
-      fillOpacity: 0.12,
-      weight: 2.5,
-      radius: radiusKm * 1000 // in meters
-    }).addTo(map);
-    circleRef.current = circle;
+  // 4. Click-to-Pin on Map
+  const handleMapLocationChange = async ({ lat: newLat, lng: newLon }) => {
+    let vName = 'Selected Map Pin';
 
-    // 2. Add Live Entrepreneur Pin (Pulse beacon)
-    const entrepreneurIcon = L.divIcon({
-      className: 'custom-div-icon',
-      html: `<div style="background-color: #047857; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.35); animation: pulse 2s infinite;">📍</div>`,
-      iconSize: [36, 36],
-      iconAnchor: [18, 18]
-    });
+    try {
+      const res = await axios.get(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLon}&zoom=14&addressdetails=1`
+      );
+      if (res.data?.address) {
+        vName = res.data.address.village || res.data.address.town || res.data.address.suburb || vName;
+      }
+    } catch (e) {}
 
-    L.marker([lat, lon], { icon: entrepreneurIcon })
-      .addTo(markersGroup)
-      .bindPopup(`
-        <div style="font-family: sans-serif; padding: 2px;">
-          <strong style="color: #047857; font-size: 13px;">📍 Current Active Location</strong><br/>
-          <strong>${profile.name}</strong><br/>
-          ${profile.village_name || 'Village'}, ${profile.district || 'District'}<br/>
-          <small style="color: #64748b;">GPS: ${lat.toFixed(4)}° N, ${lon.toFixed(4)}° E</small>
-        </div>
-      `)
-      .openPopup();
+    const updated = {
+      ...profile,
+      latitude: newLat,
+      longitude: newLon,
+      village_name: vName
+    };
 
-    // 3. Add Competitor Pins
-    competitors.forEach((comp) => {
-      const isSameCategory = comp.category_code === categoryCode;
-      const compIcon = L.divIcon({
-        className: 'custom-div-icon',
-        html: `<div style="background-color: ${isSameCategory ? '#dc2626' : '#f59e0b'}; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.25);">🏢</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      });
+    if (setProfile) setProfile(updated);
+    if (onLocationUpdate) onLocationUpdate(updated);
+    setLocationStatus(`Pin placed: ${vName} (${newLat.toFixed(4)}°, ${newLon.toFixed(4)}°)`);
+  };
 
-      L.marker([comp.latitude, comp.longitude], { icon: compIcon })
-        .addTo(markersGroup)
-        .bindPopup(`
-          <div style="font-family: sans-serif;">
-            <strong style="font-size: 12px;">${comp.name}</strong><br/>
-            <span style="color: #dc2626; font-size: 11px; font-weight: bold;">Competitor in ${comp.category_code}</span><br/>
-            Turnover: ~₹${(comp.estimated_monthly_turnover || 0).toLocaleString('en-IN')}/mo<br/>
-            Distance: <b>${comp.distance_km || 0} km</b>
-          </div>
-        `);
-    });
-
-    // 4. Add APMC Mandi Marker
-    if (marketAnalysis?.nearest_mandi_distance_km) {
-      const mandiLat = lat + 0.025;
-      const mandiLon = lon + 0.025;
-      const mandiIcon = L.divIcon({
-        className: 'custom-div-icon',
-        html: `<div style="background-color: #7c3aed; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🛒</div>`,
-        iconSize: [30, 30],
-        iconAnchor: [15, 15]
-      });
-
-      L.marker([mandiLat, mandiLon], { icon: mandiIcon })
-        .addTo(markersGroup)
-        .bindPopup(`<b>APMC Regional Mandi & Market Hub</b><br/>Distance: ~${marketAnalysis.nearest_mandi_distance_km} km`);
-    }
-
-  }, [lat, lon, radiusKm, competitors, marketAnalysis, categoryCode, profile]);
+  // Save API Key
+  const handleSaveApiKey = () => {
+    const trimmed = inputKey.trim();
+    setApiKey(trimmed);
+    localStorage.setItem('udyamsetu_gmaps_key', trimmed);
+    setShowKeyModal(false);
+  };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Top Banner with LIVE GPS DETECTION Button */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center">
-            <Crosshair className="w-4 h-4 mr-1.5 text-emerald-600" />
-            Hyper-Local Geospatial Intelligence • Live GPS Catchment Area
-          </span>
-          <h2 className="text-lg font-black text-slate-900 mt-0.5">
-            {profile.village_name || 'Current Location'} ({lat.toFixed(4)}° N, {lon.toFixed(4)}° E)
-          </h2>
-          <p className="text-xs text-slate-500">
-            Click anywhere on the map or use the live GPS button to analyze your real village.
-          </p>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* ========================================================================= */}
+      {/* 1. TOP HEADER & MULTI-MODE LOCATION SELECTION TOOLBAR                      */}
+      {/* ========================================================================= */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center">
+              <Crosshair className="w-4 h-4 mr-1.5 text-emerald-600" />
+              Hyper-Local Google Maps Intelligence • Multi-Factor Spatial Catchment
+            </span>
+            <h2 className="text-xl font-black text-slate-900 mt-0.5 flex items-center space-x-2">
+              <span>📍 {villageName}</span>
+              <span className="text-sm font-semibold text-slate-500">
+                ({district}, {state})
+              </span>
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Live Coordinates: <b>{lat.toFixed(4)}° N, {lon.toFixed(4)}° E</b> • Click map or enter coordinates to reposition origin.
+            </p>
+          </div>
+
+          {/* Action Tools: Live GPS & API Key Setting */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDetectLiveLocation}
+              disabled={isLocating}
+              className="flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition transform hover:-translate-y-0.5"
+            >
+              <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+              <span>{isLocating ? 'Detecting GPS...' : '📍 Device Live GPS'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowKeyModal(true)}
+              className="flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition"
+            >
+              <Key className="w-3.5 h-3.5 text-slate-500" />
+              <span>{apiKey ? 'API Key: Connected' : 'Google Maps Key'}</span>
+            </button>
+
+            {/* Quick Benchmark Hubs Dropdown */}
+            <select
+              value={`${lat.toFixed(4)},${lon.toFixed(4)}`}
+              onChange={(e) => {
+                const [sLat, sLon] = e.target.value.split(',').map(Number);
+                const hub = popularHubs.find((h) => Math.abs(h.lat - sLat) < 0.01);
+                if (hub) {
+                  const updated = {
+                    ...profile,
+                    latitude: hub.lat,
+                    longitude: hub.lon,
+                    village_name: hub.name.split(' (')[0],
+                    district: hub.district,
+                    state: hub.state
+                  };
+                  if (setProfile) setProfile(updated);
+                  if (onLocationUpdate) onLocationUpdate(updated);
+                  setLocationStatus(`Switched to benchmark hub: ${hub.name}`);
+                }
+              }}
+              className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 focus:outline-none"
+            >
+              <option value="">Select Rural Hub Preset...</option>
+              {popularHubs.map((h, i) => (
+                <option key={i} value={`${h.lat.toFixed(4)},${h.lon.toFixed(4)}`}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Live GPS Action & Hub Selector */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={handleDetectLiveLocation}
-            disabled={isLocating}
-            className="flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md transition transform hover:-translate-y-0.5"
-          >
-            <Navigation className={`w-4 h-4 ${isLocating ? 'animate-spin' : ''}`} />
-            <span>{isLocating ? 'Detecting GPS...' : '📍 Use My Device Live GPS'}</span>
-          </button>
+        {/* Location Search Bar & Manual Lat/Long Input Bar */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-100">
+          {/* Search Bar */}
+          <form onSubmit={handleSearchLocation} className="md:col-span-7 flex items-center space-x-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search village, town, or APMC mandi (e.g. Niphad, Baramati)..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSearchingLocation}
+              className="bg-slate-900 hover:bg-black text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition"
+            >
+              {isSearchingLocation ? 'Searching...' : 'Locate'}
+            </button>
+          </form>
 
-          {/* Quick Hub Selector */}
-          <select
-            value={`${lat},${lon}`}
-            onChange={(e) => {
-              const [selectedLat, selectedLon] = e.target.value.split(',').map(Number);
-              const hub = popularHubs.find(h => Math.abs(h.lat - selectedLat) < 0.001);
-              if (hub) {
-                const updated = {
-                  ...profile,
-                  latitude: hub.lat,
-                  longitude: hub.lon,
-                  village_name: hub.name.split(' (')[0],
-                  district: hub.district,
-                  state: hub.state
-                };
-                if (setProfile) setProfile(updated);
-                if (onLocationUpdate) onLocationUpdate(updated);
+          {/* Manual Latitude / Longitude */}
+          <form onSubmit={handleManualCoordsSubmit} className="md:col-span-5 flex items-center space-x-2">
+            <input
+              type="text"
+              value={manualLat}
+              onChange={(e) => setManualLat(e.target.value)}
+              placeholder="Latitude"
+              className="w-1/2 px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-xs text-center font-mono focus:outline-none focus:border-emerald-500"
+            />
+            <input
+              type="text"
+              value={manualLon}
+              onChange={(e) => setManualLon(e.target.value)}
+              placeholder="Longitude"
+              className="w-1/2 px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-xs text-center font-mono focus:outline-none focus:border-emerald-500"
+            />
+            <button
+              type="submit"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-2 rounded-xl text-xs font-bold shrink-0 transition"
+            >
+              Go
+            </button>
+          </form>
+        </div>
+
+        {/* GPS or Status Feedback */}
+        {locationStatus && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2 rounded-xl text-xs flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{locationStatus}</span>
+            </div>
+            <span className="text-[10px] text-emerald-700 font-extrabold uppercase">Live Geospatial Synchronized</span>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. RADIUS SELECTOR & HEATMAP CONTROL BAR                                  */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+        <div className="md:col-span-7">
+          <RadiusSelector
+            radiusKm={radiusKm}
+            onRadiusChange={(newRadius) => {
+              setRadiusKm(newRadius);
+              if (setProfile) {
+                setProfile({ ...profile, analysis_radius_km: newRadius });
               }
             }}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 focus:outline-none"
-          >
-            <option value="">Preset Rural Hubs...</option>
-            {popularHubs.map((h, i) => (
-              <option key={i} value={`${h.lat},${h.lon}`}>
-                {h.name}
-              </option>
-            ))}
-          </select>
+          />
+        </div>
+        <div className="md:col-span-5">
+          <CompetitionHeatmap
+            isActive={isHeatmapActive}
+            onToggle={() => setIsHeatmapActive(!isHeatmapActive)}
+            densityScore={marketAnalysis?.competitor_density_per_sq_km || 0.45}
+          />
         </div>
       </div>
 
-      {/* GPS Status Banner if active */}
-      {locationStatus && (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-950 p-3 rounded-xl text-xs flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>{locationStatus}</span>
+      {/* ========================================================================= */}
+      {/* 3. CATEGORY PILL FILTER BAR                                               */}
+      {/* ========================================================================= */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+        <CategoryFilter
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={(catId) => setSelectedCategory(catId)}
+          placeCounts={placeCounts}
+        />
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4. MAIN MAP CANVAS & LEGEND                                               */}
+      {/* ========================================================================= */}
+      <div className="space-y-3">
+        <GoogleMap
+          latitude={lat}
+          longitude={lon}
+          radiusKm={radiusKm}
+          places={places}
+          entrepreneurName={profile.name || 'Entrepreneur Location'}
+          selectedPlace={selectedPlace}
+          activeRoute={activeRoute}
+          isHeatmapActive={isHeatmapActive}
+          apiKey={apiKey}
+          onLocationChange={handleMapLocationChange}
+          onSelectPlace={(place) => setSelectedPlace(place)}
+        />
+
+        {/* Floating / Compact Legend */}
+        <MapLegend
+          isHeatmapActive={isHeatmapActive}
+          onToggleHeatmap={() => setIsHeatmapActive(!isHeatmapActive)}
+        />
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 5. PLACES DIRECTORY & SLIDE-OUT DETAIL PANEL                               */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left: Nearby Places Directory */}
+        <div className={selectedPlace ? 'lg:col-span-7' : 'lg:col-span-12'}>
+          <NearbyPlaces
+            places={places}
+            radiusKm={radiusKm}
+            selectedPlaceId={selectedPlace?.place_id || selectedPlace?.id}
+            onSelectPlace={(place) => setSelectedPlace(place)}
+          />
+        </div>
+
+        {/* Right: Selected Place Detail Drawer */}
+        {selectedPlace && (
+          <div className="lg:col-span-5">
+            <PlaceDetails
+              place={selectedPlace}
+              origin={{
+                lat,
+                lng: lon,
+                name: `${villageName} (Entrepreneur Origin)`
+              }}
+              apiKey={apiKey}
+              onClose={() => {
+                setSelectedPlace(null);
+                setActiveRoute(null);
+              }}
+              onRouteCalculated={(route) => setActiveRoute(route)}
+            />
           </div>
-          <span className="text-[10px] text-emerald-700 font-bold">Live Synced</span>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 6. 10 SPATIAL INTELLIGENCE METRICS & DETERMINISTIC OPPORTUNITY SCORE      */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MarketSummary
+          marketAnalysis={marketAnalysis}
+          radiusKm={radiusKm}
+        />
+
+        <MarketOpportunity
+          overallScore={marketAnalysis?.market_opportunity_score || 82}
+          scoreBreakdown={marketAnalysis?.score_breakdown}
+        />
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 7. GOOGLE MAPS API KEY CONFIGURATION MODAL                                */}
+      {/* ========================================================================= */}
+      {showKeyModal && (
+        <div className="fixed inset-0 z-[3000] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Key className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Google Maps Platform API Key
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowKeyModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Enter your Google Maps Platform JavaScript & Places API Key below. When connected, live Google satellite layers, Street View panoramas, and official Place Photos will be activated.
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-700 uppercase">
+                Google Maps API Key (Client & Server)
+              </label>
+              <input
+                type="text"
+                value={inputKey}
+                onChange={(e) => setInputKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-xs font-mono focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+              <p className="font-bold text-slate-800">Seamless PostGIS Hybrid Engine:</p>
+              <p>
+                If an API key is not supplied or billing is pending, the application automatically runs on our PostGIS rural cluster engine with high-resolution satellite tiles and verified field surveys.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setInputKey('');
+                  setApiKey('');
+                  localStorage.removeItem('udyamsetu_gmaps_key');
+                  setShowKeyModal(false);
+                }}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              >
+                Reset to PostGIS Engine
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveApiKey}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow transition"
+              >
+                Save & Connect
+              </button>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Map + Side Analytics Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Map View */}
-        <div className="lg:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-600 px-1">
-            <div className="flex items-center space-x-4">
-              <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-emerald-700 mr-1.5"></span> You (Center Pin)</span>
-              <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-rose-600 mr-1.5"></span> Direct Competitor</span>
-              <span className="flex items-center"><span className="w-3 h-3 rounded-md bg-purple-600 mr-1.5"></span> APMC Mandi Hub</span>
-            </div>
-
-            {/* Radius Switcher */}
-            <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
-              <button
-                onClick={() => setRadiusKm(5.0)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                  radiusKm === 5.0 ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                5 km
-              </button>
-              <button
-                onClick={() => setRadiusKm(10.0)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                  radiusKm === 10.0 ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                10 km
-              </button>
-              <button
-                onClick={() => setRadiusKm(15.0)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                  radiusKm === 15.0 ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                15 km
-              </button>
-            </div>
-          </div>
-
-          <div className="h-[460px] rounded-xl overflow-hidden border border-slate-200 relative">
-            <div ref={mapContainerRef} className="w-full h-full" />
-            <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur px-2.5 py-1 rounded-md text-[10px] text-slate-600 z-[400] shadow-sm pointer-events-none">
-              💡 Tip: Click anywhere on map to reposition your business origin
-            </div>
-          </div>
-        </div>
-
-        {/* Catchment Metrics & Demand-Supply Gap */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center">
-              <TrendingUp className="w-4 h-4 mr-1.5 text-emerald-600" />
-              Catchment Area Intelligence ({radiusKm} km Reach)
-            </h3>
-
-            {marketAnalysis && (
-              <div className="space-y-3 text-xs">
-                <div className="bg-emerald-50/80 p-3 rounded-xl border border-emerald-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600 font-semibold">Demand-Supply Gap Index</span>
-                    <span className="font-extrabold text-sm text-emerald-800">
-                      +{marketAnalysis.demand_supply_gap}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[11px] text-slate-500">
-                    <span>Demand Index: {marketAnalysis.demand_index}/100</span>
-                    <span>Local Supply: {marketAnalysis.supply_index}/100</span>
-                  </div>
-                  <div className="w-full bg-emerald-200/60 h-2 rounded-full overflow-hidden">
-                    <div
-                      className="bg-emerald-600 h-full rounded-full"
-                      style={{ width: `${Math.min(100, marketAnalysis.demand_supply_gap)}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div className="border border-slate-100 bg-slate-50 p-2.5 rounded-xl">
-                    <span className="text-slate-500 block text-[11px]">Population Reach</span>
-                    <span className="text-sm font-bold text-slate-900">
-                      {(marketAnalysis.population_reach || 10000).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                  <div className="border border-slate-100 bg-slate-50 p-2.5 rounded-xl">
-                    <span className="text-slate-500 block text-[11px]">Households</span>
-                    <span className="text-sm font-bold text-slate-900">
-                      {(marketAnalysis.households_reach || 2000).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-100 pt-3 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Competitors in {radiusKm} km:</span>
-                    <span className="font-bold text-slate-900">{marketAnalysis.competitor_count}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Nearest APMC Mandi:</span>
-                    <span className="font-semibold text-slate-800">~{marketAnalysis.nearest_mandi_distance_km} km</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Market Opportunity Score:</span>
-                    <span className="font-extrabold text-emerald-700 text-sm">
-                      {marketAnalysis.market_opportunity_score}/100
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Data Confidence:</span>
-                    <span className="font-bold text-slate-700">{marketAnalysis.data_confidence_pct}%</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Nearby Competitors List */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center">
-              <Store className="w-4 h-4 mr-1.5 text-rose-600" />
-              Nearby Competitors in Radius
-            </h4>
-
-            <div className="max-h-48 overflow-y-auto space-y-2 text-xs">
-              {competitors.length === 0 ? (
-                <div className="text-center py-4 text-slate-400">
-                  No competitors found within {radiusKm} km radius. High market entry opportunity!
-                </div>
-              ) : (
-                competitors.map((c, i) => (
-                  <div key={i} className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                    <div className="flex justify-between font-bold text-slate-800">
-                      <span>{c.name}</span>
-                      <span className="text-emerald-700">{c.distance_km} km</span>
-                    </div>
-                    <div className="flex justify-between text-[11px] text-slate-500">
-                      <span className="capitalize">{c.village || 'Village'}</span>
-                      <span>₹{(c.estimated_monthly_turnover || 0).toLocaleString('en-IN')}/mo</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

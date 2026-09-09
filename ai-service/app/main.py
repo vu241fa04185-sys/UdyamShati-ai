@@ -116,6 +116,16 @@ def get_competitors(latitude: float = 20.1706, longitude: float = 73.9840, radiu
     """Retrieves all competitor and local market pins within radius."""
     return market_engine.get_nearby_competitors(latitude, longitude, radius_km)
 
+@app.get("/api/market/places")
+def get_places(latitude: float = 20.1706, longitude: float = 73.9840, radius_km: float = 10.0, category: str = "ALL"):
+    """Retrieves all places, shops, suppliers, and institutions within radius."""
+    return market_engine.get_nearby_places(latitude, longitude, radius_km, category)
+
+@app.get("/api/market/categories")
+def get_categories():
+    """Retrieves all configurable business and ecosystem categories."""
+    return market_engine.categories
+
 @app.post("/api/finance/structure")
 def structure_finances(req: FinanceRequest):
     """Computes SIH26091 concessional loan financing, reducing EMI, and DSCR."""
