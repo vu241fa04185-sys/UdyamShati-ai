@@ -6,7 +6,21 @@ import {
   ShieldCheck, 
   Calculator, 
   BarChart3, 
-  ChevronRight
+  ChevronRight,
+  CheckCircle2,
+  ChevronUp,
+  ChevronDown,
+  Sliders,
+  Table as TableIcon,
+  Info,
+  AlertCircle,
+  Save,
+  RefreshCw,
+  Sparkles,
+  Building2,
+  Percent,
+  DollarSign,
+  Briefcase
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -21,7 +35,177 @@ import {
 import { translations } from '../locales/translations';
 import { useSaarthi } from '../context/SaarthiContext';
 
-export default function FinanceDashboard({ recommendations, profile, lang = 'en' }) {
+// Standard MoSJE / National Scheme Presets
+const SCHEME_PRESETS = [
+  {
+    id: 'NBCFDC_TERM',
+    nameEn: 'NBCFDC / NSFDC Term Loan (MoSJE)',
+    nameHi: 'एनबीसीएफडीसी टर्म लोन (सामाजिक न्याय मंत्रालय)',
+    nameTe: 'NBCFDC టర్మ్ లోన్ (MoSJE)',
+    marginPct: 10,
+    interestRate: 8.0,
+    tenureYears: 7,
+    moratoriumMonths: 6,
+    badge: '10/90 Concessional'
+  },
+  {
+    id: 'NBCFDC_MICRO',
+    nameEn: 'NBCFDC Micro Finance (Up to ₹1.4 Lakh)',
+    nameHi: 'एनबीसीएफडीसी माइक्रो फाइनेंस (1.4 लाख तक)',
+    nameTe: 'NBCFDC మైక్రో ఫైనాన్స్ (రూ. 1.4 లక్షల వరకు)',
+    marginPct: 10,
+    interestRate: 6.5,
+    tenureYears: 3,
+    moratoriumMonths: 3,
+    badge: 'Micro Credit @ 6.5%'
+  },
+  {
+    id: 'PMEGP',
+    nameEn: 'PMEGP Scheme (KVIC / MoMSME)',
+    nameHi: 'पीएमईजीपी योजना (15-35% सरकारी सब्सिडी)',
+    nameTe: 'PMEGP పథకం (15-35% రాయితీ)',
+    marginPct: 10,
+    interestRate: 8.5,
+    tenureYears: 5,
+    moratoriumMonths: 6,
+    badge: 'Govt Capital Subsidy'
+  },
+  {
+    id: 'MUDRA',
+    nameEn: 'Pradhan Mantri Mudra Yojana (PMMY)',
+    nameHi: 'पीएम मुद्रा योजना (किशोर / तरुण)',
+    nameTe: 'ప్రధాన మంత్రి ముద్రా యోజన',
+    marginPct: 15,
+    interestRate: 9.0,
+    tenureYears: 5,
+    moratoriumMonths: 3,
+    badge: 'Collateral-Free MUDRA'
+  },
+  {
+    id: 'STANDUP',
+    nameEn: 'Stand-Up India (SC/ST & Women)',
+    nameHi: 'स्टैंड-अप इंडिया (एससी/एसटी एवं महिला उद्यमी)',
+    nameTe: 'స్టాండ్-అప్ ఇండియా (SC/ST & మహిళలు)',
+    marginPct: 15,
+    interestRate: 8.0,
+    tenureYears: 7,
+    moratoriumMonths: 12,
+    badge: 'Greenfield Enterprise'
+  },
+  {
+    id: 'COMMERCIAL',
+    nameEn: 'Commercial Bank MSME Loan',
+    nameHi: 'व्यावसायिक बैंक एमएसएमई ऋण',
+    nameTe: 'కమర్షియల్ బ్యాంక్ MSME లోన్',
+    marginPct: 25,
+    interestRate: 11.0,
+    tenureYears: 5,
+    moratoriumMonths: 0,
+    badge: 'Standard Bank Credit'
+  }
+];
+
+// Catalog Enterprise Benchmarks for quick pre-fill
+const BUSINESS_BENCHMARKS = [
+  {
+    id: 'VEGETABLE_FARMING',
+    nameEn: 'Polyhouse & Precision Vegetable Farming',
+    nameHi: 'सब्जी उत्पादन (पॉलीहाउस/प्राकृतिक खेती)',
+    nameTe: 'పాలీహౌస్ & ఆధునిక కూరగాయల సాగు',
+    typicalCost: 300000,
+    typicalRevenue: 62000,
+    typicalExpense: 38000,
+    breakdown: { rawMaterial: 15000, labor: 9500, utilities: 5500, rent: 2000, transport: 6000 }
+  },
+  {
+    id: 'DAIRY_FARMING',
+    nameEn: 'Commercial Dairy Farming (2-4 Cows/Buffaloes)',
+    nameHi: 'डेयरी फार्मिंग (दुग्ध व्यवसाय 2-4 पशु)',
+    nameTe: 'వాణిజ్య పాడి పరిశ్రమ (2-4 ఆవులు/గేదెలు)',
+    typicalCost: 400000,
+    typicalRevenue: 72000,
+    typicalExpense: 46000,
+    breakdown: { rawMaterial: 26000, labor: 7000, utilities: 4000, rent: 3000, transport: 6000 }
+  },
+  {
+    id: 'POULTRY_BROILER',
+    nameEn: 'Commercial Broiler Poultry Unit (1000 Birds)',
+    nameHi: 'ब्रायलर पोल्ट्री फार्मिंग (1000 पक्षी)',
+    nameTe: 'కమర్షియల్ బ్రాయిలర్ పౌల్ట్రీ యూనిట్',
+    typicalCost: 450000,
+    typicalRevenue: 85000,
+    typicalExpense: 62000,
+    breakdown: { rawMaterial: 38000, labor: 9000, utilities: 7000, rent: 2000, transport: 6000 }
+  },
+  {
+    id: 'MUSHROOM_FARMING',
+    nameEn: 'Indoor Oyster & Button Mushroom Unit',
+    nameHi: 'मशरूम उत्पादन एवं पैकेजिंग यूनिट',
+    nameTe: 'పుట్టగొడుగుల పెంపకం & ప్యాకేజింగ్',
+    typicalCost: 135000,
+    typicalRevenue: 45000,
+    typicalExpense: 24000,
+    breakdown: { rawMaterial: 9000, labor: 6000, utilities: 4000, rent: 2000, transport: 3000 }
+  },
+  {
+    id: 'FOOD_PROCESSING_MILL',
+    nameEn: 'Mini Flour, Spices & Oil Expeller Mill',
+    nameHi: 'मिनी आटा, मसाला एवं तेल पिराई उद्योग',
+    nameTe: 'చిన్న పిండి, మసాలా & ఆయిల్ ప్రాసెసింగ్ మిల్లు',
+    typicalCost: 220000,
+    typicalRevenue: 52000,
+    typicalExpense: 29000,
+    breakdown: { rawMaterial: 11000, labor: 6000, utilities: 6000, rent: 3000, transport: 3000 }
+  },
+  {
+    id: 'KIRANA_DAILY_NEEDS',
+    nameEn: 'Smart Village Kirana & Daily Provisions Store',
+    nameHi: 'स्मार्ट ग्रामीण किराना एवं दैनिक स्टोर',
+    nameTe: 'గ్రామీణ స్మార్ట్ కిరాణా దుకాణం',
+    typicalCost: 250000,
+    typicalRevenue: 95000,
+    typicalExpense: 74000,
+    breakdown: { rawMaterial: 62000, labor: 4000, utilities: 3000, rent: 3000, transport: 2000 }
+  },
+  {
+    id: 'AGRI_EQUIPMENT_RENTAL',
+    nameEn: 'Custom Hiring Centre (Farm Machinery Rental)',
+    nameHi: 'कृषि यंत्र कस्टम हायरिंग केंद्र (किराया सेवा)',
+    nameTe: 'వ్యవసాయ యంత్రాల అద్దె కేంద్రం',
+    typicalCost: 600000,
+    typicalRevenue: 78000,
+    typicalExpense: 36000,
+    breakdown: { rawMaterial: 6000, labor: 8000, utilities: 14000, rent: 2000, transport: 6000 }
+  },
+  {
+    id: 'GOAT_REARING',
+    nameEn: 'Stall-Fed Goat Rearing & Breeding Unit (20+1)',
+    nameHi: 'उन्नत बकरी पालन इकाई (20+1 शेड मॉडल)',
+    nameTe: 'షెడ్-ఫెడ్ మేకల పెంపకం యూనిట్ (20+1)',
+    typicalCost: 210000,
+    typicalRevenue: 42000,
+    typicalExpense: 23000,
+    breakdown: { rawMaterial: 11000, labor: 4000, utilities: 3000, rent: 2000, transport: 3000 }
+  },
+  {
+    id: 'CUSTOM',
+    nameEn: 'Custom Enterprise / My Own Business Idea',
+    nameHi: 'कस्टम व्यवसाय / मेरा अपना व्यवसाय विचार',
+    nameTe: 'నా స్వంత వ్యాపార ఆలోచన',
+    typicalCost: 300000,
+    typicalRevenue: 65000,
+    typicalExpense: 40000,
+    breakdown: { rawMaterial: 20000, labor: 8000, utilities: 5000, rent: 3000, transport: 4000 }
+  }
+];
+
+export default function FinanceDashboard({ 
+  recommendations, 
+  profile, 
+  setProfile, 
+  onProfileUpdate, 
+  lang = 'en' 
+}) {
   const t = translations[lang] || translations.en;
   
   let saarthiCtx = null;
@@ -30,25 +214,28 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
   } catch (e) {}
 
   const activePayload = saarthiCtx?.getActiveRecommendationPayload() || recommendations;
+  const activePlan = saarthiCtx?.getActivePlan();
   const topRec = activePayload?.top_recommendation;
   const fin = topRec?.financials || {};
 
   // Selected enterprise
-  const initialBusinessId = topRec?.category_code || 'VEGETABLE_FARMING';
+  const initialBusinessId = topRec?.category_code || activePlan?.categoryCode || 'VEGETABLE_FARMING';
   const [selectedBusinessId, setSelectedBusinessId] = useState(initialBusinessId);
 
   // Core Real Financial Inputs (initialized with user's actual profile if available)
   const [availableCapital, setAvailableCapital] = useState(
-    profile?.available_capital !== undefined ? profile.available_capital : 300000
+    profile?.available_capital !== undefined 
+      ? profile.available_capital 
+      : (activePlan?.capital || 300000)
   );
   const [projectCost, setProjectCost] = useState(
-    fin.project_cost || (profile?.available_capital ? Math.round(profile.available_capital / 0.10) : 300000)
+    fin.project_cost || (activePlan?.projectCost || (profile?.available_capital ? Math.round(profile.available_capital / 0.10) : 300000))
   );
   const [monthlyRevenue, setMonthlyRevenue] = useState(
-    fin.projected_monthly_revenue || 65000
+    fin.projected_monthly_revenue || activePlan?.monthlyRevenue || 65000
   );
   const [monthlyExpense, setMonthlyExpense] = useState(
-    fin.projected_monthly_expense || 41000
+    fin.projected_monthly_expense || activePlan?.monthlyExpense || 41000
   );
 
   // Scheme and Loan Configuration
@@ -58,12 +245,84 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
   const [tenureYears, setTenureYears] = useState(fin.tenure_years || 7);
   const [moratoriumMonths, setMoratoriumMonths] = useState(6);
 
+  // Itemized Expense Breakdown toggle & values
+  const [showExpenseBreakdown, setShowExpenseBreakdown] = useState(false);
+  const [expenseBreakdown, setExpenseBreakdown] = useState({
+    rawMaterial: Math.round((monthlyExpense || 41000) * 0.45),
+    labor: Math.round((monthlyExpense || 41000) * 0.20),
+    utilities: Math.round((monthlyExpense || 41000) * 0.15),
+    rent: Math.round((monthlyExpense || 41000) * 0.08),
+    transport: Math.round((monthlyExpense || 41000) * 0.12)
+  });
+
+  // UI view state (Chart vs Table)
+  const [projectionViewMode, setProjectionViewMode] = useState('chart'); // 'chart' | 'table'
+  const [isSyncingWithApi, setIsSyncingWithApi] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState(null);
+
   // Sync state when active business plan changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (fin.project_cost) setProjectCost(fin.project_cost);
     if (fin.interest_rate_pct) setInterestRate(fin.interest_rate_pct);
     if (fin.tenure_years) setTenureYears(fin.tenure_years);
+    if (fin.projected_monthly_revenue) setMonthlyRevenue(fin.projected_monthly_revenue);
+    if (fin.projected_monthly_expense) setMonthlyExpense(fin.projected_monthly_expense);
   }, [topRec?.name_en, fin.project_cost]);
+
+  // When profile updates from outside, sync available capital
+  useEffect(() => {
+    if (profile?.available_capital !== undefined) {
+      setAvailableCapital(profile.available_capital);
+    }
+  }, [profile?.available_capital]);
+
+  // Handle Business Selection
+  const handleBusinessChange = (busId) => {
+    setSelectedBusinessId(busId);
+    const benchmark = BUSINESS_BENCHMARKS.find(b => b.id === busId);
+    if (benchmark && busId !== 'CUSTOM') {
+      setProjectCost(benchmark.typicalCost);
+      setMonthlyRevenue(benchmark.typicalRevenue);
+      setMonthlyExpense(benchmark.typicalExpense);
+      setExpenseBreakdown(benchmark.breakdown);
+    }
+  };
+
+  // Handle Scheme Selection
+  const handleSchemeChange = (schemeId) => {
+    setSelectedSchemeId(schemeId);
+    const scheme = SCHEME_PRESETS.find(s => s.id === schemeId);
+    if (scheme) {
+      setMarginPct(scheme.marginPct);
+      setInterestRate(scheme.interestRate);
+      setTenureYears(scheme.tenureYears);
+      setMoratoriumMonths(scheme.moratoriumMonths);
+    }
+  };
+
+  // Updating itemized expense and summing up
+  const handleItemizedExpenseChange = (field, val) => {
+    const num = Math.max(0, parseFloat(val) || 0);
+    const updated = { ...expenseBreakdown, [field]: num };
+    setExpenseBreakdown(updated);
+    const total = Object.values(updated).reduce((acc, curr) => acc + curr, 0);
+    setMonthlyExpense(total);
+  };
+
+  // Direct monthly expense change adjusts itemized breakdown proportionally
+  const handleDirectExpenseChange = (val) => {
+    const newTotal = Math.max(0, parseFloat(val) || 0);
+    setMonthlyExpense(newTotal);
+    const oldTotal = monthlyExpense > 0 ? monthlyExpense : 1;
+    const factor = newTotal / oldTotal;
+    setExpenseBreakdown({
+      rawMaterial: Math.round(expenseBreakdown.rawMaterial * factor),
+      labor: Math.round(expenseBreakdown.labor * factor),
+      utilities: Math.round(expenseBreakdown.utilities * factor),
+      rent: Math.round(expenseBreakdown.rent * factor),
+      transport: Math.round(expenseBreakdown.transport * factor)
+    });
+  };
 
   // Reducing balance EMI calculation
   const calculateEMI = (P, rAnnual, yrs) => {
@@ -77,6 +336,7 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
 
   // Calculations
   const ownMarginRequired = Math.round(projectCost * (marginPct / 100));
+  const ownMargin = ownMarginRequired;
   const loanRequired = Math.max(0, projectCost - ownMarginRequired);
   const liveEmi = calculateEMI(loanRequired, interestRate, tenureYears);
   
@@ -93,27 +353,132 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
   const liveDscr = annualDebtService > 0 ? (annualCashFlow / annualDebtService).toFixed(2) : '9.99';
   const monthlyNetSurplus = monthlyProfit - liveEmi;
 
+  // Break-Even Analysis
+  const fixedMonthlyCosts = liveEmi + Math.round(monthlyExpense * 0.35);
+  const variableCostRatio = monthlyRevenue > 0 ? (monthlyExpense * 0.65) / monthlyRevenue : 0.60;
+  const grossMarginRatio = Math.max(0.15, Math.min(0.90, 1 - variableCostRatio));
+  const breakEvenMonthlyRevenue = Math.round(fixedMonthlyCosts / grossMarginRatio);
+  const safetyMarginPct = monthlyRevenue > breakEvenMonthlyRevenue 
+    ? Math.round(((monthlyRevenue - breakEvenMonthlyRevenue) / monthlyRevenue) * 100) 
+    : 0;
+
   const yearLabel = t.yearPrefix || 'Year';
 
-  // Chart dataset for 5-Year Projection with localized year labels
-  const rawProjections = fin.projections || [
-    { yearNum: 1, revenue: 744000, expenses: 456000 },
-    { yearNum: 2, revenue: 781200, expenses: 471960 },
-    { yearNum: 3, revenue: 820260, expenses: 488478 },
-    { yearNum: 4, revenue: 861273, expenses: 505575 },
-    { yearNum: 5, revenue: 904336, expenses: 523270 }
-  ];
+  // Dynamic 5-Year Projections generated from real inputs
+  const dynamicProjections = useMemo(() => {
+    const list = [];
+    let cumulativeReserve = 0;
+    for (let yr = 1; yr <= 5; yr++) {
+      const growthRev = Math.pow(1.05, yr - 1);
+      const inflationExp = Math.pow(1.035, yr - 1);
+      const yrRevenue = Math.round(monthlyRevenue * 12 * growthRev);
+      const yrExpense = Math.round(monthlyExpense * 12 * inflationExp);
+      const yrDebt = yr <= tenureYears ? liveEmi * 12 : 0;
+      const yrOperatingProfit = yrRevenue - yrExpense;
+      const yrNetCashFlow = yrOperatingProfit - yrDebt;
+      cumulativeReserve += yrNetCashFlow;
 
-  const chartData = rawProjections.map((item, idx) => {
-    const yNum = item.yearNum || (idx + 1);
-    return {
-      year: `${yearLabel} ${yNum}`,
-      revenue: item.revenue,
-      expenses: item.expenses,
-      debt_service: liveEmi * 12,
-      net_cash_flow: item.revenue - item.expenses - (liveEmi * 12)
+      list.push({
+        year: `${yearLabel} ${yr}`,
+        revenue: yrRevenue,
+        expenses: yrExpense,
+        operating_profit: yrOperatingProfit,
+        debt_service: yrDebt,
+        net_cash_flow: yrNetCashFlow,
+        cumulative_surplus: cumulativeReserve
+      });
+    }
+    return list;
+  }, [monthlyRevenue, monthlyExpense, liveEmi, tenureYears, yearLabel]);
+
+  // Sync data to User Profile so the entire app reflects the user's real business numbers
+  const handleSaveToProfile = () => {
+    const updatedProfile = {
+      ...profile,
+      available_capital: availableCapital,
+      target_monthly_income: monthlyNetSurplus > 0 ? monthlyNetSurplus : profile?.target_monthly_income,
+      business_interest: selectedBusinessId !== 'CUSTOM' ? selectedBusinessId : profile?.business_interest
     };
-  });
+
+    if (onProfileUpdate) {
+      onProfileUpdate(updatedProfile);
+    } else if (setProfile) {
+      setProfile(updatedProfile);
+    }
+
+    // Also update SaarthiContext active plan if present
+    if (saarthiCtx && activePlan && saarthiCtx.updatePlan) {
+      saarthiCtx.updatePlan(activePlan.id, {
+        capital: availableCapital,
+        projectCost: projectCost,
+        monthlyRevenue: monthlyRevenue,
+        monthlyExpense: monthlyExpense
+      });
+    }
+
+    setSaveSuccessMsg(
+      lang === 'hi'
+        ? 'आपके वास्तविक वित्तीय आंकड़े प्रोफाइल में सफलतापूर्वक सुरक्षित कर लिए गए हैं!'
+        : lang === 'te'
+        ? 'మీ నిజమైన ఆర్థిక వివరాలు ప్రొఫైల్‌లో సేవ్ చేయబడ్డాయి!'
+        : 'Real financial figures successfully saved to your Entrepreneur Profile!'
+    );
+
+    setTimeout(() => {
+      setSaveSuccessMsg(null);
+    }, 4000);
+  };
+
+  // Re-verify with Backend AI Microservice (Parity with FastAPI MoSJE calculation)
+  const handleVerifyWithBackend = async () => {
+    setIsSyncingWithApi(true);
+    try {
+      const payload = {
+        project_cost: projectCost,
+        available_capital: availableCapital,
+        liquid_reserve: liquidReserve,
+        interest_rate: interestRate,
+        tenure_years: tenureYears,
+        monthly_revenue: monthlyRevenue,
+        monthly_expense: monthlyExpense
+      };
+      const res = await axios.post('/api/financial-analysis', payload);
+      if (res.data) {
+        setSaveSuccessMsg(
+          lang === 'hi'
+            ? `एआई सत्यापन पूर्ण: बैंक व्यवहार्यता स्कोर ${res.data.financial_score}/100 (${res.data.financial_viability})`
+            : lang === 'te'
+            ? `AI నిర్ధారణ పూర్తయింది: బ్యాంక్ స్కోర్ ${res.data.financial_score}/100 (${res.data.financial_viability})`
+            : `AI Verification Complete: Bankability Score ${res.data.financial_score}/100 (${res.data.financial_viability})`
+        );
+        setTimeout(() => setSaveSuccessMsg(null), 5000);
+      }
+    } catch (err) {
+      console.warn("Backend finance verification note:", err);
+    } finally {
+      setIsSyncingWithApi(false);
+    }
+  };
+
+  // Reset to initial profile figures
+  const handleResetToProfile = () => {
+    if (profile?.available_capital !== undefined) {
+      setAvailableCapital(profile.available_capital);
+      setProjectCost(Math.round(profile.available_capital / 0.10));
+    }
+  };
+
+  const getBusinessName = (bus) => {
+    if (lang === 'hi') return bus.nameHi;
+    if (lang === 'te') return bus.nameTe;
+    return bus.nameEn;
+  };
+
+  const getSchemeName = (scheme) => {
+    if (lang === 'hi') return scheme.nameHi;
+    if (lang === 'te') return scheme.nameTe;
+    return scheme.nameEn;
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12 font-sans">
@@ -121,33 +486,58 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
       {/* 1. Header & Identity Bar */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center">
-            <Coins className="w-4 h-4 mr-1.5 text-amber-500" />
-            {t.lendingStructureTag || "National Concessional Lending Structure • MoSJE Framework"}
-          </span>
-          <h2 className="text-lg font-bold text-slate-900">
-            {t.financeTitle || "Financial Structuring, Cash Flow & Debt Service Coverage Ratio (DSCR)"}
-          </h2>
-          <p className="text-xs text-slate-500">
-            {t.financeSubtitle || "10% beneficiary margin and 90% concessional term loan via State Channelizing Agencies (NBCFDC/NSFDC)."}
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center">
+              <Coins className="w-3.5 h-3.5 mr-1 text-amber-500" />
+              {t.lendingStructureTag || (lang === 'hi' ? 'वास्तविक वित्तीय योजनाकार' : lang === 'te' ? 'నిజమైన ఆర్థిక ప్రణాళిక' : 'Real Business Financial Planner')}
+            </span>
+            <span className="text-xs font-semibold text-slate-500">
+              • {profile?.name || 'Entrepreneur'} ({profile?.district || 'Rural Center'}, {profile?.state || 'India'})
+            </span>
+          </div>
+          <h1 className="text-xl font-black text-slate-900">
+            {t.financeTitle || (lang === 'hi' 
+              ? 'व्यवसाय लागत, ऋण किस्त एवं लाभ योजनाकार' 
+              : lang === 'te'
+              ? 'వ్యాపార వ్యయం, రుణం & లాభాల ప్రణాళిక'
+              : 'Interactive Financial Structuring & Debt Service (DSCR)')}
+          </h1>
+          <p className="text-xs text-slate-600 mt-0.5">
+            {t.financeSubtitle || (lang === 'hi'
+              ? 'अपनी वास्तविक पूँजी, अपेक्षित मासिक बिक्री एवं व्यय दर्ज करें। सिस्टम स्वचालित रूप से ईएमआई, सुरक्षा मार्जिन एवं 5 वर्षीय रिपोर्ट तैयार करेगा।'
+              : lang === 'te'
+              ? 'మీ నిజమైన మూలధనం, ఆశించిన నెలవారీ ఆదాయం & ఖర్చులు నమోదు చేయండి. సరైన EMI, సేఫ్టీ మార్జిన్ లెక్కించబడుతుంది.'
+              : 'Enter your real capital, project size, and monthly sales to compute exact reducing EMI, DSCR, and cash surplus under MoSJE schemes.')}
           </p>
         </div>
 
-        {/* DSCR Badge */}
-        <div className={`px-5 py-3 rounded-2xl text-center border shadow-sm ${
-          parseFloat(liveDscr) >= 1.50
-            ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
-            : 'bg-amber-50 border-amber-300 text-amber-950'
-        }`}>
-          <span className="text-[10px] uppercase font-extrabold tracking-wider block text-slate-500">
-            {t.dscrBenchmark || "DSCR Benchmark (≥ 1.50x)"}
-          </span>
-          <span className="text-2xl font-black block leading-tight text-emerald-700">
-            {liveDscr}x
-          </span>
-          <span className="text-[11px] font-bold text-emerald-800">
-            {parseFloat(liveDscr) >= 1.50 ? (t.highSafetyCushion || "✓ High Debt Safety Cushion") : (t.marginalCushion || "Marginal Repayment Cushion")}
-          </span>
+        {/* Action Buttons: Sync & Save */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleResetToProfile}
+            title="Reload numbers saved in profile"
+            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 flex items-center transition cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+            {lang === 'hi' ? 'प्रोफ़ाइल से लाएं' : lang === 'te' ? 'ప్రొఫైల్ నుండి పొందండి' : 'Sync Profile'}
+          </button>
+
+          <button
+            onClick={handleSaveToProfile}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow flex items-center transition cursor-pointer"
+          >
+            <Save className="w-3.5 h-3.5 mr-1.5" />
+            {lang === 'hi' ? 'प्रोफ़ाइल में सेव करें' : lang === 'te' ? 'ప్రొఫైల్‌లో సేవ్ చేయండి' : 'Save to Profile'}
+          </button>
+
+          <button
+            onClick={handleVerifyWithBackend}
+            disabled={isSyncingWithApi}
+            className="px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-semibold rounded-xl border border-teal-200 flex items-center transition cursor-pointer disabled:opacity-50"
+          >
+            <Sparkles className={`w-3.5 h-3.5 mr-1.5 text-teal-600 ${isSyncingWithApi ? 'animate-spin' : ''}`} />
+            {isSyncingWithApi ? 'Validating...' : (lang === 'hi' ? 'AI बैंक सत्यापन' : lang === 'te' ? 'AI తనిఖీ' : 'AI Bank Check')}
+          </button>
         </div>
       </div>
 
@@ -164,107 +554,208 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
 
       {/* 2. Top Summary KPI Tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-slate-500 font-semibold">{t.totalProjectCost || "Total Project Cost"}</span>
+        {/* Tile 1: Project Scale */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1 relative overflow-hidden">
+          <div className="flex justify-between items-center text-slate-500 font-semibold">
+            <span>{t.totalProjectCost || (lang === 'hi' ? 'कुल परियोजना लागत' : lang === 'te' ? 'మొత్తం ప్రాజెక్ట్ ఖర్చు' : 'Total Project Cost')}</span>
+            <Building2 className="w-4 h-4 text-slate-400" />
+          </div>
           <div className="text-xl font-black text-slate-900">
             ₹{projectCost.toLocaleString('en-IN')}
           </div>
-          <span className="text-[11px] text-slate-400">{t.capitalWorkingSetup || "Capital + Working Setup"}</span>
+          <span className="text-[11px] text-slate-500 block">
+            {projectCost <= 140000 
+              ? (lang === 'hi' ? 'माइक्रो फाइनेंस सीमा में' : 'Micro Credit Tier (≤ ₹1.4L)') 
+              : (lang === 'hi' ? 'टर्म लोन योजना (MoSJE)' : 'Term Loan Tier (MoSJE)')}
+          </span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm space-y-1">
-          <span className="text-emerald-800 font-semibold">{t.beneficiaryMargin || "10% Beneficiary Margin"}</span>
-          <div className="text-xl font-black text-emerald-700">
-            ₹{ownMargin.toLocaleString('en-IN')}
+        {/* Tile 2: Required Own Margin */}
+        <div className={`p-4 rounded-2xl border shadow-sm space-y-1 relative overflow-hidden ${
+          isCapitalSufficient 
+            ? 'bg-emerald-50/50 border-emerald-200' 
+            : 'bg-amber-50 border-amber-300'
+        }`}>
+          <div className="flex justify-between items-center font-semibold">
+            <span className={isCapitalSufficient ? 'text-emerald-800' : 'text-amber-900'}>
+              {lang === 'hi' ? `${marginPct}% स्व-अंशदान` : lang === 'te' ? `${marginPct}% సొంత వాటా` : `${marginPct}% Own Margin Required`}
+            </span>
+            <ShieldCheck className={`w-4 h-4 ${isCapitalSufficient ? 'text-emerald-600' : 'text-amber-600'}`} />
           </div>
-          <span className="text-[11px] text-emerald-600 font-bold">{t.mandatoryContribution || "Mandatory Own Contribution"}</span>
+          <div className={`text-xl font-black ${isCapitalSufficient ? 'text-emerald-700' : 'text-amber-800'}`}>
+            ₹{ownMarginRequired.toLocaleString('en-IN')}
+          </div>
+          <span className={`text-[11px] font-bold block ${isCapitalSufficient ? 'text-emerald-600' : 'text-amber-700'}`}>
+            {isCapitalSufficient 
+              ? `✓ Available: ₹${availableCapital.toLocaleString('en-IN')}` 
+              : `⚠ Deficit: ₹${capitalDeficit.toLocaleString('en-IN')}`}
+          </span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-slate-500 font-semibold">{t.concessionalLoan || "90% Concessional Loan"}</span>
+        {/* Tile 3: Concessional Loan */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1 relative overflow-hidden">
+          <div className="flex justify-between items-center text-slate-500 font-semibold">
+            <span>{lang === 'hi' ? `${100 - marginPct}% रियायती ऋण` : lang === 'te' ? `${100 - marginPct}% రుణం` : `${100 - marginPct}% Concessional Loan`}</span>
+            <Percent className="w-4 h-4 text-teal-500" />
+          </div>
           <div className="text-xl font-black text-teal-800">
             ₹{loanRequired.toLocaleString('en-IN')}
           </div>
-          <span className="text-[11px] text-slate-400">@ {interestRate}% p.a. {t.concessionText || "Concession"}</span>
+          <span className="text-[11px] text-slate-500 block">
+            @ {interestRate}% p.a. • {tenureYears} Years
+          </span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-slate-500 font-semibold">{t.monthlyEMI || "Monthly Reducing EMI"}</span>
+        {/* Tile 4: Monthly Reducing EMI */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1 relative overflow-hidden">
+          <div className="flex justify-between items-center text-slate-500 font-semibold">
+            <span>{t.monthlyEMI || (lang === 'hi' ? 'मासिक ऋण किस्त (EMI)' : lang === 'te' ? 'నెలవారీ EMI' : 'Monthly Reducing EMI')}</span>
+            <Calculator className="w-4 h-4 text-rose-500" />
+          </div>
           <div className="text-xl font-black text-rose-700">
             ₹{liveEmi.toLocaleString('en-IN')}
           </div>
-          <span className="text-[11px] text-slate-400">{tenureYears} {t.tenureYearsLabel || "Years Tenure"}</span>
+          <span className="text-[11px] text-slate-500 block">
+            {lang === 'hi' ? `वार्षिक: ₹${annualDebtService.toLocaleString('en-IN')}` : `Annual: ₹${annualDebtService.toLocaleString('en-IN')}`}
+          </span>
         </div>
       </div>
 
-      {/* Interactive Financial Simulator Sliders */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center">
-          <Calculator className="w-4 h-4 mr-1.5 text-emerald-600" />
-          {t.slidersTitle || "Interactive Sensitivity Sliders (Test Different Loan Sizes)"}
-        </h3>
+      {/* 3. Real Data Inputs Panel: 2 Columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
-          <div>
-            <div className="flex justify-between font-bold mb-1.5">
-              <span>{t.projectScale || "Project Scale / Investment"}</span>
-              <span className="text-emerald-700">₹{projectCost.toLocaleString('en-IN')}</span>
-            </div>
-            <input
-              type="range"
-              min="100000"
-              max="1500000"
-              step="25000"
-              value={projectCost}
-              onChange={(e) => setProjectCost(parseFloat(e.target.value))}
-              className="w-full accent-emerald-600 cursor-pointer"
-            />
+        {/* LEFT COLUMN: Enter Real Numbers (7 Cols) */}
+        <div className="lg:col-span-7 space-y-5">
+
+          {/* Card A: Enterprise Selection */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
+              <span className="flex items-center">
+                <Briefcase className="w-4 h-4 mr-1.5 text-emerald-600" />
+                {lang === 'hi' ? '1. व्यवसाय / उद्यम चुनें' : lang === 'te' ? '1. వ్యాపార ఎంపిక' : '1. Select Planned Business Enterprise'}
+              </span>
+              <span className="text-[11px] text-emerald-700 font-semibold lowercase">
+                {selectedBusinessId !== 'CUSTOM' ? 'Benchmarked' : 'Custom'}
+              </span>
+            </label>
+
+            <select
+              value={selectedBusinessId}
+              onChange={(e) => handleBusinessChange(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {BUSINESS_BENCHMARKS.map((bus) => (
+                <option key={bus.id} value={bus.id}>
+                  {getBusinessName(bus)}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div>
-            <div className="flex justify-between font-bold mb-1.5">
-              <span>{t.concessionalInterestRate || "Concessional Interest Rate"}</span>
-              <span className="text-teal-700">{interestRate}% p.a.</span>
-            </div>
-            <input
-              type="range"
-              min="5.0"
-              max="12.0"
-              step="0.25"
-              value={interestRate}
-              onChange={(e) => setInterestRate(parseFloat(e.target.value))}
-              className="w-full accent-teal-600 cursor-pointer"
-            />
-          </div>
-
-          <div>
-            <div className="flex justify-between font-bold mb-1.5">
-              <span>{t.repaymentTenure || "Repayment Tenure"}</span>
-              <span className="text-blue-700">{tenureYears} {t.years || "Years"}</span>
-            </div>
-            <input
-              type="range"
-              min="3"
-              max="10"
-              step="1"
-              value={tenureYears}
-              onChange={(e) => setTenureYears(parseInt(e.target.value))}
-              className="w-full accent-blue-600 cursor-pointer"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Chart & Operating Economics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 5-Year Cash Flow Projection Chart */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center">
-              <BarChart3 className="w-4 h-4 mr-1.5 text-emerald-600" />
-              {t.cashFlowTitle || "5-Year Cash Flow & Debt Servicing Projection"}
+          {/* Card B: Real Capital & Project Cost Inputs */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <span className="flex items-center">
+                <DollarSign className="w-4 h-4 mr-1 text-emerald-600" />
+                {lang === 'hi' ? '2. आपकी वास्तविक पूँजी एवं निवेश राशि' : lang === 'te' ? '2. మీ నిజమైన పెట్టుబడి వివరాలు' : '2. Your Real Capital & Total Investment'}
+              </span>
+              <span className="text-[11px] font-normal text-slate-400">Direct Rupee Inputs</span>
             </h3>
-            <span className="text-[11px] text-slate-400">{t.valuesInRupees || "Values in ₹"}</span>
+
+            {/* Input 1: Own Available Capital */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-700">
+                  {lang === 'hi' ? 'आपके पास उपलब्ध खुद की पूँजी (₹)' : lang === 'te' ? 'మీ వద్ద ఉన్న మూలధనం (₹)' : 'Your Available Own Capital / Savings (₹)'}
+                </span>
+                <span className="font-extrabold text-emerald-700 text-sm">
+                  ₹{availableCapital.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="10000"
+                  max="10000000"
+                  step="5000"
+                  value={availableCapital}
+                  onChange={(e) => setAvailableCapital(Math.max(0, parseFloat(e.target.value) || 0))}
+                  placeholder="e.g. 150000"
+                  className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+
+              {/* Quick Presets for Available Capital */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                <span className="text-[10px] text-slate-400 font-semibold">Quick Set:</span>
+                {[50000, 100000, 200000, 300000, 500000].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setAvailableCapital(amt)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition cursor-pointer ${
+                      availableCapital === amt 
+                        ? 'bg-emerald-600 text-white border-emerald-600' 
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    ₹{(amt / 100000).toFixed(amt % 100000 === 0 ? 0 : 1)}L
+                  </button>
+                ))}
+              </div>
+
+              {/* Capital Adequacy Message */}
+              {!isCapitalSufficient && (
+                <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-[11px] font-medium flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">
+                      {lang === 'hi' ? `₹${capitalDeficit.toLocaleString('en-IN')} का पूँजी घाटा:` : `Capital Deficit of ₹${capitalDeficit.toLocaleString('en-IN')}:`}
+                    </span>{' '}
+                    {lang === 'hi'
+                      ? 'परियोजना के लिए 10% अंशदान आवश्यक है। कृपया परियोजना लागत घटाएं, बचत बढ़ाएं, या PMEGP में 25-35% सरकारी सब्सिडी के लिए आवेदन करें।'
+                      : 'You need additional margin contribution. You can either scale down your project cost, save more, or seek 25-35% capital subsidy under PMEGP.'}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input 2: Total Project Cost */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-700">
+                  {lang === 'hi' ? 'कुल परियोजना लागत / सेटअप व्यय (₹)' : lang === 'te' ? 'మొత్తం ప్రాజెక్ట్ ఖర్చు (₹)' : 'Total Project Cost / Machinery & Setup (₹)'}
+                </span>
+                <span className="font-extrabold text-slate-900 text-sm">
+                  ₹{projectCost.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <input
+                type="number"
+                min="25000"
+                max="5000000"
+                step="10000"
+                value={projectCost}
+                onChange={(e) => setProjectCost(Math.max(10000, parseFloat(e.target.value) || 0))}
+                placeholder="e.g. 400000"
+                className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+              <input
+                type="range"
+                min="50000"
+                max="2500000"
+                step="25000"
+                value={projectCost}
+                onChange={(e) => setProjectCost(parseFloat(e.target.value))}
+                className="w-full accent-emerald-600 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>₹50k (Micro)</span>
+                <span>₹10 Lakh</span>
+                <span>₹25 Lakh (Commercial)</span>
+              </div>
+            </div>
+
           </div>
 
           {/* Card C: Real Monthly Revenue & Expense Inputs */}
@@ -616,7 +1107,7 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center">
               <BarChart3 className="w-4 h-4 mr-1.5 text-emerald-600" />
-              {lang === 'hi' ? '5 वर्षीय नकदी प्रवाह एवं ऋण पुनर्भुगतान प्रक्षेपण' : '5-Year Cash Flow & Debt Servicing Projection'}
+              {t.cashFlowTitle || (lang === 'hi' ? '5 वर्षीय नकदी प्रवाह एवं ऋण पुनर्भुगतान प्रक्षेपण' : '5-Year Cash Flow & Debt Servicing Projection')}
             </h3>
             <span className="text-[11px] text-slate-400">
               {lang === 'hi' ? 'वार्षिक 5% बिक्री वृद्धि एवं 3.5% लागत मुद्रास्फीति पर आधारित' : 'Based on 5% annual revenue growth and 3.5% cost inflation.'}
@@ -672,49 +1163,48 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
           </div>
         )}
 
-        {/* Operating Economics & Break-Even Box */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center">
-            <TrendingUp className="w-4 h-4 mr-1.5 text-teal-600" />
-            {t.operatingEconomicsTitle || "Monthly Operating Economics"}
-          </h3>
+        {/* Table View */}
+        {projectionViewMode === 'table' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
+              <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                <tr>
+                  <th className="py-2.5 px-3">Timeline</th>
+                  <th className="py-2.5 px-3">Annual Sales (₹)</th>
+                  <th className="py-2.5 px-3">Operating Costs (₹)</th>
+                  <th className="py-2.5 px-3">Operating Profit (₹)</th>
+                  <th className="py-2.5 px-3">Annual EMI (₹)</th>
+                  <th className="py-2.5 px-3">Net Cash Surplus (₹)</th>
+                  <th className="py-2.5 px-3">Cumulative Reserve (₹)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {dynamicProjections.map((row) => (
+                  <tr key={row.year} className="hover:bg-slate-50/70 transition">
+                    <td className="py-2.5 px-3 font-bold text-slate-900">{row.year}</td>
+                    <td className="py-2.5 px-3 text-emerald-700 font-semibold">₹{row.revenue.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 text-slate-600">₹{row.expenses.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 font-semibold">₹{row.operating_profit.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 text-rose-600 font-medium">₹{row.debt_service.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 font-bold text-emerald-800">₹{row.net_cash_flow.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 font-extrabold text-teal-900">₹{row.cumulative_surplus.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-          <div className="space-y-3 text-xs">
-            <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">{t.projectedMonthlyRevenue || "Projected Monthly Revenue"}</span>
-              <span className="font-bold text-slate-900">₹{monthlyRevenue.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">{t.monthlyOperatingExpenses || "Monthly Operating Expenses"}</span>
-              <span className="font-bold text-slate-700">₹{monthlyExpense.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">{t.operatingProfitPreDebt || "Operating Profit (Pre-Debt)"}</span>
-              <span className="font-bold text-emerald-700">₹{monthlyProfit.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">{t.monthlyLoanEMI || "Monthly Loan EMI"}</span>
-              <span className="font-bold text-rose-700">-₹{liveEmi.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-              <div className="flex justify-between text-emerald-950 font-bold">
-                <span>{t.discretionarySurplus || "Discretionary Surplus"}</span>
-                <span className="text-sm text-emerald-700">₹{(monthlyProfit - liveEmi).toLocaleString('en-IN')}/mo</span>
-              </div>
-              <span className="text-[10px] text-emerald-700 mt-1 block">
-                {t.retainedHouseholdIncome || "Retained rural household income after honoring debt service."}
-              </span>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 space-y-1">
-              <span className="font-bold block text-[11px]">{t.breakEvenMonthlyRevenue || "Break-Even Monthly Revenue:"}</span>
-              <span className="text-base font-extrabold text-slate-900">
-                ₹{(fin.break_even_monthly_revenue || 35000).toLocaleString('en-IN')}
-              </span>
-              <span className="text-[10px] text-slate-500 block">
-                {Math.round(((monthlyRevenue - (fin.break_even_monthly_revenue || 35000)) / monthlyRevenue) * 100)}% {t.marginOfSafety || "operating above break-even margin of safety."}
-              </span>
-            </div>
+        {/* MoSJE Guidance Note Footer */}
+        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-start gap-2.5 text-[11px] text-slate-600">
+          <Info className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold text-slate-800">
+              {lang === 'hi' ? 'सरकारी रियायती ऋण संरचना नियम (MoSJE & KVIC):' : 'National Concessional Framework Notes:'}
+            </span>{' '}
+            {lang === 'hi'
+              ? 'राष्ट्रीय पिछड़ा वर्ग वित्त एवं विकास निगम (NBCFDC) एवं अनुसूचित जाति वित्त एवं विकास निगम (NSFDC) के अंतर्गत 90% तक ऋण 6-8% रियायती ब्याज दर पर उपलब्ध होता है। 10% लाभार्थी अंशदान अनिवार्य है।'
+              : 'Under NBCFDC and NSFDC guidelines, up to 90% term loan is sanctioned through State Channelizing Agencies at concessional rates (6-8% p.a.) with a mandatory 10% own beneficiary margin.'}
           </div>
         </div>
       </div>
