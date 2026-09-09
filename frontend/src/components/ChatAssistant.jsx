@@ -60,6 +60,12 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const isListeningRef = useRef(false);
+  const accumulatedTranscriptRef = useRef('');
+  const silenceTimeoutRef = useRef(null);
+  const maxSessionTimeoutRef = useRef(null);
+  const langRef = useRef(lang);
+  const handleSendRef = useRef(null);
 
   // Trigger full dynamic business analysis and creation
   const handleConfirmAndAnalyze = (intentData) => {
@@ -116,9 +122,14 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = langRef.current === 'hi' ? 'hi-IN' : (langRef.current === 'te' ? 'te-IN' : 'en-IN');
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        isListeningRef.current = true;
+      };
 
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
@@ -129,37 +140,93 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
 
       recognition.onerror = (event) => {
         console.warn("Speech recognition error:", event.error);
-        setIsListening(false);
+        if (event.error === 'no-speech') return; // Do not abort, keep listening
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          isListeningRef.current = false;
+          setIsListening(false);
+          alert("Microphone access is blocked. Please allow mic access in your browser address bar.");
+          return;
+        }
       };
 
       recognition.onend = () => {
-        setIsListening(false);
+        if (isListeningRef.current) {
+          try {
+            recognition.lang = langRef.current === 'hi' ? 'hi-IN' : (langRef.current === 'te' ? 'te-IN' : 'en-IN');
+            recognition.start();
+          } catch (err) {
+            setTimeout(() => {
+              if (isListeningRef.current) {
+                try { recognition.start(); } catch (e) {
+                  isListeningRef.current = false;
+                  setIsListening(false);
+                }
+              }
+            }, 300);
+          }
+        } else {
+          setIsListening(false);
+        }
       };
 
       recognitionRef.current = recognition;
     }
-  }, [lang, profile]);
+
+    return () => {
+      isListeningRef.current = false;
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (maxSessionTimeoutRef.current) clearTimeout(maxSessionTimeoutRef.current);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch (e) {}
+      }
+    };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading, isListening]);
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
     if (!recognitionRef.current) {
       alert("Microphone speech recognition is not supported in this browser. Please type your message.");
       return;
     }
 
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
+    if (isListening || isListeningRef.current) {
+      submitSpokenAnswer();
+      return;
+    }
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
-        recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
-        recognitionRef.current.start();
-        setIsListening(true);
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
       } catch (err) {
-        console.error("Error starting speech recognition:", err);
+        if (err.name === 'NotAllowedError') {
+          alert("Microphone access is blocked. Please allow mic access in your browser settings.");
+          return;
+        }
+      }
+    }
+
+    try {
+      accumulatedTranscriptRef.current = '';
+      recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      isListeningRef.current = true;
+      setIsListening(true);
+      recognitionRef.current.start();
+
+      if (maxSessionTimeoutRef.current) clearTimeout(maxSessionTimeoutRef.current);
+      maxSessionTimeoutRef.current = setTimeout(() => {
+        if (isListeningRef.current) submitSpokenAnswer();
+      }, 15000);
+    } catch (err) {
+      if (err.name === 'InvalidStateError') {
+        isListeningRef.current = true;
+        setIsListening(true);
+      } else {
+        isListeningRef.current = false;
+        setIsListening(false);
       }
     }
   };
@@ -294,6 +361,8 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
       setIsLoading(false);
     }
   };
+
+  handleSendRef.current = handleSend;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">

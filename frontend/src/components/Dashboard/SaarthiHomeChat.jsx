@@ -84,6 +84,17 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const isListeningRef = useRef(false);
+  const accumulatedTranscriptRef = useRef('');
+  const interimTranscriptRef = useRef('');
+  const silenceTimeoutRef = useRef(null);
+  const maxSessionTimeoutRef = useRef(null);
+  const languageRef = useRef(language);
+  const modeRef = useRef(mode);
+  const currentStepRef = useRef(currentStep);
+  const stepDataRef = useRef(stepData);
+  const handleStepResponseRef = useRef(null);
+  const handleSendRef = useRef(null);
 
   // Initialize Web Speech Recognition
   useEffect(() => {

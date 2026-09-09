@@ -117,9 +117,52 @@ def test_udyam_sarthi_suite():
     t9_c = agent.process_turn("Mere paas 2 lakh rupaye hain", t9_b["updated_profile"])
     print("Extracted Capital:", t9_c["updated_profile"]["financial"]["capital"])
     assert t9_c["updated_profile"]["financial"]["capital"] == 200000.0
-    print("✔ Passed Test 9!")
+    # TEST 10: Specific Business Interest & Conditional Questioning (Rule 37)
+    print("\n--- Test 10: Business-Specific Conditional Questions (Dairy) ---")
+    t10 = agent.process_turn("Mujhe dairy farming shuru karni hai", t9_c["updated_profile"])
+    print("Intent:", t10["intent"], "Action:", t10["action_type"])
+    assert t10["intent"] == "BUSINESS_INTEREST"
+    assert t10["action_type"] == "ASK_DAIRY_DETAILS"
+    assert "शेड" in t10["reply"] or "shed" in t10["reply"].lower()
+    print("✔ Passed Test 10!")
 
-    print("\n🎉 ALL 9 UDYAMSARTHI SUITE TESTS PASSED WITH 100% SUCCESS!")
+    # TEST 11: Comprehensive 7-Factor Risk Analysis (Rule 28)
+    print("\n--- Test 11: 7-Factor Risk Assessment (No Zero Risk) ---")
+    t11 = agent.process_turn("Is business mein kya risk hai aur kitna nuksan ho sakta hai?", t10["updated_profile"])
+    print("Intent:", t11["intent"], "Action:", t11["action_type"])
+    assert t11["intent"] == "RISK_ANALYSIS"
+    assert t11["action_type"] == "SHOW_RISK"
+    assert "शून्य जोखिम" in t11["reply"] or "zero risk" in t11["reply"].lower()
+    print("✔ Passed Test 11!")
+
+    # TEST 12: Deterministic Scheme Eligibility Determination (Rule 27)
+    print("\n--- Test 12: Scheme Qualification Determination ---")
+    t12 = agent.process_turn("Kya main kisi sarkari loan scheme ke liye eligible hoon?", t10["updated_profile"])
+    print("Intent:", t12["intent"], "Action:", t12["action_type"])
+    assert t12["intent"] == "SCHEME_ELIGIBILITY"
+    assert t12["action_type"] == "SHOW_SCHEMES"
+    assert "पात्र" in t12["reply"] or "eligible" in t12["reply"].lower()
+    print("✔ Passed Test 12!")
+
+    # TEST 13: Break-Even Economics & Cashflow Analysis (Rule 24, 51)
+    print("\n--- Test 13: Break-Even & Payback Analysis ---")
+    t13 = agent.process_turn("Mera break even kab hoga aur profit margin kitna hai?", t10["updated_profile"])
+    print("Intent:", t13["intent"], "Financial Summary:", t13["financial_summary"])
+    assert t13["intent"] == "BREAK_EVEN_ANALYSIS"
+    assert t13["financial_summary"]["break_even_monthly_revenue"] > 0
+    assert t13["financial_summary"]["estimated_payback_months"] >= 6
+    print("✔ Passed Test 13!")
+
+    # TEST 14: Profile Summary & Completeness Audit (Rule 12, 34)
+    print("\n--- Test 14: Profile State & Completeness Audit ---")
+    t14 = agent.process_turn("Mera profile kya hai, details dikhao", t10["updated_profile"])
+    print("Intent:", t14["intent"], "Action:", t14["action_type"])
+    assert t14["intent"] == "PROFILE_QUERY"
+    assert "Ramesh Kisan" in t14["reply"]
+    assert "Pimpalgaon" in t14["reply"]
+    print("✔ Passed Test 14!")
+
+    print("\n🎉 ALL 14 UDYAMSARTHI SUITE TESTS PASSED WITH 100% SUCCESS!")
 
 if __name__ == "__main__":
     test_udyam_sarthi_suite()

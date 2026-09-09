@@ -15,7 +15,7 @@ from app.explainability.explanation_generator import ExplanationGenerator
 from app.advisory_agent.udyam_sarthi import UdyamSarthiAgent
 
 app = FastAPI(
-    title="UdyamSetu AI Specialist Analytics Microservice",
+    title="UdyamSarthi AI Specialist Analytics Microservice",
     description="Deterministic and ML engines for Hyper-Local Rural Micro-Enterprise Decision Support (MoSJE)",
     version="1.0.0"
 )

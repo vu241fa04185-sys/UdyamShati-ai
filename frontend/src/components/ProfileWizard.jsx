@@ -45,10 +45,18 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiInputText, setAiInputText] = useState('');
+  const [aiInterimTranscript, setAiInterimTranscript] = useState('');
   const [newlyFilledFields, setNewlyFilledFields] = useState([]);
 
   const aiMessagesEndRef = useRef(null);
   const aiRecognitionRef = useRef(null);
+  const isAiListeningRef = useRef(false);
+  const accumulatedAiTranscriptRef = useRef('');
+  const aiInterimTranscriptRef = useRef('');
+  const aiSilenceTimeoutRef = useRef(null);
+  const aiMaxSessionTimeoutRef = useRef(null);
+  const langRef = useRef(lang);
+  const handleAiChatSubmitRef = useRef(null);
 
   // Configuration of each question in the AI guided interview
   const STEPS = [
@@ -263,27 +271,151 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
     }
   }, []);
 
-  // Web Speech API STT setup
+  useEffect(() => {
+    langRef.current = lang;
+    if (aiRecognitionRef.current) {
+      aiRecognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+    }
+  }, [lang]);
+
+  const submitSpokenAiAnswer = (directTranscript = null) => {
+    const raw = (
+      directTranscript || 
+      accumulatedAiTranscriptRef.current || 
+      aiInterimTranscriptRef.current || 
+      aiInputText || 
+      ''
+    ).trim();
+
+    isAiListeningRef.current = false;
+    setIsAiListening(false);
+
+    if (aiSilenceTimeoutRef.current) {
+      clearTimeout(aiSilenceTimeoutRef.current);
+      aiSilenceTimeoutRef.current = null;
+    }
+    if (aiMaxSessionTimeoutRef.current) {
+      clearTimeout(aiMaxSessionTimeoutRef.current);
+      aiMaxSessionTimeoutRef.current = null;
+    }
+
+    try {
+      if (aiRecognitionRef.current) {
+        aiRecognitionRef.current.stop();
+      }
+    } catch (e) {}
+
+    setAiInterimTranscript('');
+    aiInterimTranscriptRef.current = '';
+
+    if (raw) {
+      setAiInputText(raw);
+      accumulatedAiTranscriptRef.current = '';
+      handleAiChatSubmitRef.current?.(raw);
+    }
+  };
+
+  // Robust Web Speech API STT setup with continuous listening and keep-alive
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      recognition.continuous = true;       // Continuous: DO NOT cut off on silence!
+      recognition.interimResults = true;   // Live transcription
+      recognition.maxAlternatives = 1;
+      recognition.lang = langRef.current === 'hi' ? 'hi-IN' : (langRef.current === 'te' ? 'te-IN' : 'en-IN');
 
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setAiInputText(transcript);
-        setIsAiListening(false);
-        handleAiChatSubmit(transcript);
+      recognition.onstart = () => {
+        setIsAiListening(true);
+        isAiListeningRef.current = true;
       };
 
-      recognition.onerror = () => setIsAiListening(false);
-      recognition.onend = () => setIsAiListening(false);
+      recognition.onresult = (event) => {
+        let interim = '';
+        let final = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        if (final) {
+          accumulatedAiTranscriptRef.current = (accumulatedAiTranscriptRef.current + ' ' + final).trim();
+        }
+
+        const combined = (accumulatedAiTranscriptRef.current + ' ' + interim).trim();
+        if (combined) {
+          aiInterimTranscriptRef.current = combined;
+          setAiInterimTranscript(combined);
+          setAiInputText(combined);
+        }
+
+        if (aiSilenceTimeoutRef.current) {
+          clearTimeout(aiSilenceTimeoutRef.current);
+        }
+
+        // Auto-finalize after 2.0s of silence once speech is detected!
+        if (combined.length > 0) {
+          aiSilenceTimeoutRef.current = setTimeout(() => {
+            if (isAiListeningRef.current) {
+              submitSpokenAiAnswer();
+            }
+          }, 2000);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn("Profile STT warning:", event.error);
+        if (event.error === 'no-speech') return; // Do not close on pause
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          isAiListeningRef.current = false;
+          setIsAiListening(false);
+          alert("Microphone access is blocked. Please allow microphone access in your browser address bar.");
+          return;
+        }
+      };
+
+      recognition.onend = () => {
+        // If user is STILL supposed to be listening, keep it alive so it never shuts down after 1s!
+        if (isAiListeningRef.current) {
+          try {
+            recognition.lang = langRef.current === 'hi' ? 'hi-IN' : (langRef.current === 'te' ? 'te-IN' : 'en-IN');
+            recognition.start();
+          } catch (err) {
+            setTimeout(() => {
+              if (isAiListeningRef.current) {
+                try {
+                  recognition.start();
+                } catch (e) {
+                  isAiListeningRef.current = false;
+                  setIsAiListening(false);
+                }
+              }
+            }, 300);
+          }
+        } else {
+          setIsAiListening(false);
+          setAiInterimTranscript('');
+          aiInterimTranscriptRef.current = '';
+        }
+      };
+
       aiRecognitionRef.current = recognition;
     }
-  }, [lang, profile, stepIndex, voiceGuidance]);
+
+    return () => {
+      isAiListeningRef.current = false;
+      if (aiSilenceTimeoutRef.current) clearTimeout(aiSilenceTimeoutRef.current);
+      if (aiMaxSessionTimeoutRef.current) clearTimeout(aiMaxSessionTimeoutRef.current);
+      if (aiRecognitionRef.current) {
+        try {
+          aiRecognitionRef.current.abort();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   useEffect(() => {
     aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -376,8 +508,8 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
 
   // Submit AI registration speech/text
   const handleAiChatSubmit = async (customText = null) => {
-    const textToSend = customText || aiInputText;
-    if (!textToSend.trim()) return;
+    const textToSend = (customText || aiInputText || '').trim();
+    if (!textToSend) return;
 
     const userMsg = {
       sender: 'user',
@@ -387,163 +519,265 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
 
     setAiChatMessages(prev => [...prev, userMsg]);
     setAiInputText('');
+    setAiInterimTranscript('');
     setIsAiLoading(true);
 
+    let entities = {};
+    let intent = null;
+
     try {
-      // Call NLU parser in AI service
+      // Call NLU parser in AI service via backend proxy
       const nluRes = await axios.post('/api/nlp/parse', { text: textToSend });
-      const entities = nluRes.data?.entities || {};
-      const intent = nluRes.data?.intent;
-      const updated = { ...profile };
-      const filled = [];
-
-      // Check if user is on name step and typed/spoke just their name
-      if (stepIndex === 0 && !entities.name) {
-        const cleanName = textToSend.replace(/^(मेरा नाम|my name is|naam|naam hai)\s+/i, '').trim();
-        if (cleanName.length >= 2 && cleanName.split(' ').length <= 4) {
-          entities.name = cleanName;
-        }
+      if (nluRes.data?.entities) {
+        entities = nluRes.data.entities;
+        intent = nluRes.data.intent;
       }
-
-      // Check if user is on capital step and said just a number or words
-      if (stepIndex === 2 && (entities.capital === null || entities.capital === undefined)) {
-        const numClean = parseFloat(textToSend.replace(/[^\d.]/g, ''));
-        if (!isNaN(numClean) && numClean > 0) {
-          entities.capital = numClean < 100 ? numClean * 100000 : numClean;
-        }
-      }
-
-      // Check if user is on land step and said a number
-      if (stepIndex === 3 && (entities.land_acres === null || entities.land_acres === undefined)) {
-        const numClean = parseFloat(textToSend.replace(/[^\d.]/g, ''));
-        if (!isNaN(numClean)) {
-          entities.land_acres = numClean;
-        }
-      }
-
-      // Check if user is on social category step
-      if (stepIndex === 4 && !entities.social_category) {
-        const up = textToSend.toUpperCase();
-        if (up.includes('OBC')) entities.social_category = 'OBC';
-        else if (up.includes('SC')) entities.social_category = 'SC';
-        else if (up.includes('ST')) entities.social_category = 'ST';
-        else if (up.includes('DNT')) entities.social_category = 'DNT';
-        else if (up.includes('GENERAL') || up.includes('सामान्य')) entities.social_category = 'GENERAL';
-      }
-
-      // Update fields based on extracted entities
-      if (entities.name) {
-        updated.name = entities.name;
-        filled.push('name');
-      }
-      if (entities.capital !== null && entities.capital !== undefined) {
-        updated.available_capital = entities.capital;
-        filled.push('capital');
-      }
-      if (entities.land_acres !== null && entities.land_acres !== undefined) {
-        updated.land_acres = entities.land_acres;
-        filled.push('land');
-      }
-      if (entities.social_category) {
-        updated.social_category = entities.social_category;
-        filled.push('social_category');
-      }
-      if (entities.has_water_source !== null && entities.has_water_source !== undefined) {
-        updated.has_water_source = entities.has_water_source;
-        filled.push('water');
-      }
-      if (entities.has_electricity !== null && entities.has_electricity !== undefined) {
-        updated.has_electricity = entities.has_electricity;
-        filled.push('electricity');
-      }
-      if (entities.has_vehicle !== null && entities.has_vehicle !== undefined) {
-        updated.has_vehicle = entities.has_vehicle;
-        filled.push('vehicle');
-      }
-      if (entities.has_shop_building !== null && entities.has_shop_building !== undefined) {
-        updated.has_shop_building = entities.has_shop_building;
-        filled.push('shop');
-      }
-      if (entities.skills && entities.skills.length > 0) {
-        updated.skills = Array.from(new Set([...(profile.skills || []), ...entities.skills]));
-        filled.push('skills');
-      }
-      if (entities.location_hint) {
-        const locCoords = {
-          "Nashik": { lat: 20.1706, lon: 73.9840, v: "Pimpalgaon Baswant", d: "Nashik", s: "Maharashtra" },
-          "Krishna": { lat: 16.4258, lon: 80.7712, v: "Kankipadu", d: "Krishna", s: "Andhra Pradesh" },
-          "Varanasi": { lat: 25.4380, lon: 83.0560, v: "Chaubeypur", d: "Varanasi", s: "Uttar Pradesh" },
-          "Anand": { lat: 22.5360, lon: 72.9340, v: "Mogri Rural", d: "Anand", s: "Gujarat" }
-        };
-        const c = locCoords[entities.location_hint];
-        if (c) {
-          updated.latitude = c.lat;
-          updated.longitude = c.lon;
-          updated.village_name = c.v;
-          updated.district = c.d;
-          updated.state = c.s;
-          filled.push('location');
-        }
-      }
-
-      setProfile(updated);
-      setNewlyFilledFields(prev => [...new Set([...prev, ...filled])]);
-
-      // Handle location query in middle of conversation
-      if (intent === 'LOCATION_QUERY') {
-        const v = updated.village_name || 'Registered Location';
-        const d = updated.district || 'District';
-        const locMsg = lang === 'hi'
-          ? `आपकी पंजीकृत लोकेशन: **${v}, ${d}** (${updated.latitude?.toFixed(4)}° N, ${updated.longitude?.toFixed(4)}° E) है। आप नीचे दिए बटन से कभी भी लाइव GPS बदल सकते हैं।`
-          : `Your current location is **${v}, ${d}** (${updated.latitude?.toFixed(4)}° N, ${updated.longitude?.toFixed(4)}° E).`;
-        
-        triggerQuestionForStep(stepIndex, updated, locMsg);
-        return;
-      }
-
-      // Check which step should be asked next
-      if (filled.length > 0) {
-        let confirmText = lang === 'hi'
-          ? `✓ धन्यवाद! मैंने आपका विवरण दर्ज कर लिया है: ${filled.map(f => f.toUpperCase()).join(', ')}।`
-          : `✓ Recorded: ${filled.join(', ')}.`;
-
-        // Find the next incomplete step
-        let targetStep = stepIndex + 1;
-        for (let i = 0; i < STEPS.length - 1; i++) {
-          if (!STEPS[i].isDone(updated)) {
-            targetStep = i;
-            break;
-          }
-        }
-        if (targetStep >= STEPS.length) targetStep = STEPS.length - 1;
-
-        triggerQuestionForStep(targetStep, updated, confirmText);
-      } else {
-        // Did not find matching entity, gently re-prompt current step
-        const gentleReprompt = lang === 'hi'
-          ? "मैंने आपकी बात सुनी। कृपया नीचे दिए गए विकल्पों में से चुनें या स्पष्ट रूप से बोलें।"
-          : "Understood. Please pick from the options below or specify clearly.";
-        triggerQuestionForStep(stepIndex, updated, gentleReprompt);
-      }
-    } catch (err) {
-      console.error("AI registration error:", err);
-    } finally {
-      setIsAiLoading(false);
+    } catch (apiErr) {
+      console.warn("Backend NLU parse failed or unavailable, fallback to direct client parsing:", apiErr);
     }
+
+    const updated = { ...profile };
+    const filled = [];
+    const lowerText = textToSend.toLowerCase();
+
+    // 1. Step 0: Name extraction
+    if (stepIndex === 0 || !entities.name) {
+      const cleanName = textToSend
+        .replace(/^(मेरा\s*नाम\s*(?:hai|hoon)?|my\s*name\s*is|naam\s*hai|i\s*am|main\s*hoon)\s*/i, '')
+        .replace(/\s*(?:hai|hoon|naam)$/i, '')
+        .trim();
+      
+      if (stepIndex === 0 && cleanName.length >= 2 && !cleanName.match(/^(yes|no|haan|nahi|ok|theek|hello|namaste|hi)$/i)) {
+        entities.name = cleanName;
+      } else if (cleanName.length >= 2 && cleanName.split(' ').length <= 4 && !cleanName.match(/^(yes|no|haan|nahi|ok|hello)$/i)) {
+        entities.name = cleanName;
+      }
+    }
+
+    // 2. Step 1: Location extraction
+    if (stepIndex === 1 || !entities.location_hint) {
+      const locMatch = textToSend.match(/([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]{3,})\s*(?:village|gaon|se|from|district|zila|mandal)/i);
+      if (locMatch) {
+        entities.location_hint = locMatch[1].trim();
+      } else if (stepIndex === 1 && textToSend.length >= 3 && !textToSend.match(/^(yes|no|haan|nahi|ok|hello)$/i)) {
+        entities.location_hint = textToSend.trim();
+      }
+    }
+
+    // 3. Step 2: Capital extraction
+    if (stepIndex === 2 || (entities.capital === null || entities.capital === undefined)) {
+      const lakhMatch = textToSend.match(/(\d+(?:\.\d+)?)\s*(?:lakh|lac|लाख|లక్ష)/i);
+      if (lakhMatch) {
+        entities.capital = parseFloat(lakhMatch[1]) * 100000;
+      } else {
+        const numClean = textToSend.replace(/[^\d.]/g, '');
+        if (numClean && !isNaN(parseFloat(numClean))) {
+          const val = parseFloat(numClean);
+          entities.capital = val < 50 ? val * 100000 : val;
+        }
+      }
+    }
+
+    // 4. Step 3: Land Acres extraction
+    if (stepIndex === 3 || (entities.land_acres === null || entities.land_acres === undefined)) {
+      if (lowerText.includes('zero') || lowerText.includes('nahi') || lowerText.includes('landless') || lowerText.includes('no land')) {
+        entities.land_acres = 0;
+      } else {
+        const acreMatch = textToSend.match(/(\d+(?:\.\d+)?)\s*(?:acre|acres|एकड़|ఎకరాలు)?/i);
+        if (acreMatch && !isNaN(parseFloat(acreMatch[1]))) {
+          entities.land_acres = parseFloat(acreMatch[1]);
+        }
+      }
+    }
+
+    // 5. Step 4: Social Category extraction
+    if (stepIndex === 4 || !entities.social_category) {
+      if (lowerText.includes('obc') || textToSend.includes('ओबीसी')) entities.social_category = 'OBC';
+      else if (lowerText.includes('sc') || textToSend.includes('अनुसूचित')) entities.social_category = 'SC';
+      else if (lowerText.includes('st') || textToSend.includes('जनजाति')) entities.social_category = 'ST';
+      else if (lowerText.includes('dnt')) entities.social_category = 'DNT';
+      else if (lowerText.includes('gen') || textToSend.includes('सामान्य')) entities.social_category = 'GENERAL';
+    }
+
+    // 6. Step 5: Infrastructure & Utilities
+    if (lowerText.includes('water') || lowerText.includes('paani') || lowerText.includes('borewell')) {
+      entities.has_water_source = true;
+    }
+    if (lowerText.includes('electric') || lowerText.includes('power') || lowerText.includes('bijli') || lowerText.includes('current')) {
+      entities.has_electricity = true;
+    }
+    if (lowerText.includes('vehicle') || lowerText.includes('tractor') || lowerText.includes('gadi') || lowerText.includes('auto')) {
+      entities.has_vehicle = true;
+    }
+    if (lowerText.includes('shop') || lowerText.includes('dukaan') || lowerText.includes('building') || lowerText.includes('shed')) {
+      entities.has_shop_building = true;
+    }
+
+    // 7. Step 6: Skills
+    const skillList = ['dairy', 'poultry', 'farming', 'agriculture', 'goat_farming', 'machinery', 'food_processing', 'retail', 'mechanic'];
+    const detectedSkills = skillList.filter(s => lowerText.includes(s.replace('_', ' ')) || lowerText.includes(s));
+    if (detectedSkills.length > 0) {
+      entities.skills = Array.from(new Set([...(entities.skills || []), ...detectedSkills]));
+    }
+
+    // Apply entities to updated profile
+    if (entities.name) {
+      updated.name = entities.name;
+      filled.push('name');
+    }
+    if (entities.capital !== null && entities.capital !== undefined) {
+      updated.available_capital = entities.capital;
+      filled.push('capital');
+    }
+    if (entities.land_acres !== null && entities.land_acres !== undefined) {
+      updated.land_acres = entities.land_acres;
+      filled.push('land');
+    }
+    if (entities.social_category) {
+      updated.social_category = entities.social_category;
+      filled.push('social_category');
+    }
+    if (entities.has_water_source !== null && entities.has_water_source !== undefined) {
+      updated.has_water_source = entities.has_water_source;
+      filled.push('water');
+    }
+    if (entities.has_electricity !== null && entities.has_electricity !== undefined) {
+      updated.has_electricity = entities.has_electricity;
+      filled.push('electricity');
+    }
+    if (entities.has_vehicle !== null && entities.has_vehicle !== undefined) {
+      updated.has_vehicle = entities.has_vehicle;
+      filled.push('vehicle');
+    }
+    if (entities.has_shop_building !== null && entities.has_shop_building !== undefined) {
+      updated.has_shop_building = entities.has_shop_building;
+      filled.push('shop');
+    }
+    if (entities.skills && entities.skills.length > 0) {
+      updated.skills = Array.from(new Set([...(profile.skills || []), ...entities.skills]));
+      filled.push('skills');
+    }
+    if (entities.location_hint) {
+      const locCoords = {
+        "Nashik": { lat: 20.1706, lon: 73.9840, v: "Pimpalgaon Baswant", d: "Nashik", s: "Maharashtra" },
+        "Krishna": { lat: 16.4258, lon: 80.7712, v: "Kankipadu", d: "Krishna", s: "Andhra Pradesh" },
+        "Varanasi": { lat: 25.4380, lon: 83.0560, v: "Chaubeypur", d: "Varanasi", s: "Uttar Pradesh" },
+        "Anand": { lat: 22.5360, lon: 72.9340, v: "Mogri Rural", d: "Anand", s: "Gujarat" }
+      };
+      const c = locCoords[entities.location_hint];
+      if (c) {
+        updated.latitude = c.lat;
+        updated.longitude = c.lon;
+        updated.village_name = c.v;
+        updated.district = c.d;
+        updated.state = c.s;
+      } else {
+        updated.village_name = entities.location_hint;
+      }
+      filled.push('location');
+    }
+
+    setProfile(updated);
+    setNewlyFilledFields(prev => [...new Set([...prev, ...filled])]);
+
+    // Handle location query in middle of conversation
+    if (intent === 'LOCATION_QUERY') {
+      const v = updated.village_name || 'Registered Location';
+      const d = updated.district || 'District';
+      const locMsg = lang === 'hi'
+        ? `आपकी पंजीकृत लोकेशन: **${v}, ${d}** (${updated.latitude?.toFixed(4)}° N, ${updated.longitude?.toFixed(4)}° E) है। आप नीचे दिए बटन से कभी भी लाइव GPS बदल सकते हैं।`
+        : `Your current location is **${v}, ${d}** (${updated.latitude?.toFixed(4)}° N, ${updated.longitude?.toFixed(4)}° E).`;
+      
+      triggerQuestionForStep(stepIndex, updated, locMsg);
+      setIsAiLoading(false);
+      return;
+    }
+
+    // Advance to next step
+    if (filled.length > 0) {
+      let confirmText = "";
+      if (entities.name) {
+        confirmText = lang === 'hi'
+          ? `✓ नमस्ते ${entities.name} जी! आपका नाम दर्ज हो गया है।`
+          : (lang === 'te' ? `✓ నమస్కారం ${entities.name} గారు! మీ పేరు నమోదైంది.` : `✓ Great, ${entities.name}! Your name has been recorded.`);
+      } else {
+        confirmText = lang === 'hi'
+          ? `✓ धन्यवाद! विवरण दर्ज कर लिया गया है: ${filled.map(f => f.toUpperCase()).join(', ')}।`
+          : `✓ Recorded: ${filled.map(f => f.toUpperCase()).join(', ')}.`;
+      }
+
+      let targetStep = stepIndex + 1;
+      if (targetStep >= STEPS.length) targetStep = STEPS.length - 1;
+
+      triggerQuestionForStep(targetStep, updated, confirmText);
+    } else {
+      const gentleReprompt = lang === 'hi'
+        ? "मैंने आपकी बात सुनी। कृपया नीचे दिए गए विकल्पों में से चुनें या स्पष्ट उत्तर दें।"
+        : "Understood. Please pick from the options below or specify clearly.";
+      triggerQuestionForStep(stepIndex, updated, gentleReprompt);
+    }
+
+    setIsAiLoading(false);
   };
 
-  const toggleAiListening = () => {
+  handleAiChatSubmitRef.current = handleAiChatSubmit;
+
+  const toggleAiListening = async () => {
     if (!aiRecognitionRef.current) {
       alert("Speech recognition is not supported in this browser. Please type your answer or click the option chips.");
       return;
     }
-    if (isAiListening) {
-      aiRecognitionRef.current.stop();
-      setIsAiListening(false);
-    } else {
+
+    // If currently listening, tap again to immediately finish & submit what was said
+    if (isAiListening || isAiListeningRef.current) {
+      submitSpokenAiAnswer();
+      return;
+    }
+
+    // Stop speaking bot audio
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsAiSpeaking(false);
+    }
+
+    accumulatedAiTranscriptRef.current = '';
+    aiInterimTranscriptRef.current = '';
+    setAiInterimTranscript('');
+
+    // Pre-prompt microphone permission with getUserMedia
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      } catch (permErr) {
+        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          alert("Microphone access is blocked. Please allow mic access in your browser settings.");
+          return;
+        }
+      }
+    }
+
+    try {
       aiRecognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
-      aiRecognitionRef.current.start();
+      isAiListeningRef.current = true;
       setIsAiListening(true);
+      aiRecognitionRef.current.start();
+
+      // Generous 15s max timeout so mic doesn't stay open forever if user walks away
+      if (aiMaxSessionTimeoutRef.current) clearTimeout(aiMaxSessionTimeoutRef.current);
+      aiMaxSessionTimeoutRef.current = setTimeout(() => {
+        if (isAiListeningRef.current) {
+          submitSpokenAiAnswer();
+        }
+      }, 15000);
+    } catch (err) {
+      if (err.name === 'InvalidStateError') {
+        isAiListeningRef.current = true;
+        setIsAiListening(true);
+      } else {
+        isAiListeningRef.current = false;
+        setIsAiListening(false);
+      }
     }
   };
 
@@ -1028,9 +1262,13 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                 <div className="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded-xl text-xs flex items-center justify-between font-bold animate-pulse">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
-                    <span>🎙️ Listening... Speak your answer naturally in Hindi, English, or Telugu</span>
+                    <span>
+                      {aiInterimTranscript
+                        ? `🎙️ "${aiInterimTranscript}"`
+                        : "🎙️ Listening... Speak your answer naturally in Hindi, English, or Telugu"}
+                    </span>
                   </div>
-                  <button onClick={toggleAiListening} className="text-xs underline">Stop</button>
+                  <button onClick={toggleAiListening} className="text-xs underline ml-2 shrink-0">Finish & Submit</button>
                 </div>
               )}
 
