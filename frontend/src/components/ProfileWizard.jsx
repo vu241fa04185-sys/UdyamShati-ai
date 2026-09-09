@@ -45,10 +45,18 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiInputText, setAiInputText] = useState('');
+  const [aiInterimTranscript, setAiInterimTranscript] = useState('');
   const [newlyFilledFields, setNewlyFilledFields] = useState([]);
 
   const aiMessagesEndRef = useRef(null);
   const aiRecognitionRef = useRef(null);
+  const isAiListeningRef = useRef(false);
+  const accumulatedAiTranscriptRef = useRef('');
+  const aiInterimTranscriptRef = useRef('');
+  const aiSilenceTimeoutRef = useRef(null);
+  const aiMaxSessionTimeoutRef = useRef(null);
+  const langRef = useRef(lang);
+  const handleAiChatSubmitRef = useRef(null);
 
   // Configuration of each question in the AI guided interview
   const STEPS = [
@@ -263,27 +271,151 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
     }
   }, []);
 
-  // Web Speech API STT setup
+  useEffect(() => {
+    langRef.current = lang;
+    if (aiRecognitionRef.current) {
+      aiRecognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+    }
+  }, [lang]);
+
+  const submitSpokenAiAnswer = (directTranscript = null) => {
+    const raw = (
+      directTranscript || 
+      accumulatedAiTranscriptRef.current || 
+      aiInterimTranscriptRef.current || 
+      aiInputText || 
+      ''
+    ).trim();
+
+    isAiListeningRef.current = false;
+    setIsAiListening(false);
+
+    if (aiSilenceTimeoutRef.current) {
+      clearTimeout(aiSilenceTimeoutRef.current);
+      aiSilenceTimeoutRef.current = null;
+    }
+    if (aiMaxSessionTimeoutRef.current) {
+      clearTimeout(aiMaxSessionTimeoutRef.current);
+      aiMaxSessionTimeoutRef.current = null;
+    }
+
+    try {
+      if (aiRecognitionRef.current) {
+        aiRecognitionRef.current.stop();
+      }
+    } catch (e) {}
+
+    setAiInterimTranscript('');
+    aiInterimTranscriptRef.current = '';
+
+    if (raw) {
+      setAiInputText(raw);
+      accumulatedAiTranscriptRef.current = '';
+      handleAiChatSubmitRef.current?.(raw);
+    }
+  };
+
+  // Robust Web Speech API STT setup with continuous listening and keep-alive
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      recognition.continuous = true;       // Continuous: DO NOT cut off on silence!
+      recognition.interimResults = true;   // Live transcription
+      recognition.maxAlternatives = 1;
+      recognition.lang = langRef.current === 'hi' ? 'hi-IN' : (langRef.current === 'te' ? 'te-IN' : 'en-IN');
 
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setAiInputText(transcript);
-        setIsAiListening(false);
-        handleAiChatSubmit(transcript);
+      recognition.onstart = () => {
+        setIsAiListening(true);
+        isAiListeningRef.current = true;
       };
 
-      recognition.onerror = () => setIsAiListening(false);
-      recognition.onend = () => setIsAiListening(false);
+      recognition.onresult = (event) => {
+        let interim = '';
+        let final = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        if (final) {
+          accumulatedAiTranscriptRef.current = (accumulatedAiTranscriptRef.current + ' ' + final).trim();
+        }
+
+        const combined = (accumulatedAiTranscriptRef.current + ' ' + interim).trim();
+        if (combined) {
+          aiInterimTranscriptRef.current = combined;
+          setAiInterimTranscript(combined);
+          setAiInputText(combined);
+        }
+
+        if (aiSilenceTimeoutRef.current) {
+          clearTimeout(aiSilenceTimeoutRef.current);
+        }
+
+        // Auto-finalize after 2.0s of silence once speech is detected!
+        if (combined.length > 0) {
+          aiSilenceTimeoutRef.current = setTimeout(() => {
+            if (isAiListeningRef.current) {
+              submitSpokenAiAnswer();
+            }
+          }, 2000);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn("Profile STT warning:", event.error);
+        if (event.error === 'no-speech') return; // Do not close on pause
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          isAiListeningRef.current = false;
+          setIsAiListening(false);
+          alert("Microphone access is blocked. Please allow microphone access in your browser address bar.");
+          return;
+        }
+      };
+
+      recognition.onend = () => {
+        // If user is STILL supposed to be listening, keep it alive so it never shuts down after 1s!
+        if (isAiListeningRef.current) {
+          try {
+            recognition.lang = langRef.current === 'hi' ? 'hi-IN' : (langRef.current === 'te' ? 'te-IN' : 'en-IN');
+            recognition.start();
+          } catch (err) {
+            setTimeout(() => {
+              if (isAiListeningRef.current) {
+                try {
+                  recognition.start();
+                } catch (e) {
+                  isAiListeningRef.current = false;
+                  setIsAiListening(false);
+                }
+              }
+            }, 300);
+          }
+        } else {
+          setIsAiListening(false);
+          setAiInterimTranscript('');
+          aiInterimTranscriptRef.current = '';
+        }
+      };
+
       aiRecognitionRef.current = recognition;
     }
-  }, [lang, profile, stepIndex, voiceGuidance]);
+
+    return () => {
+      isAiListeningRef.current = false;
+      if (aiSilenceTimeoutRef.current) clearTimeout(aiSilenceTimeoutRef.current);
+      if (aiMaxSessionTimeoutRef.current) clearTimeout(aiMaxSessionTimeoutRef.current);
+      if (aiRecognitionRef.current) {
+        try {
+          aiRecognitionRef.current.abort();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   useEffect(() => {
     aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -532,18 +664,64 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
     }
   };
 
-  const toggleAiListening = () => {
+  handleAiChatSubmitRef.current = handleAiChatSubmit;
+
+  const toggleAiListening = async () => {
     if (!aiRecognitionRef.current) {
       alert("Speech recognition is not supported in this browser. Please type your answer or click the option chips.");
       return;
     }
-    if (isAiListening) {
-      aiRecognitionRef.current.stop();
-      setIsAiListening(false);
-    } else {
+
+    // If currently listening, tap again to immediately finish & submit what was said
+    if (isAiListening || isAiListeningRef.current) {
+      submitSpokenAiAnswer();
+      return;
+    }
+
+    // Stop speaking bot audio
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsAiSpeaking(false);
+    }
+
+    accumulatedAiTranscriptRef.current = '';
+    aiInterimTranscriptRef.current = '';
+    setAiInterimTranscript('');
+
+    // Pre-prompt microphone permission with getUserMedia
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      } catch (permErr) {
+        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          alert("Microphone access is blocked. Please allow mic access in your browser settings.");
+          return;
+        }
+      }
+    }
+
+    try {
       aiRecognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
-      aiRecognitionRef.current.start();
+      isAiListeningRef.current = true;
       setIsAiListening(true);
+      aiRecognitionRef.current.start();
+
+      // Generous 15s max timeout so mic doesn't stay open forever if user walks away
+      if (aiMaxSessionTimeoutRef.current) clearTimeout(aiMaxSessionTimeoutRef.current);
+      aiMaxSessionTimeoutRef.current = setTimeout(() => {
+        if (isAiListeningRef.current) {
+          submitSpokenAiAnswer();
+        }
+      }, 15000);
+    } catch (err) {
+      if (err.name === 'InvalidStateError') {
+        isAiListeningRef.current = true;
+        setIsAiListening(true);
+      } else {
+        isAiListeningRef.current = false;
+        setIsAiListening(false);
+      }
     }
   };
 
@@ -1028,9 +1206,13 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                 <div className="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded-xl text-xs flex items-center justify-between font-bold animate-pulse">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
-                    <span>🎙️ Listening... Speak your answer naturally in Hindi, English, or Telugu</span>
+                    <span>
+                      {aiInterimTranscript
+                        ? `🎙️ "${aiInterimTranscript}"`
+                        : "🎙️ Listening... Speak your answer naturally in Hindi, English, or Telugu"}
+                    </span>
                   </div>
-                  <button onClick={toggleAiListening} className="text-xs underline">Stop</button>
+                  <button onClick={toggleAiListening} className="text-xs underline ml-2 shrink-0">Finish & Submit</button>
                 </div>
               )}
 
