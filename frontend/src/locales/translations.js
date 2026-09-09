@@ -1,7 +1,7 @@
 export const translations = {
   en: {
-    appTitle: "UdyamSetu AI",
-    tagline: "National Rural Micro-Enterprise Advisory & Financial Structuring Platform",
+    appTitle: "UdyamSaarthi AI",
+    tagline: "Your Business Companion",
     ministryBadge: "Ministry of Social Justice & Empowerment (MoSJE)",
     tabChat: "Voice & AI Advisory",
     tabProfile: "Entrepreneur Profile",
@@ -41,10 +41,26 @@ export const translations = {
     voiceStop: "Stop & Analyze Data",
     playAudio: "Listen to Audio Advisory",
     voiceAutoSync: "Data automatically saved to your profile from speech",
-    applyScheme: "View Official Portal"
+    applyScheme: "View Official Portal",
+
+    // Login & Entry Experience
+    brandName: "UdyamSaarthi AI",
+    brandSubtitle: "Your AI guide to starting and growing the right business.",
+    brandSupportingText: "From local opportunities to financial planning, Saarthi helps you make smarter business decisions — step by step.",
+    welcomeTitle: "Welcome to UdyamSaarthi",
+    welcomeSubtitle: "Your journey from idea to enterprise starts here.",
+    loginCardTitle: "Let's get started",
+    loginCardSubtitle: "Sign in to continue your business journey with Saarthi.",
+    mobileLabel: "Mobile Number / Email",
+    mobilePlaceholder: "Enter your mobile number or email",
+    btnContinue: "Login",
+    reassuranceLine1: "Simple. Local. Built for your business journey.",
+    reassuranceLine2: "Your information is used only to personalize your business guidance.",
+    phoneError: "Please enter a valid mobile number or email.",
+    logoutBtn: "Logout"
   },
   hi: {
-    appTitle: "उद्यमसेतु एआई (UdyamSetu)",
+    appTitle: "उद्यमसारथी एआई (UdyamSaarthi)",
     tagline: "राष्ट्रीय ग्रामीण सूक्ष्म-उद्यम सलाहकार एवं रियायती वित्तीय प्रणाली",
     ministryBadge: "सामाजिक न्याय एवं अधिकारिता मंत्रालय (MoSJE), भारत सरकार",
     tabChat: "वॉयस एवं एआई सलाहकार",
@@ -85,10 +101,34 @@ export const translations = {
     voiceStop: "बोलना रोकें और विश्लेषण करें",
     playAudio: "ऑडियो में व्याख्या सुनें",
     voiceAutoSync: "आपकी आवाज से डेटा स्वतः प्रोफ़ाइल में दर्ज हो गया है",
-    applyScheme: "आधिकारिक पोर्टल देखें"
+    applyScheme: "आधिकारिक पोर्टल देखें",
+
+    // Login & Entry Experience
+    brandName: "उद्यमसारथी एआई",
+    brandSubtitle: "सही व्यवसाय शुरू करने और बढ़ाने के लिए आपका एआई मार्गदर्शक।",
+    brandSupportingText: "स्थानीय अवसरों से लेकर वित्तीय योजना तक, सारथी आपको चरण-दर-चरण बेहतर व्यावसायिक निर्णय लेने में मदद करता है।",
+    welcomeTitle: "उद्यमसारथी में आपका स्वागत है",
+    welcomeSubtitle: "विचार से उद्यम तक की आपकी यात्रा यहाँ से शुरू होती है।",
+    loginCardTitle: "आइए शुरू करें",
+    loginCardSubtitle: "सारथी के साथ अपनी व्यावसायिक यात्रा जारी रखने के लिए साइन इन करें।",
+    mobileLabel: "मोबाइल नंबर",
+    mobilePlaceholder: "अपना 10-अंकों का मोबाइल नंबर दर्ज करें",
+    btnContinue: "आगे बढ़ें",
+    reassuranceLine1: "सरल। स्थानीय। आपके व्यवसाय के लिए निर्मित।",
+    reassuranceLine2: "आपकी जानकारी का उपयोग केवल आपके व्यावसायिक मार्गदर्शन को व्यक्तिगत बनाने के लिए किया जाता है।",
+    phoneError: "कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।",
+    otpTitle: "अपना नंबर सत्यापित करें",
+    otpSubtitle: "हमने 6-अंकों का सत्यापन कोड भेजा है:",
+    otpResendQuestion: "कोड प्राप्त नहीं हुआ?",
+    otpResendBtn: "ओटीपी पुनः भेजें",
+    otpResendTimer: "पुनः भेजें",
+    otpVerifyBtn: "सत्यापित करें और आगे बढ़ें",
+    otpError: "अमान्य सत्यापन कोड। कृपया डेमो के लिए 123456 का उपयोग करें।",
+    logoutBtn: "लॉगआउट",
+    changeNumber: "नंबर बदलें"
   },
   te: {
-    appTitle: "ఉద్యమ్ సేతు ఏఐ (UdyamSetu)",
+    appTitle: "ఉద్యమ్ సారథి ఏఐ (UdyamSaarthi)",
     tagline: "జాతీయ గ్రామీణ సూక్ష్మ-వ్యాపార సలహాదారు & ఆర్థిక రూపకల్పన వేదిక",
     ministryBadge: "సామాజిక న్యాయం మరియు సాధికారత మంత్రిత్వ శాఖ (MoSJE)",
     tabChat: "వాయిస్ & ఏఐ సలహాదారు",
@@ -129,6 +169,30 @@ export const translations = {
     voiceStop: "ఆపివేయండి & విశ్లేషించండి",
     playAudio: "ఆడియో వివరణ వినండి",
     voiceAutoSync: "మీ వాయిస్ ద్వారా ప్రొఫైల్ అప్‌డేట్ అయ్యింది",
-    applyScheme: "అధికారిక పోర్టల్ చూడండి"
+    applyScheme: "అధికారిక పోర్టల్ చూడండి",
+
+    // Login & Entry Experience
+    brandName: "ఉద్యమ్ సారథి ఏఐ",
+    brandSubtitle: "సరైన వ్యాపారాన్ని ప్రారంభించడానికి మరియు పెంచడానికి మీ ఏఐ మార్గదర్శి.",
+    brandSupportingText: "స్థానిక అవకాశాల నుండి ఆర్థిక ప్రణాళిక వరకు, సారథి మీరు అంచెలంచెలుగా తెలివైన వ్యాపార నిర్ణయాలు తీసుకోవడంలో సహాయపడుతుంది.",
+    welcomeTitle: "ఉద్యమ్ సారథికి స్వాగతం",
+    welcomeSubtitle: "ఆలోచన నుండి పరిశ్రమ వైపు మీ ప్రయాణం ఇక్కడే ప్రారంభమవుతుంది.",
+    loginCardTitle: "ప్రారంభిద్దాం",
+    loginCardSubtitle: "సారథితో మీ వ్యాపార ప్రయాణాన్ని కొనసాగించడానికి సైన్ ఇన్ చేయండి.",
+    mobileLabel: "మొబైల్ నంబర్",
+    mobilePlaceholder: "మీ 10 అంకెల మొబైల్ నంబర్‌ను నమోదు చేయండి",
+    btnContinue: "కొనసాగించండి",
+    reassuranceLine1: "సులభం. స్థానికం. మీ వ్యాపార ప్రయాణం కోసం నిర్మించబడింది.",
+    reassuranceLine2: "మీ వ్యాపార మార్గదర్శకత్వాన్ని వ్యక్తిగతీకరించడానికి మాత్రమే మీ సమాచారం ఉపయోగించబడుతుంది.",
+    phoneError: "దయచేసి చెల్లుబాటు అయ్యే 10 అంకెల మొబైల్ నంబర్‌ను నమోదు చేయండి.",
+    otpTitle: "మీ నంబర్‌ను తనిఖీ చేయండి",
+    otpSubtitle: "మేము 6-అంకెల ధృవీకరణ కోడ్‌ను పంపాము:",
+    otpResendQuestion: "కోడ్ రాలేదా?",
+    otpResendBtn: "ఓటీపీ మళ్లీ పంపండి",
+    otpResendTimer: "మళ్లీ పంపండి",
+    otpVerifyBtn: "ధృవీకరించి కొనసాగించండి",
+    otpError: "చెల్లని ధృవీకరణ కోడ్. దయచేసి డెమో కోసం 123456 ప్రయత్నించండి.",
+    logoutBtn: "లాగౌట్",
+    changeNumber: "నంబర్ మార్చండి"
   }
 };

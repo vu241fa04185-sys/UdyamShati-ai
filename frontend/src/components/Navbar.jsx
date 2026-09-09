@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   Building2, 
   Globe2, 
@@ -10,11 +9,12 @@ import {
   Sliders, 
   FileCheck2,
   CheckCircle2,
-  Mic
+  Mic,
+  LogOut
 } from 'lucide-react';
 import { translations } from '../locales/translations';
 
-export default function Navbar({ activeTab, setActiveTab, lang, setLang, profile, lastSyncTime }) {
+export default function Navbar({ activeTab, setActiveTab, lang, setLang, profile, lastSyncTime, onLogout }) {
   const t = translations[lang] || translations.en;
 
   const tabs = [
@@ -107,6 +107,18 @@ export default function Navbar({ activeTab, setActiveTab, lang, setLang, profile
                 తెలుగు
               </button>
             </div>
+
+            {/* Logout Button */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Logout of UdyamSaarthi"
+                className="flex items-center space-x-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-400/30 px-3 py-1.5 rounded-xl text-xs font-bold transition duration-200 hover:text-white"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{t.logoutBtn || 'Logout'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

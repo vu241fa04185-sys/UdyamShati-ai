@@ -217,8 +217,16 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      {/* Live Synced Profile Status Bar */}
+    <div className="space-y-4 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+        <div>
+          <h1 className="text-xl font-black text-stone-900">My Conversations</h1>
+          <p className="text-xs text-stone-500 font-medium">Continue where you left off with Saarthi AI.</p>
+        </div>
+      </div>
+
+      {/* Top Banner Status Info */}
       <div className="bg-gradient-to-r from-emerald-800 to-teal-800 text-white rounded-2xl p-4 shadow-md flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center font-bold text-emerald-300">
@@ -605,6 +613,40 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
           <span>Send</span>
           <Send className="w-3.5 h-3.5" />
         </button>
+      </div>
+
+      {/* Popular Business Ideas in Rural Areas (Relocated to My Conversations) */}
+      <div className="mt-8 pt-6 border-t border-slate-200/80">
+        <div className="mb-4">
+          <h3 className="text-base font-extrabold text-stone-900">
+            Popular Business Ideas in Rural Areas
+          </h3>
+          <p className="text-xs text-stone-500 font-medium mt-0.5">
+            Top-rated, low-risk micro-enterprises with government scheme support. Click any idea to analyze with Saarthi.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { title: 'Dairy & Milk Products', query: 'I want to analyze starting a Dairy & Milk Products business' },
+            { title: 'Food Processing', query: 'Tell me about setting up a Food Processing & Flour Mill unit' },
+            { title: 'Retail Stores', query: 'What is required to start a Rural Retail & Kirana store?' },
+            { title: 'Agri Inputs & Services', query: 'How to start an Agri Inputs, Seeds & Fertilizer business?' },
+            { title: 'Handicrafts', query: 'Explore Handicrafts & Artisan enterprise opportunities' },
+            { title: 'Solar & Clean Energy', query: 'What is the cost and profit for a Solar Charging Kiosk?' },
+            { title: 'Rural Tourism', query: 'Tell me about Rural Tourism and Homestay business' },
+            { title: 'More Ideas...', query: 'Suggest top high-profit business ideas for rural areas' }
+          ].map((idea, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleSend(idea.query)}
+              className="p-3.5 rounded-2xl bg-white hover:bg-[#0F3D2E] text-stone-800 hover:text-white border border-stone-200 hover:border-[#0F3D2E] transition-all duration-200 text-left flex flex-col justify-between h-24 group shadow-2xs"
+            >
+              <Sparkles className="w-4 h-4 text-[#C28A17] group-hover:text-amber-300 transition" />
+              <span className="text-xs font-bold leading-tight group-hover:text-amber-100">{idea.title}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
