@@ -18,7 +18,9 @@ import {
   Radio,
   Headphones,
   MapPin,
-  ArrowRight
+  ArrowRight,
+  FileText,
+  Check
 } from 'lucide-react';
 import axios from 'axios';
 import { translations } from '../../locales/translations';
@@ -29,24 +31,54 @@ import { useSaarthi } from '../../context/SaarthiContext';
 export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language = 'en' }) {
   const t = translations[language] || translations.en;
 
-  const { setMapSearchState } = useSaarthi();
+  const { 
+    personalPlans, 
+    createPlanFromIntent, 
+    updatePlan, 
+    setActivePlanId, 
+    pendingBusinessIdea, 
+    setPendingBusinessIdea,
+    setMapSearchState 
+  } = useSaarthi();
 
-  // Canonical UdyamSarthi Greeting per Specification Section 11 (Female Persona)
-  const getInitialGreeting = (lang) => {
+  const userName = profile?.name && profile?.name !== 'Ramesh Kisan' ? profile.name : 'Entrepreneur';
+
+  // Canonical UdyamSarthi Greeting per Specification (Female Persona)
+  const getInitialGreeting = (lang, name = userName) => {
     if (lang === 'hi') {
-      return "Namaste! 🙏\n\nMain UdyamSarthi hoon. Main aapko business start ya grow karne mein help karungi.\n\nSabse pehle, kya main aapka naam jaan sakti hoon?";
+      return `Namaste ${name}! 🙏\n\nMain UdyamSarthi hoon, aapki AI business advisor. Main aapko business start ya grow karne mein help karungi.\n\nKya aapke paas koi business idea hai, ya main aapko best opportunities suggest karoon?`;
     }
     if (lang === 'te') {
-      return "నమస్కారం! 🙏\n\nనేను ఉద్యమ్‌సారథిని. వ్యాపారం ప్రారంభించడానికి మరియు వృద్ధి చేయడానికి నేను మీకు సహాయం చేస్తాను.\n\nముందుగా, మీ పేరు తెలుసుకోవచ్చా?";
+      return `నమస్కారం ${name}! 🙏\n\nనేను ఉద్యమ్‌సారథిని, మీ వ్యాపార తోడు. వ్యాపారం ప్రారంభించడానికి మరియు వృద్ధి చేయడానికి నేను మీకు సహాయం చేస్తాను.\n\nమీ మనస్సులో ఏదైనా వ్యాపార ఆలోచన ఉందా, లేదా నేను కొన్ని అవకాశాలను సూచించమంటారా?`;
     }
-    return "Namaste! 🙏\n\nI am UdyamSarthi, your AI business advisor. I will help you start or scale your enterprise.\n\nFirst, may I know your name to get started?";
+    return `Hello ${name}! 🙏\n\nI am UdyamSarthi, your AI business advisor. I will help you start or scale your enterprise.\n\nDo you already have a business idea in mind, or would you like me to suggest some opportunities for you?`;
   };
 
+  // Live Dossier State for Business Plan creation (Clean for fresh conversation)
+  const [dossier, setDossier] = useState({
+    name: userName,
+    businessIdea: '',
+    categoryCode: 'GENERAL_ENTERPRISE',
+    location: null,
+    capital: null,
+    land: null,
+    landOwnership: null,
+    infrastructure: {},
+    experience: null,
+    scale: 'Small',
+    completeness: 15
+  });
+
+  const [editingField, setEditingField] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
+  // Conversation & Agent States
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: getInitialGreeting(language),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      text: getInitialGreeting(language, userName),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      actionType: 'INITIAL_GREETING_CHOICE'
     }
   ]);
 
@@ -58,8 +90,9 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
   const [isLoading, setIsLoading] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [speechError, setSpeechError] = useState(null);
+
   const [sessionState, setSessionState] = useState({
-    name: null,
+    name: userName,
     district: null,
     state: null,
     business: null,
@@ -78,16 +111,18 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     goals: null,
     lang: language
   });
-  const hasVoiceStartedRef = useRef(false);
+
+  const [lastQuestionType, setLastQuestionType] = useState(null);
+  const [isLocating, setIsLocating] = useState(false);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const synthRef = useRef(window.speechSynthesis || null);
-
   const isListeningRef = useRef(false);
   const accumulatedTranscriptRef = useRef('');
   const silenceTimeoutRef = useRef(null);
   const languageRef = useRef(language);
+  const hasVoiceStartedRef = useRef(false);
 
   // Synchronize language ref
   useEffect(() => {
@@ -97,20 +132,60 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     }
   }, [language]);
 
-  // Synchronize greeting when language changes if brand new conversation
+  // Synchronize dossier & session user name if profile updates
   useEffect(() => {
-    setMessages((prev) => {
-      if (prev.length === 1 && prev[0].sender === 'ai') {
-        return [{
-          sender: 'ai',
-          text: getInitialGreeting(language),
-          timestamp: prev[0].timestamp
-        }];
-      }
-      return prev;
+    if (profile?.name && profile.name !== 'Ramesh Kisan' && profile.name !== dossier.name) {
+      setDossier(prev => ({ ...prev, name: profile.name }));
+      setSessionState(prev => ({ ...prev, name: profile.name }));
+    }
+  }, [profile?.name]);
+
+  // Reset Conversation mechanism for a fresh chat session
+  const handleResetConversation = () => {
+    const currentName = profile?.name && profile.name !== 'Ramesh Kisan' ? profile.name : 'Entrepreneur';
+    setDossier({
+      name: currentName,
+      businessIdea: '',
+      categoryCode: 'GENERAL_ENTERPRISE',
+      location: null,
+      capital: null,
+      land: null,
+      landOwnership: null,
+      infrastructure: {},
+      experience: null,
+      scale: 'Small',
+      completeness: 15
     });
-    setSessionState((prev) => ({ ...prev, lang: language }));
-  }, [language]);
+    setSessionState({
+      name: currentName,
+      district: null,
+      state: null,
+      business: null,
+      businessIdea: null,
+      businessType: null,
+      subCategory: null,
+      animalType: null,
+      quantity: null,
+      productType: null,
+      budget: null,
+      landAvailable: null,
+      shedAvailable: null,
+      feedFodder: null,
+      rawMaterial: null,
+      experience: null,
+      goals: null,
+      lang: language
+    });
+    setMessages([
+      {
+        sender: 'ai',
+        text: getInitialGreeting(language, currentName),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        actionType: 'INITIAL_GREETING_CHOICE'
+      }
+    ]);
+    setLastQuestionType(null);
+  };
 
   // Text-to-Speech Engine with Natural Female Indian AI Voice
   const speakVoice = (text, lang = language) => {
@@ -131,7 +206,6 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
       utterance.onstart = () => {
         setIsSpeaking(true);
-        // Pause listening while AI speaks to prevent echo feedback
         if (isListeningRef.current && recognitionRef.current) {
           isListeningRef.current = false;
           setIsListening(false);
@@ -141,7 +215,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
       utterance.onend = () => {
         setIsSpeaking(false);
-        // Hands-free continuous voice: automatically activate microphone for user's voice reply!
+        // Hands-free continuous voice: automatically activate microphone for user's voice reply
         if (handsFreeMode && recognitionRef.current) {
           setTimeout(() => {
             startListeningVoice();
@@ -210,7 +284,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     setLiveTranscript('');
 
     if (shouldSubmit && fullSpoken) {
-      handleSend(fullSpoken);
+      handleSend(fullSpoken, true);
     }
   };
 
@@ -274,7 +348,6 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
       recognition.onerror = (event) => {
         console.warn("Speech recognition notice:", event.error);
         if (event.error === 'no-speech') {
-          // Keep listening - do not abort or show error on natural pauses!
           return;
         }
 
@@ -331,7 +404,35 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     };
   }, []);
 
-  const handleSend = async (textToSend = inputText) => {
+  const handleConfirmAndAnalyze = (customIntent = null) => {
+    const targetIntent = customIntent || pendingBusinessIdea || {
+      businessIdea: dossier.businessIdea || 'Rural Enterprise',
+      categoryCode: dossier.categoryCode || 'GENERAL_ENTERPRISE',
+      location: dossier.location ? { village: dossier.location, district: dossier.location, state: 'Andhra Pradesh' } : { village: 'Vadlamudi', district: 'Guntur', state: 'Andhra Pradesh' },
+      capital: dossier.capital || 300000,
+      land: dossier.land || '2 Acres',
+      experience: dossier.experience || 'Experienced',
+      scale: dossier.scale || 'Small'
+    };
+
+    if (createPlanFromIntent) {
+      const newPlan = createPlanFromIntent(targetIntent);
+      if (newPlan?.id && setActivePlanId) {
+        setActivePlanId(newPlan.id);
+      }
+    }
+    setActiveTab('recommendations');
+  };
+
+  const handleConfirmUpdatePlan = (existingPlanId, customIntent) => {
+    if (existingPlanId && updatePlan) {
+      updatePlan(existingPlanId, customIntent);
+      if (setActivePlanId) setActivePlanId(existingPlanId);
+    }
+    setActiveTab('recommendations');
+  };
+
+  const handleSend = async (textToSend = inputText, isVoiceInput = false) => {
     const text = (typeof textToSend === 'string' ? textToSend : inputText).trim();
     if (!text || isLoading) return;
 
@@ -339,10 +440,10 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     stopSpeaking();
     stopListeningVoice(false);
 
-    // Append user message
     const userMsg = {
       sender: 'user',
       text: text,
+      isVoice: isVoiceInput,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -367,6 +468,20 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
       // Update session state memory from backend
       if (response.data?.session_state) {
         setSessionState(response.data.session_state);
+        
+        // Sync dossier from session_state where applicable
+        setDossier(prev => ({
+          ...prev,
+          name: response.data.session_state.name || prev.name,
+          businessIdea: response.data.session_state.business || response.data.session_state.businessIdea || prev.businessIdea,
+          location: response.data.session_state.district || prev.location,
+          capital: response.data.session_state.budget || prev.capital,
+          experience: response.data.session_state.experience || prev.experience
+        }));
+      }
+
+      if (response.data?.action_type) {
+        setLastQuestionType(response.data.action_type);
       }
 
       const aiMsg = {
@@ -380,39 +495,71 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
       setMessages((prev) => [...prev, aiMsg]);
 
-      // If backend returned profile updates, synchronize globally
+      // Handle map opening recommendation directly
+      if (response.data?.action_type === 'OPEN_MAP' && response.data?.action_payload) {
+        setMapSearchState({
+          query: response.data.action_payload.search_query || response.data.action_payload.category || '',
+          category: response.data.action_payload.category || 'ALL',
+          radius_km: response.data.action_payload.radius_km || 5.0
+        });
+      }
+
       if (response.data?.updated_profile && onProfileUpdate) {
         onProfileUpdate(response.data.updated_profile);
       }
 
-      // Speak response out loud through voice
       if (autoSpeak) {
         speakVoice(speakTextToUse, response.data?.session_state?.lang || language);
       }
     } catch (err) {
       console.warn("Backend chat API unreachable, utilizing Saarthi local agent engine:", err);
       try {
-        const localResult = processSaarthiMessage({
+        const agentResult = processSaarthiMessage({
           message: text,
           history: nextMessages,
-          dossier: {
-            name: sessionState.name || profile?.name || '',
-            businessIdea: sessionState.business || profile?.business_idea || '',
-            capital: sessionState.budget || profile?.available_capital || null,
-            district: sessionState.district || profile?.district || ''
-          },
+          dossier: dossier,
           profile: profile || {},
-          language: language
+          language: language,
+          lastQuestionType: lastQuestionType
         });
-        const fallbackReply = localResult?.reply || "Main aapki sahayata karne ke liye taiyyar hoon. Kripya apna business idea ya prashna batayein.";
+
+        const fallbackReply = agentResult?.reply || "Main aapki sahayata karne ke liye taiyyar hoon. Kripya apna business idea ya prashna batayein.";
+
+        if (agentResult?.updatedDossier) {
+          setDossier(agentResult.updatedDossier);
+          setSessionState(prev => ({
+            ...prev,
+            name: agentResult.updatedDossier.name || prev.name,
+            business: agentResult.updatedDossier.businessIdea || prev.business,
+            district: agentResult.updatedDossier.location || prev.district,
+            budget: agentResult.updatedDossier.capital || prev.budget,
+            experience: agentResult.updatedDossier.experience || prev.experience
+          }));
+        }
+
+        if (agentResult?.actionType) {
+          setLastQuestionType(agentResult.actionType);
+        }
+
         const aiMsg = {
           sender: 'ai',
           text: fallbackReply,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          actionType: agentResult?.actionType,
+          intentData: agentResult?.intentPayload
         };
+
         setMessages((prev) => [...prev, aiMsg]);
+
+        if (agentResult?.actionType === 'CONFIRM_BUSINESS_PLAN' || (agentResult?.readyForAnalysis && agentResult?.actionType === 'CONFIRM_BUSINESS_PLAN')) {
+          if (agentResult.intentPayload && setPendingBusinessIdea) {
+            setPendingBusinessIdea(agentResult.intentPayload);
+          }
+        }
+
         if (autoSpeak) speakVoice(fallbackReply, language);
       } catch (fallbackErr) {
+        console.error("Local agent fallback error:", fallbackErr);
         const fallbackReply = "Main aapke vyavasayik prashna ko samajh raha hoon. Kripya apna budget aur location batayein taaki main vishleshan kar sakoon.";
         const aiMsg = {
           sender: 'ai',
@@ -429,7 +576,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
   // Start voice interaction from greeting
   const handleStartVoiceConversation = () => {
-    const greeting = messages[0]?.text || getInitialGreeting(language);
+    const greeting = messages[0]?.text || getInitialGreeting(language, userName);
     speakVoice(greeting, language);
   };
 
@@ -475,7 +622,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
   return (
     <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-xl border border-emerald-900/10 flex flex-col justify-between">
       
-      {/* Top Header with Voice Agent Controls */}
+      {/* Top Header with Voice Agent Controls & New Chat Reset */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-stone-100 gap-3">
         <div className="flex items-center space-x-3">
           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md transition-all duration-300 ${
@@ -512,8 +659,17 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
           </div>
         </div>
 
-        {/* Voice Control Action Buttons */}
+        {/* Action Controls Header */}
         <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {/* New Conversation Reset Button */}
+          <button
+            onClick={handleResetConversation}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-stone-800 hover:bg-amber-200 transition shadow-2xs"
+            title="Start New Conversation"
+          >
+            <span>🔄 New Chat</span>
+          </button>
+
           {isSpeaking && (
             <button
               onClick={stopSpeaking}
@@ -555,28 +711,9 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         </div>
       </div>
 
-      {/* Quick Action Cards (4 Cards) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
-        {quickActions.map((action, idx) => {
-          const Icon = action.icon;
-          return (
-            <button
-              key={idx}
-              onClick={() => setActiveTab(action.id)}
-              className={`
-                p-3.5 rounded-2xl border ${action.color} text-left transition-all duration-200 hover:-translate-y-0.5 shadow-2xs hover:shadow-md flex flex-col justify-between h-22
-              `}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="text-xs font-bold leading-tight truncate">{action.title}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* Dynamic AI Memory Pill Bar */}
       {(sessionState.name || sessionState.district || sessionState.business || sessionState.businessIdea || sessionState.budget || sessionState.animalType || sessionState.productType || sessionState.subCategory || sessionState.landAvailable !== null || sessionState.shedAvailable !== null) && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 mb-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl text-xs font-semibold text-[#0F3D2E] animate-in fade-in slide-in-from-top-1 duration-300 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 my-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl text-xs font-semibold text-[#0F3D2E] animate-in fade-in slide-in-from-top-1 duration-300 shadow-2xs">
           <span className="flex items-center space-x-1 text-[11px] font-black uppercase text-emerald-900 tracking-wider">
             <Sparkles className="w-3.5 h-3.5 text-[#C28A17] animate-pulse" />
             <span>AI Memory:</span>
@@ -642,128 +779,417 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         </div>
       )}
 
-      {/* Conversation Messages Display */}
-      <div className="bg-[#FAF8F5] rounded-2xl p-4 min-h-[220px] max-h-[300px] overflow-y-auto space-y-3 border border-stone-200/60 mb-4 custom-scrollbar">
-        {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
-          >
-            <div className={`
-              max-w-[85%] sm:max-w-[78%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-xs
-              ${msg.sender === 'user' 
-                ? 'bg-[#0F3D2E] text-white rounded-tr-xs' 
-                : 'bg-white text-stone-800 border border-stone-200/80 rounded-tl-xs'
-              }
-            `}>
-              <div className="flex items-center space-x-1.5 mb-1 opacity-80 text-[10px] font-semibold">
-                {msg.sender === 'user' ? (
-                  <>
-                    <span>You (Voice Input)</span>
-                    <User className="w-3 h-3 text-amber-300" />
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3 h-3 text-[#C28A17]" />
-                    <span className="text-[#0F3D2E] font-bold">UdyamSarthi</span>
-                    {autoSpeak && (
-                      <button 
+      {/* Main Grid: Left Chat Area & Right Live Business Plan Dossier Widget */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 my-4">
+        
+        {/* Left Column: Chat Window & Controls (Primary, 8 of 12 columns) */}
+        <div className="lg:col-span-8 space-y-4 flex flex-col justify-between">
+          
+          {/* Quick Choice Buttons for Initial Greeting */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {quickActions.map((action, idx) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setActiveTab(action.id)}
+                  className={`
+                    p-3.5 rounded-2xl border ${action.color} text-left transition-all duration-200 hover:-translate-y-0.5 shadow-2xs hover:shadow-md flex flex-col justify-between h-20
+                  `}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-xs font-bold leading-tight truncate">{action.title}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Idea & Input Helper Buttons */}
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => handleSend("Suggest best business ideas for my location")}
+              className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-stone-800 border border-emerald-200 text-left transition flex items-center space-x-2 shadow-2xs group"
+            >
+              <div className="p-1.5 rounded-lg bg-emerald-700/10 text-[#0F3D2E] group-hover:scale-110 transition">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold leading-tight">✨ Suggest Ideas</span>
+            </button>
+
+            <button
+              onClick={() => toggleListening()}
+              className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-stone-800 border border-rose-200 text-left transition flex items-center space-x-2 shadow-2xs group"
+            >
+              <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-700 group-hover:scale-110 transition">
+                <Mic className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold leading-tight">🎙 Voice Input</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const el = document.getElementById('saarthi-text-input');
+                if (el) el.focus();
+              }}
+              className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-stone-800 border border-blue-200 text-left transition flex items-center space-x-2 shadow-2xs group"
+            >
+              <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-700 group-hover:scale-110 transition">
+                <Keyboard className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold leading-tight">⌨ Type My Idea</span>
+            </button>
+          </div>
+
+          {/* Chat Message Window */}
+          <div className="bg-[#FAF8F5] rounded-2xl p-4 min-h-[380px] max-h-[500px] overflow-y-auto space-y-3 border border-stone-200/60 custom-scrollbar">
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
+              >
+                <div className={`
+                  max-w-[94%] sm:max-w-[88%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs
+                  ${msg.sender === 'user' 
+                    ? 'bg-[#0F3D2E] text-white rounded-tr-xs' 
+                    : 'bg-white text-stone-800 border border-stone-200/80 rounded-tl-xs'
+                  }
+                `}>
+                  <div className="flex items-center space-x-1.5 mb-1 opacity-80 text-[10px] font-semibold">
+                    {msg.sender === 'user' ? (
+                      <>
+                        <span>{msg.isVoice ? 'YOU 🎙️' : 'YOU'}</span>
+                        <User className="w-3 h-3 text-amber-300" />
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-[#C28A17]" />
+                        <span className="text-[#0F3D2E] font-bold">UdyamSaarthi</span>
+                      </>
+                    )}
+                    <span className="ml-auto">{msg.timestamp}</span>
+                  </div>
+                  
+                  <p className="whitespace-pre-line font-medium text-xs sm:text-sm leading-relaxed">{msg.text}</p>
+
+                  {/* Maps Integration Button */}
+                  {msg.actionType === 'OPEN_MAP' && (
+                    <div className="mt-3 pt-2 border-t border-stone-100 flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (msg.actionPayload) {
+                            setMapSearchState({
+                              query: msg.actionPayload.search_query || msg.actionPayload.category || '',
+                              category: msg.actionPayload.category || 'ALL',
+                              radius_km: msg.actionPayload.radius_km || 5.0
+                            });
+                          }
+                          setActiveTab('market');
+                        }}
+                        className="bg-[#0F3D2E] hover:bg-[#165440] text-amber-300 font-bold py-2 px-3.5 rounded-xl text-xs flex items-center space-x-1.5 transition shadow-sm"
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-amber-300" />
+                        <span>
+                          {language === 'hi' 
+                            ? `📍 मानचित्र पर खोजें (${msg.actionPayload?.search_query || 'बाज़ार'})`
+                            : (language === 'te' 
+                                ? `📍 మ్యాప్‌లో చూడండి (${msg.actionPayload?.search_query || 'వ్యాపారాలు'})`
+                                : `📍 Open on Map (${msg.actionPayload?.search_query || 'Nearby Places'})`)}
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Action Buttons if available */}
+                  {(msg.actionType === 'CONFIRM_BUSINESS_PLAN' || msg.actionType === 'OFFER_ANALYSIS') && msg.intentData && (
+                    <div className="mt-3 p-3 bg-amber-50/90 border border-amber-300 rounded-xl space-y-2 text-stone-800 shadow-2xs">
+                      <div className="font-bold text-[#0F3D2E] text-xs">
+                        {t.confirmPlanTitle || "Here's what I understood about your business idea:"}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-[11px] bg-white p-2.5 rounded-lg border border-amber-200">
+                        <div><span className="text-stone-500">Business:</span> <strong className="text-stone-900">{msg.intentData.businessIdea}</strong></div>
+                        <div><span className="text-stone-500">Location:</span> <strong className="text-stone-900">{msg.intentData.location?.village || dossier.location || 'Local'}, {msg.intentData.location?.district || 'District'}</strong></div>
+                        <div><span className="text-stone-500">Capital:</span> <strong className="text-emerald-700">₹{(msg.intentData.capital || 300000).toLocaleString('en-IN')}</strong></div>
+                        <div><span className="text-stone-500">Scale:</span> <strong className="capitalize text-stone-900">{msg.intentData.scale || 'Small'}</strong></div>
+                      </div>
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => handleConfirmAndAnalyze(msg.intentData)}
+                          className="bg-[#0F3D2E] text-amber-300 font-bold px-3.5 py-1.5 rounded-lg text-xs hover:brightness-110 shadow-xs flex items-center space-x-1"
+                        >
+                          <span>🚀 {t.analyzeMyBusiness || "Analyze My Business"}</span>
+                        </button>
+                        <button
+                          onClick={() => handleSend("Let me edit the details")}
+                          className="bg-stone-200 text-stone-700 font-semibold px-2.5 py-1.5 rounded-lg text-xs hover:bg-stone-300"
+                        >
+                          {t.editDetails || "Edit Details"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {msg.actionType === 'UPDATE_OR_CREATE_PLAN' && (
+                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-300 rounded-xl space-y-2 shadow-2xs">
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          onClick={() => handleConfirmUpdatePlan(msg.existingPlanId, msg.intentData)}
+                          className="bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-emerald-900"
+                        >
+                          {t.updateExistingPlan || "Update Existing Plan"}
+                        </button>
+                        <button
+                          onClick={() => handleConfirmAndAnalyze(msg.intentData)}
+                          className="bg-[#0F3D2E] text-amber-300 font-bold px-3 py-1.5 rounded-lg text-xs hover:brightness-110"
+                        >
+                          {t.createNewPlan || "Create New Plan"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(msg.actionType === 'SHOW_RECOMMENDATIONS' || msg.actionType === 'SHOW_PERSONAL_RECOMMENDATION') && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 pt-2 border-t border-stone-100">
+                      <button
+                        onClick={() => {
+                          if (msg.planId && setActivePlanId) setActivePlanId(msg.planId);
+                          setActiveTab('recommendations');
+                        }}
+                        className="bg-[#0F3D2E] text-amber-300 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center space-x-1 hover:brightness-110 shadow-sm sm:col-span-2"
+                      >
+                        <span>✨ {t.viewFullAnalysis || "View Business Analysis →"}</span>
+                        <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('market')}
+                        className="bg-emerald-800 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center space-x-1 hover:brightness-110 shadow-sm"
+                      >
+                        <span>📍 Market Map</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Replay Voice Audio Button */}
+                  {msg.sender === 'ai' && (
+                    <div className="flex items-center justify-between pt-1 mt-1 border-t border-stone-100/50">
+                      {isSpeaking ? (
+                        <button
+                          onClick={stopSpeaking}
+                          className="flex items-center space-x-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md text-[10px] font-bold"
+                        >
+                          <VolumeX className="w-3 h-3 text-amber-600 animate-pulse" />
+                          <span>Speaking... Tap to Stop</span>
+                        </button>
+                      ) : <span />}
+
+                      <button
                         onClick={() => speakVoice(msg.text, language)}
-                        className="ml-2 text-stone-400 hover:text-[#0F3D2E]"
-                        title="Replay Voice"
+                        className="flex items-center space-x-1 text-stone-400 hover:text-[#0F3D2E] text-[10px] font-semibold transition ml-auto"
+                        title="Replay Voice Audio"
                       >
                         <Volume2 className="w-3 h-3" />
+                        <span>Replay Voice</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Realtime Live Speech Feedback while speaking */}
+            {isListening && (
+              <div className="flex justify-center my-2 animate-in fade-in duration-150">
+                <div className="bg-emerald-50 border-2 border-emerald-500/50 rounded-2xl p-3 text-xs max-w-lg w-full shadow-md">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="flex items-center space-x-1.5 text-[11px] uppercase font-bold text-emerald-800">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                      <span>Listening to Your Voice:</span>
+                    </span>
+                    {liveTranscript && (
+                      <button
+                        type="button"
+                        onClick={() => stopListeningVoice(true)}
+                        className="px-2.5 py-1 bg-[#0F3D2E] text-amber-300 rounded-lg text-[10px] font-bold hover:bg-[#165440] transition shadow-xs"
+                      >
+                        Done Speaking (Send) ↵
                       </button>
                     )}
-                  </>
-                )}
-                <span className="ml-auto">{msg.timestamp}</span>
-              </div>
-              <p className="whitespace-pre-line font-medium text-xs sm:text-sm">{msg.text}</p>
-
-              {msg.actionType === 'OPEN_MAP' && (
-                <div className="mt-3 pt-2 border-t border-stone-100 flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => {
-                      if (msg.actionPayload) {
-                        setMapSearchState({
-                          query: msg.actionPayload.search_query || msg.actionPayload.category || '',
-                          category: msg.actionPayload.category || 'ALL',
-                          radius_km: msg.actionPayload.radius_km || 5.0
-                        });
-                      }
-                      setActiveTab('market');
-                    }}
-                    className="bg-[#0F3D2E] hover:bg-[#165440] text-amber-300 font-bold py-2 px-3.5 rounded-xl text-xs flex items-center space-x-1.5 transition shadow-sm"
-                  >
-                    <MapPin className="w-3.5 h-3.5 text-amber-300" />
-                    <span>
-                      {language === 'hi' 
-                        ? `📍 मानचित्र पर खोजें (${msg.actionPayload?.search_query || 'बाज़ार'})`
-                        : (language === 'te' 
-                            ? `📍 మ్యాప్‌లో చూడండి (${msg.actionPayload?.search_query || 'వ్యాపారాలు'})`
-                            : `📍 Open on Map (${msg.actionPayload?.search_query || 'Nearby Places'})`)}
-                    </span>
-                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                  </button>
+                  </div>
+                  <p className="text-stone-800 font-medium italic text-sm">
+                    {liveTranscript ? `"${liveTranscript}"` : "Listening... Speak your name, village, or business question"}
+                  </p>
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
+              </div>
+            )}
 
-        {/* Realtime Live Speech Feedback while speaking */}
-        {isListening && (
-          <div className="flex justify-center my-2 animate-in fade-in duration-150">
-            <div className="bg-emerald-50 border-2 border-emerald-500/50 rounded-2xl p-3 text-xs max-w-lg w-full shadow-md">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="flex items-center space-x-1.5 text-[11px] uppercase font-bold text-emerald-800">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-                  <span>Listening to Your Voice:</span>
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-xs p-3.5 flex items-center space-x-2 text-xs text-stone-500 font-medium">
+                  <Loader2 className="w-4 h-4 text-[#0F3D2E] animate-spin" />
+                  <span>Saarthi is analyzing your business context...</span>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Right Column: Live Business Plan Dossier Widget (Secondary, 4 of 12 columns) */}
+        <div className="lg:col-span-4 bg-gradient-to-br from-[#0F3D2E]/5 to-emerald-50/60 rounded-2xl p-4 border border-emerald-900/15 flex flex-col justify-between space-y-3">
+          <div>
+            <div className="flex items-center justify-between pb-2 border-b border-emerald-900/10 mb-2">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-[#0F3D2E]" />
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0F3D2E]">
+                  LIVE BUSINESS PLAN DOSSIER
+                </h3>
+              </div>
+              <span className="bg-emerald-100 text-[#0F3D2E] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                Auto-Updating
+              </span>
+            </div>
+
+            {/* Completeness Progress Bar */}
+            <div className="mb-3 bg-white p-2 rounded-xl border border-emerald-900/10">
+              <div className="flex justify-between items-center text-[10px] font-bold text-stone-700 mb-1">
+                <span>Dossier Completeness</span>
+                <span className="text-emerald-700">{dossier.completeness || 15}%</span>
+              </div>
+              <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
+                <div 
+                  className="bg-emerald-600 h-1.5 rounded-full transition-all duration-500" 
+                  style={{ width: `${dossier.completeness || 15}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {/* Field 1: Entrepreneur */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">1. Entrepreneur</span>
+                  <span className="font-bold text-stone-900">{dossier.name}</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> Captured
                 </span>
-                {liveTranscript && (
-                  <button
-                    type="button"
-                    onClick={() => stopListeningVoice(true)}
-                    className="px-2.5 py-1 bg-[#0F3D2E] text-amber-300 rounded-lg text-[10px] font-bold hover:bg-[#165440] transition shadow-xs"
-                  >
-                    Done Speaking (Send) ↵
-                  </button>
+              </div>
+
+              {/* Field 2: Business Idea */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">2. Business Idea</span>
+                  <span className="font-bold text-stone-900">
+                    {dossier.businessIdea || <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.businessIdea ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
                 )}
               </div>
-              <p className="text-stone-800 font-medium italic text-sm">
-                {liveTranscript ? `"${liveTranscript}"` : "Listening... Speak your name, village, or business question"}
-              </p>
+
+              {/* Field 3: Location */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">3. Location</span>
+                  <span className="font-bold text-stone-900">
+                    {dossier.location || <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.location ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
+                )}
+              </div>
+
+              {/* Field 4: Available Capital */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">4. Available Capital</span>
+                  <span className="font-extrabold text-emerald-800">
+                    {dossier.capital ? `₹${(typeof dossier.capital === 'number' ? dossier.capital : parseInt(dossier.capital) || 0).toLocaleString('en-IN')}` : <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.capital ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
+                )}
+              </div>
+
+              {/* Field 5: Land / Workspace */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">5. Land / Workspace</span>
+                  <span className="font-bold text-stone-900">
+                    {dossier.land || <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.land ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
+                )}
+              </div>
+
+              {/* Field 6: Experience & Skills */}
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">6. Core Skills</span>
+                  <span className="font-bold text-stone-900 capitalize truncate max-w-[120px] block">
+                    {dossier.experience || <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.experience ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Quick Name Suggestions on initial greeting */}
-        {messages.length === 1 && !isLoading && !isListening && (
-          <div className="mt-2 pt-2 border-t border-stone-200/50 flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-stone-500 font-medium">Quick suggestions:</span>
-            {['Ramesh Kumar', 'Suresh Maurya', 'Sunita Patil', 'Priya Sharma'].map((name, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => handleSend(name)}
-                className="px-2.5 py-1 rounded-full bg-white hover:bg-[#0F3D2E] text-stone-700 hover:text-amber-300 text-[11px] font-semibold border border-stone-200 shadow-2xs transition"
-              >
-                {name}
-              </button>
-            ))}
+          <div className="pt-2 border-t border-emerald-900/10">
+            <button
+              onClick={() => {
+                if (dossier.businessIdea) {
+                  handleConfirmAndAnalyze();
+                } else {
+                  handleSend("I want to create my personalized business plan");
+                }
+              }}
+              className="w-full bg-[#0F3D2E] hover:bg-[#165440] text-amber-300 font-bold py-2.5 rounded-xl text-xs shadow-sm transition flex items-center justify-center space-x-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>{dossier.businessIdea ? "Analyze Business Plan Now" : "Create Business Plan"}</span>
+            </button>
           </div>
-        )}
+        </div>
 
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-xs p-3.5 flex items-center space-x-2 text-xs text-stone-500 font-medium shadow-xs">
-              <Loader2 className="w-4 h-4 text-[#0F3D2E] animate-spin" />
-              <span>UdyamSarthi is evaluating local market & calculations...</span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Main Large Central Voice Interaction Microphone */}
@@ -862,6 +1288,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         <div className="flex items-center bg-[#FAF8F5] border border-stone-300 focus-within:border-[#0F3D2E] focus-within:ring-2 focus-within:ring-[#0F3D2E]/10 rounded-2xl px-3.5 py-2 shadow-xs transition">
           <Keyboard className="w-4 h-4 text-stone-400 mr-2 shrink-0" />
           <input
+            id="saarthi-text-input"
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}

@@ -24,10 +24,10 @@ export default function HomeDashboard({
       />
 
       {/* 2. Main Content Grid (Central Voice AI Chat + Right Context Panel) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Left / Center: Central Voice-First AI Saarthi Area */}
-        <div className="lg:col-span-2">
+        {/* Left / Center: Central Voice-First AI Saarthi Area (Primary, 68-72% width) */}
+        <div className="lg:col-span-8">
           <SaarthiHomeChat
             profile={profile}
             onProfileUpdate={onProfileUpdate}
@@ -36,8 +36,8 @@ export default function HomeDashboard({
           />
         </div>
 
-        {/* Right Column: Location + Green Opportunity Dashboard */}
-        <div className="lg:col-span-1">
+        {/* Right Column: Location + Green Opportunity Dashboard (Secondary, 28-32% width) */}
+        <div className="lg:col-span-4">
           <RightContextPanel
             profile={profile}
             onProfileUpdate={onProfileUpdate}

@@ -1,7 +1,6 @@
 import React from 'react';
 import { 
   Home, 
-  MessageSquare, 
   BarChart3, 
   MapPin, 
   Wallet, 
@@ -21,7 +20,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, la
 
   const mainNavItems = [
     { id: 'home', label: t.navHome || 'HOME', icon: Home },
-    { id: 'chat', label: t.navConversations || 'My Conversations', icon: MessageSquare },
     { id: 'recommendations', label: t.navBusinessAnalysis || t.navAnalysis || 'Business Analysis', icon: BarChart3 },
     { id: 'market', label: t.navLocalMarket || t.navMarket || 'Local Market Insights', icon: MapPin },
     { id: 'finance', label: t.navFinancialPlanner || t.navFinance || 'Financial Planner', icon: Wallet },

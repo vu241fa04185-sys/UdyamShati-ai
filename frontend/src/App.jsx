@@ -123,9 +123,12 @@ export default function App() {
     }
   };
 
-  // Blank Entrepreneur Profile initialized with null/empty until user provides
+  // Default Entrepreneur Profile initialized dynamically from current session
+  const initialSession = authService.getCurrentSession();
+  const initialName = initialSession?.user?.name || initialSession?.name || null;
+
   const [profile, setProfile] = useState({
-    name: null,
+    name: initialName,
     phone: '',
     photo: '',
     social_category: null,
@@ -188,8 +191,8 @@ export default function App() {
   // Synchronize authenticated user identity into profile state
   useEffect(() => {
     if (auth && auth.isAuthenticated) {
-      const userName = auth.name || (auth.user && auth.user.name);
-      const userPhone = auth.phone || (auth.user && auth.user.phone);
+      const userName = auth.user?.name || auth.name;
+      const userPhone = auth.user?.mobile || auth.user?.phone || auth.phone;
       if (userName || userPhone) {
         setProfile((prev) => ({
           ...prev,
