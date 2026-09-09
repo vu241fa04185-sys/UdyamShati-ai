@@ -6,7 +6,12 @@ import {
   ShieldCheck, 
   Calculator, 
   BarChart3, 
-  ChevronRight
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  CheckCircle2,
+  FileText,
+  Sliders
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -21,6 +26,13 @@ import {
 import { translations } from '../locales/translations';
 import { useSaarthi } from '../context/SaarthiContext';
 
+const SCHEME_PRESETS = [
+  { id: 'NBCFDC_TERM', nameEn: 'NBCFDC Term Loan Scheme', nameHi: 'एनबीसीएफडीसी टर्म लोन योजना', interestRate: 6.0, tenureYears: 8, badge: '6.0% Term Loan' },
+  { id: 'NSFDC_MICRO', nameEn: 'NSFDC Micro Credit Scheme', nameHi: 'एनएसएफडीसी माइक्रो क्रेडिट योजना', interestRate: 5.0, tenureYears: 7, badge: '5.0% Micro Loan' },
+  { id: 'PMEGP_MUDRA', nameEn: 'PMEGP / MUDRA Tarun Loan', nameHi: 'पीएमईजीपी / मुद्रा तरुण ऋण', interestRate: 8.5, tenureYears: 7, badge: '8.5% Subsidy Loan' },
+  { id: 'STANDUP_INDIA', nameEn: 'Stand-Up India Scheme', nameHi: 'स्टैंड-अप इंडिया योजना', interestRate: 7.5, tenureYears: 7, badge: '7.5% Concessional' }
+];
+
 export default function FinanceDashboard({ recommendations, profile, lang = 'en' }) {
   const t = translations[lang] || translations.en;
   
@@ -29,27 +41,41 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
     saarthiCtx = useSaarthi();
   } catch (e) {}
 
+  const activePlan = saarthiCtx?.activePlan;
   const activePayload = saarthiCtx?.getActiveRecommendationPayload() || recommendations;
-  const topRec = activePayload?.top_recommendation;
+  const topRec = activePayload?.top_recommendation || (activePlan ? activePlan.rawRecommendation : null);
   const fin = topRec?.financials || {};
 
   // Selected enterprise
   const initialBusinessId = topRec?.category_code || 'VEGETABLE_FARMING';
   const [selectedBusinessId, setSelectedBusinessId] = useState(initialBusinessId);
 
-  // Core Real Financial Inputs (initialized with user's actual profile if available)
+  // Core State
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState(null);
+  const [showExpenseBreakdown, setShowExpenseBreakdown] = useState(false);
+  const [projectionViewMode, setProjectionViewMode] = useState('chart');
+
+  // Core Real Financial Inputs (initialized with active plan or user profile)
   const [availableCapital, setAvailableCapital] = useState(
     profile?.available_capital !== undefined ? profile.available_capital : 300000
   );
   const [projectCost, setProjectCost] = useState(
-    fin.project_cost || (profile?.available_capital ? Math.round(profile.available_capital / 0.10) : 300000)
+    fin.project_cost || activePlan?.requiredInvestment || (profile?.available_capital ? Math.round(profile.available_capital / 0.10) : 300000)
   );
   const [monthlyRevenue, setMonthlyRevenue] = useState(
-    fin.projected_monthly_revenue || 65000
+    fin.projected_monthly_revenue || (activePlan?.financialAnalysis?.expectedMonthlyRevenue ? parseInt(activePlan.financialAnalysis.expectedMonthlyRevenue) : 65000)
   );
   const [monthlyExpense, setMonthlyExpense] = useState(
-    fin.projected_monthly_expense || 41000
+    fin.projected_monthly_expense || (activePlan?.financialAnalysis?.expectedMonthlyExpense ? parseInt(activePlan.financialAnalysis.expectedMonthlyExpense) : 41000)
   );
+
+  const [expenseBreakdown, setExpenseBreakdown] = useState({
+    rawMaterial: 22000,
+    labor: 10000,
+    utilities: 4000,
+    rent: 3000,
+    transport: 2000
+  });
 
   // Scheme and Loan Configuration
   const [selectedSchemeId, setSelectedSchemeId] = useState('NBCFDC_TERM');
@@ -58,12 +84,18 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
   const [tenureYears, setTenureYears] = useState(fin.tenure_years || 7);
   const [moratoriumMonths, setMoratoriumMonths] = useState(6);
 
-  // Sync state when active business plan changes
-  React.useEffect(() => {
-    if (fin.project_cost) setProjectCost(fin.project_cost);
+  // Sync state when active business plan changes dynamically
+  useEffect(() => {
+    const activeCost = fin.project_cost || activePlan?.requiredInvestment;
+    const activeRev = fin.projected_monthly_revenue || (activePlan?.financialAnalysis?.expectedMonthlyRevenue ? parseInt(activePlan.financialAnalysis.expectedMonthlyRevenue) : null);
+    const activeExp = fin.projected_monthly_expense || (activePlan?.financialAnalysis?.expectedMonthlyExpense ? parseInt(activePlan.financialAnalysis.expectedMonthlyExpense) : null);
+
+    if (activeCost) setProjectCost(activeCost);
+    if (activeRev) setMonthlyRevenue(activeRev);
+    if (activeExp) setMonthlyExpense(activeExp);
     if (fin.interest_rate_pct) setInterestRate(fin.interest_rate_pct);
     if (fin.tenure_years) setTenureYears(fin.tenure_years);
-  }, [topRec?.name_en, fin.project_cost]);
+  }, [activePlan?.id, topRec?.name_en, fin.project_cost, fin.projected_monthly_revenue]);
 
   // Reducing balance EMI calculation
   const calculateEMI = (P, rAnnual, yrs) => {
@@ -77,6 +109,7 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
 
   // Calculations
   const ownMarginRequired = Math.round(projectCost * (marginPct / 100));
+  const ownMargin = ownMarginRequired;
   const loanRequired = Math.max(0, projectCost - ownMarginRequired);
   const liveEmi = calculateEMI(loanRequired, interestRate, tenureYears);
   
@@ -93,15 +126,20 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
   const liveDscr = annualDebtService > 0 ? (annualCashFlow / annualDebtService).toFixed(2) : '9.99';
   const monthlyNetSurplus = monthlyProfit - liveEmi;
 
+  const breakEvenMonthlyRevenue = Math.round(monthlyExpense + liveEmi);
+  const safetyMarginPct = monthlyRevenue > breakEvenMonthlyRevenue 
+    ? Math.round(((monthlyRevenue - breakEvenMonthlyRevenue) / monthlyRevenue) * 100) 
+    : 0;
+
   const yearLabel = t.yearPrefix || 'Year';
 
   // Chart dataset for 5-Year Projection with localized year labels
   const rawProjections = fin.projections || [
-    { yearNum: 1, revenue: 744000, expenses: 456000 },
-    { yearNum: 2, revenue: 781200, expenses: 471960 },
-    { yearNum: 3, revenue: 820260, expenses: 488478 },
-    { yearNum: 4, revenue: 861273, expenses: 505575 },
-    { yearNum: 5, revenue: 904336, expenses: 523270 }
+    { yearNum: 1, revenue: Math.round(monthlyRevenue * 12), expenses: Math.round(monthlyExpense * 12) },
+    { yearNum: 2, revenue: Math.round(monthlyRevenue * 12 * 1.05), expenses: Math.round(monthlyExpense * 12 * 1.035) },
+    { yearNum: 3, revenue: Math.round(monthlyRevenue * 12 * 1.10), expenses: Math.round(monthlyExpense * 12 * 1.07) },
+    { yearNum: 4, revenue: Math.round(monthlyRevenue * 12 * 1.15), expenses: Math.round(monthlyExpense * 12 * 1.11) },
+    { yearNum: 5, revenue: Math.round(monthlyRevenue * 12 * 1.20), expenses: Math.round(monthlyExpense * 12 * 1.15) }
   ];
 
   const chartData = rawProjections.map((item, idx) => {
@@ -115,6 +153,35 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
     };
   });
 
+  const dynamicProjections = chartData;
+
+  const getSchemeName = (sc) => {
+    if (lang === 'hi') return sc.nameHi || sc.nameEn;
+    return sc.nameEn;
+  };
+
+  const handleSchemeChange = (schemeId) => {
+    setSelectedSchemeId(schemeId);
+    const found = SCHEME_PRESETS.find(s => s.id === schemeId);
+    if (found) {
+      setInterestRate(found.interestRate);
+      setTenureYears(found.tenureYears);
+    }
+  };
+
+  const handleDirectExpenseChange = (val) => {
+    const num = Math.max(0, parseFloat(val) || 0);
+    setMonthlyExpense(num);
+  };
+
+  const handleItemizedExpenseChange = (key, val) => {
+    const num = Math.max(0, parseFloat(val) || 0);
+    const updated = { ...expenseBreakdown, [key]: num };
+    setExpenseBreakdown(updated);
+    const total = Object.values(updated).reduce((acc, curr) => acc + curr, 0);
+    setMonthlyExpense(total);
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12 font-sans">
       
@@ -126,7 +193,7 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
             {t.lendingStructureTag || "National Concessional Lending Structure • MoSJE Framework"}
           </span>
           <h2 className="text-lg font-bold text-slate-900">
-            {t.financeTitle || "Financial Structuring, Cash Flow & Debt Service Coverage Ratio (DSCR)"}
+            {activePlan?.businessName || (lang === 'hi' ? 'वित्तीय संरचना एवं डीएससीआर विश्लेषण' : "Financial Structuring, Cash Flow & DSCR Analysis")}
           </h2>
           <p className="text-xs text-slate-500">
             {t.financeSubtitle || "10% beneficiary margin and 90% concessional term loan via State Channelizing Agencies (NBCFDC/NSFDC)."}
@@ -644,7 +711,7 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <TableIcon className="w-3.5 h-3.5 mr-1" />
+              <FileText className="w-3.5 h-3.5 mr-1" />
               {lang === 'hi' ? 'खाता बही (टेबल)' : 'Ledger Table'}
             </button>
           </div>
@@ -672,51 +739,34 @@ export default function FinanceDashboard({ recommendations, profile, lang = 'en'
           </div>
         )}
 
-        {/* Operating Economics & Break-Even Box */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center">
-            <TrendingUp className="w-4 h-4 mr-1.5 text-teal-600" />
-            {t.operatingEconomicsTitle || "Monthly Operating Economics"}
-          </h3>
-
-          <div className="space-y-3 text-xs">
-            <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">{t.projectedMonthlyRevenue || "Projected Monthly Revenue"}</span>
-              <span className="font-bold text-slate-900">₹{monthlyRevenue.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">{t.monthlyOperatingExpenses || "Monthly Operating Expenses"}</span>
-              <span className="font-bold text-slate-700">₹{monthlyExpense.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">{t.operatingProfitPreDebt || "Operating Profit (Pre-Debt)"}</span>
-              <span className="font-bold text-emerald-700">₹{monthlyProfit.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">{t.monthlyLoanEMI || "Monthly Loan EMI"}</span>
-              <span className="font-bold text-rose-700">-₹{liveEmi.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-              <div className="flex justify-between text-emerald-950 font-bold">
-                <span>{t.discretionarySurplus || "Discretionary Surplus"}</span>
-                <span className="text-sm text-emerald-700">₹{(monthlyProfit - liveEmi).toLocaleString('en-IN')}/mo</span>
-              </div>
-              <span className="text-[10px] text-emerald-700 mt-1 block">
-                {t.retainedHouseholdIncome || "Retained rural household income after honoring debt service."}
-              </span>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 space-y-1">
-              <span className="font-bold block text-[11px]">{t.breakEvenMonthlyRevenue || "Break-Even Monthly Revenue:"}</span>
-              <span className="text-base font-extrabold text-slate-900">
-                ₹{(fin.break_even_monthly_revenue || 35000).toLocaleString('en-IN')}
-              </span>
-              <span className="text-[10px] text-slate-500 block">
-                {Math.round(((monthlyRevenue - (fin.break_even_monthly_revenue || 35000)) / monthlyRevenue) * 100)}% {t.marginOfSafety || "operating above break-even margin of safety."}
-              </span>
-            </div>
+        {/* Table View */}
+        {projectionViewMode === 'table' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                <tr>
+                  <th className="py-2.5 px-3">Year</th>
+                  <th className="py-2.5 px-3 text-right">Annual Revenue</th>
+                  <th className="py-2.5 px-3 text-right">Operating Expenses</th>
+                  <th className="py-2.5 px-3 text-right">Debt Service (EMI)</th>
+                  <th className="py-2.5 px-3 text-right">Net Cash Surplus</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {dynamicProjections.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/50">
+                    <td className="py-2.5 px-3 font-bold text-slate-800">{row.year}</td>
+                    <td className="py-2.5 px-3 text-right font-semibold text-emerald-700">₹{row.revenue.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 text-right font-semibold text-slate-600">₹{row.expenses.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 text-right font-semibold text-rose-600">₹{row.debt_service.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-emerald-800">₹{row.net_cash_flow.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
+
       </div>
 
     </div>
