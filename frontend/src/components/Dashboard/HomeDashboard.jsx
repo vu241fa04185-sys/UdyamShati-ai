@@ -19,6 +19,7 @@ export default function HomeDashboard({
       <HeroBanner 
         userName={userName} 
         onStartAnalysis={() => setActiveTab('recommendations')} 
+        language={language}
       />
 
       {/* 2. Main Content Grid (Central Voice AI Chat + Right Context Panel) */}
@@ -40,13 +41,14 @@ export default function HomeDashboard({
             profile={profile}
             onProfileUpdate={onProfileUpdate}
             setActiveTab={setActiveTab}
+            language={language}
           />
         </div>
 
       </div>
 
       {/* 3. Lower Home Content: Why UdyamSaarthi + Helpline */}
-      <LowerDashboard />
+      <LowerDashboard language={language} />
     </div>
   );
 }

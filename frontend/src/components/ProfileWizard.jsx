@@ -1,29 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  User, 
-  MapPin, 
-  Coins, 
-  Tractor, 
-  Droplet, 
-  Zap, 
-  Shield, 
-  RotateCcw, 
-  CheckCircle2, 
+import {
+  User,
+  MapPin,
+  Coins,
+  Tractor,
+  Droplet,
+  Zap,
+  Shield,
+  RotateCcw,
+  CheckCircle2,
   ArrowRight,
   Sparkles,
   Navigation,
-  Mic, 
-  MicOff, 
-  Send, 
-  Volume2, 
+  Mic,
+  MicOff,
+  Send,
+  Volume2,
   VolumeX,
-  FileCheck2, 
-  Edit3, 
+  FileCheck2,
+  Edit3,
   Bot,
   HelpCircle,
   CornerDownRight,
   Check,
-  ChevronRight
+  ChevronRight,
+  Camera,
+  Upload,
+  Trash2,
+  Building2,
+  Home,
+  Save
 } from 'lucide-react';
 import axios from 'axios';
 import { detectAccurateLocation } from '../utils/geolocation';
@@ -31,11 +37,52 @@ import { translations } from '../locales/translations';
 
 export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang }) {
   const t = translations[lang] || translations.en;
-  
+
   // Registration Mode: 'manual' (self-fill) or 'ai' (interactive step-by-step AI interviewer)
   const [regMode, setRegMode] = useState('ai');
   const [isLocating, setIsLocating] = useState(false);
   const [gpsStatus, setGpsStatus] = useState(null);
+  const [profileSaveNotice, setProfileSaveNotice] = useState(false);
+  const photoInputRef = useRef(null);
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Photo must be less than 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setProfile((prev) => ({
+        ...prev,
+        photo: ev.target.result
+      }));
+      setProfileSaveNotice(true);
+      setTimeout(() => setProfileSaveNotice(false), 2500);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto = () => {
+    setProfile((prev) => ({
+      ...prev,
+      photo: ''
+    }));
+    if (photoInputRef.current) photoInputRef.current.value = '';
+    setProfileSaveNotice(true);
+    setTimeout(() => setProfileSaveNotice(false), 2500);
+  };
+
+  const handleSaveProfileDirect = async () => {
+    try {
+      await axios.post('/api/profile', profile);
+    } catch (e) {
+      console.warn("Direct profile sync:", e);
+    }
+    setProfileSaveNotice(true);
+    setTimeout(() => setProfileSaveNotice(false), 3000);
+  };
 
   // Step-by-step conversational interview state
   // Steps: 0: name, 1: location, 2: capital, 3: land, 4: social_category, 5: utilities, 6: skills, 7: review
@@ -320,7 +367,7 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
         };
         setAiChatMessages(prev => [...prev, userMsg]);
 
-        const confirmText = lang === 'hi' 
+        const confirmText = lang === 'hi'
           ? `✓ आपकी लोकेशन (${result.village_name}, ${result.district}) दर्ज कर ली गई है!`
           : `✓ Location locked for ${result.village_name}, ${result.district}!`;
 
@@ -496,7 +543,7 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
         const locMsg = lang === 'hi'
           ? `आपकी पंजीकृत लोकेशन: **${v}, ${d}** (${updated.latitude?.toFixed(4)}° N, ${updated.longitude?.toFixed(4)}° E) है। आप नीचे दिए बटन से कभी भी लाइव GPS बदल सकते हैं।`
           : `Your current location is **${v}, ${d}** (${updated.latitude?.toFixed(4)}° N, ${updated.longitude?.toFixed(4)}° E).`;
-        
+
         triggerQuestionForStep(stepIndex, updated, locMsg);
         return;
       }
@@ -554,7 +601,7 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
 
   // Skill options
   const skillOptions = [
-    'farming', 'agriculture', 'dairy', 'poultry', 
+    'farming', 'agriculture', 'dairy', 'poultry',
     'goat_farming', 'machinery', 'food_processing', 'retail', 'mechanic'
   ];
 
@@ -609,11 +656,10 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
         <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
           <button
             onClick={() => setRegMode('ai')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-extrabold transition ${
-              regMode === 'ai'
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-extrabold transition ${regMode === 'ai'
                 ? 'bg-emerald-700 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
           >
             <Bot className="w-4 h-4 text-amber-300" />
             <span>Option 1: Fill Using AI Interview (Guided Voice/Chat)</span>
@@ -621,17 +667,27 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
 
           <button
             onClick={() => setRegMode('manual')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-extrabold transition ${
-              regMode === 'manual'
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-extrabold transition ${regMode === 'manual'
                 ? 'bg-emerald-700 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
           >
             <Edit3 className="w-3.5 h-3.5" />
             <span>Option 2: Self-Fill Form (Manual)</span>
           </button>
         </div>
       </div>
+
+      {/* Profile Saved Toast Notification */}
+      {profileSaveNotice && (
+        <div className="p-4 bg-emerald-700 text-white text-xs font-bold rounded-2xl flex items-center justify-between shadow-lg animate-in fade-in duration-200">
+          <div className="flex items-center space-x-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+            <span>{t.profileSavedSuccess || 'Profile details (Photo, Gender, Address) updated successfully!'}</span>
+          </div>
+          <span className="text-[11px] bg-emerald-800/80 px-2.5 py-1 rounded-lg">Synchronized</span>
+        </div>
+      )}
 
       {/* Progress & Quick Archetype Presets */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
@@ -649,9 +705,9 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
               )}
             </div>
             <div className="w-48 bg-slate-200 h-2 rounded-full overflow-hidden mt-1">
-              <div 
-                className="bg-gradient-to-r from-emerald-500 to-teal-600 h-full rounded-full transition-all duration-500" 
-                style={{ width: `${completionPct}%` }} 
+              <div
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 h-full rounded-full transition-all duration-500"
+                style={{ width: `${completionPct}%` }}
               />
             </div>
           </div>
@@ -756,11 +812,10 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                         setIsAiSpeaking(false);
                       }
                     }}
-                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
-                      voiceGuidance 
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' 
+                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border ${voiceGuidance
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
                         : 'bg-slate-50 text-slate-600 border-slate-200'
-                    }`}
+                      }`}
                     title="Toggle audio voice reading"
                   >
                     {voiceGuidance ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
@@ -777,17 +832,16 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                     className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[90%] p-3.5 rounded-2xl space-y-2 ${
-                        msg.sender === 'user'
+                      className={`max-w-[90%] p-3.5 rounded-2xl space-y-2 ${msg.sender === 'user'
                           ? 'bg-emerald-800 text-white rounded-br-none shadow-sm'
                           : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between text-[10px] opacity-70 font-semibold">
                         <span>{msg.sender === 'user' ? 'You' : 'AI Registration Assistant'}</span>
                         <span>{msg.timestamp}</span>
                       </div>
-                      
+
                       <p className="leading-relaxed whitespace-pre-wrap font-medium">{msg.text}</p>
 
                       {/* Render Interactive Action Cards for the latest AI question */}
@@ -919,11 +973,10 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                                       key={item.key}
                                       type="button"
                                       onClick={() => toggleUtility(item.key)}
-                                      className={`p-2.5 rounded-xl text-left border text-xs font-bold flex items-center justify-between transition ${
-                                        checked 
-                                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' 
+                                      className={`p-2.5 rounded-xl text-left border text-xs font-bold flex items-center justify-between transition ${checked
+                                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
                                           : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                                      }`}
+                                        }`}
                                     >
                                       <span>{lang === 'hi' ? item.labelHi : item.labelEn}</span>
                                       {checked ? <Check className="w-3.5 h-3.5 text-white" /> : <span className="w-3 h-3 rounded-full border border-slate-300" />}
@@ -955,11 +1008,10 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                                       key={item.key}
                                       type="button"
                                       onClick={() => toggleSkill(item.key)}
-                                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                                        active
+                                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${active
                                           ? 'bg-emerald-600 text-white shadow-sm'
                                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                                      }`}
+                                        }`}
                                     >
                                       {active ? `✓ ${item.label}` : `+ ${item.label}`}
                                     </button>
@@ -1037,11 +1089,10 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
               <div className="flex items-center space-x-2">
                 <button
                   onClick={toggleAiListening}
-                  className={`p-3 rounded-xl transition shadow-xs ${
-                    isAiListening
+                  className={`p-3 rounded-xl transition shadow-xs ${isAiListening
                       ? 'bg-rose-600 text-white animate-pulse'
                       : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  }`}
+                    }`}
                   title="Speak to answer current question"
                 >
                   {isAiListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5 text-emerald-700" />}
@@ -1054,11 +1105,11 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                   onKeyDown={(e) => e.key === 'Enter' && handleAiChatSubmit()}
                   placeholder={
                     stepIndex === 0 ? "Type your name or say 'Mera naam ...'" :
-                    stepIndex === 1 ? "Type village name or say 'Nashik se hoon'..." :
-                    stepIndex === 2 ? "Type capital e.g. 200000 or say '3 lakh'..." :
-                    stepIndex === 3 ? "Type land acres e.g. 2 or say '2 acre'..." :
-                    stepIndex === 4 ? "Type OBC, SC, ST, or General..." :
-                    "Speak or type your answer..."
+                      stepIndex === 1 ? "Type village name or say 'Nashik se hoon'..." :
+                        stepIndex === 2 ? "Type capital e.g. 200000 or say '3 lakh'..." :
+                          stepIndex === 3 ? "Type land acres e.g. 2 or say '2 acre'..." :
+                            stepIndex === 4 ? "Type OBC, SC, ST, or General..." :
+                              "Speak or type your answer..."
                   }
                   className="flex-1 bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                 />
@@ -1089,13 +1140,46 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                 </span>
               </div>
 
+              {/* Entrepreneur Photo & Identity Summary */}
+              <div className="flex items-center space-x-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="relative shrink-0">
+                  {profile.photo ? (
+                    <img
+                      src={profile.photo}
+                      alt="Profile"
+                      className="w-11 h-11 rounded-xl object-cover border border-emerald-400/40"
+                    />
+                  ) : (
+                    <div className="w-11 h-11 rounded-xl bg-emerald-800/60 text-amber-300 flex items-center justify-center font-bold text-xs">
+                      <User className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2">
+                    <p className="text-xs font-bold text-white truncate">{profile.name || 'Entrepreneur'}</p>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-bold border border-emerald-400/30">
+                      {profile.gender || 'MALE'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {profile.address ? `${profile.address}, ${profile.state || ''}` : `${profile.village_name || ''}, ${profile.state || ''}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRegMode('manual')}
+                  className="text-amber-400 hover:text-amber-300 text-[10px] font-bold underline shrink-0"
+                >
+                  Edit Details
+                </button>
+              </div>
+
               {/* Form Parameter Checkpoints with Direct Edit Triggers */}
               <div className="space-y-2.5 text-xs">
                 {/* 1. Name */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  stepIndex === 0 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
-                  newlyFilledFields.includes('name') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
-                }`}>
+                <div className={`p-3 rounded-xl border transition-all ${stepIndex === 0 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                    newlyFilledFields.includes('name') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                  }`}>
                   <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
                     <span className="font-semibold">1. Entrepreneur Name:</span>
                     <div className="flex items-center space-x-1.5">
@@ -1109,10 +1193,9 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                 </div>
 
                 {/* 2. Location */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  stepIndex === 1 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
-                  newlyFilledFields.includes('location') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
-                }`}>
+                <div className={`p-3 rounded-xl border transition-all ${stepIndex === 1 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                    newlyFilledFields.includes('location') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                  }`}>
                   <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
                     <span className="font-semibold">2. Village & GPS:</span>
                     <div className="flex items-center space-x-1.5">
@@ -1125,11 +1208,27 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                   </div>
                 </div>
 
+                {/* 2b. Address, PIN, Post, Police Station */}
+                <div className="p-3 rounded-xl border bg-white/5 border-white/10">
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
+                    <span className="font-semibold">Permanent Address Details:</span>
+                    <button onClick={() => setRegMode('manual')} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
+                  </div>
+                  <div className="text-xs text-white space-y-0.5">
+                    <p className="font-semibold">{profile.address || <span className="text-slate-500 italic">Address line not set</span>}</p>
+                    <p className="text-[11px] text-slate-300">
+                      PIN: <span className="text-amber-300 font-bold">{profile.pincode || '—'}</span> • Post: <span className="text-emerald-300 font-bold">{profile.post || '—'}</span>
+                    </p>
+                    <p className="text-[11px] text-slate-300">
+                      Police Station: <span className="text-slate-200 font-medium">{profile.police_station || '—'}</span> • State: <span className="text-slate-200 font-medium">{profile.state || '—'}</span>
+                    </p>
+                  </div>
+                </div>
+
                 {/* 3. Capital */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  stepIndex === 2 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
-                  newlyFilledFields.includes('capital') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
-                }`}>
+                <div className={`p-3 rounded-xl border transition-all ${stepIndex === 2 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                    newlyFilledFields.includes('capital') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                  }`}>
                   <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
                     <span className="font-semibold">3. Available Capital:</span>
                     <div className="flex items-center space-x-1.5">
@@ -1143,10 +1242,9 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                 </div>
 
                 {/* 4. Land */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  stepIndex === 3 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
-                  newlyFilledFields.includes('land') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
-                }`}>
+                <div className={`p-3 rounded-xl border transition-all ${stepIndex === 3 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                    newlyFilledFields.includes('land') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                  }`}>
                   <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
                     <span className="font-semibold">4. Land Holding:</span>
                     <div className="flex items-center space-x-1.5">
@@ -1160,10 +1258,9 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                 </div>
 
                 {/* 5. Social Category */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  stepIndex === 4 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
-                  newlyFilledFields.includes('social_category') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
-                }`}>
+                <div className={`p-3 rounded-xl border transition-all ${stepIndex === 4 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                    newlyFilledFields.includes('social_category') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                  }`}>
                   <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
                     <span className="font-semibold">5. Social Category (MoSJE):</span>
                     <div className="flex items-center space-x-1.5">
@@ -1177,9 +1274,8 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                 </div>
 
                 {/* 6. Utilities */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  stepIndex === 5 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' : 'bg-white/5 border-white/10'
-                }`}>
+                <div className={`p-3 rounded-xl border transition-all ${stepIndex === 5 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' : 'bg-white/5 border-white/10'
+                  }`}>
                   <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
                     <span className="font-semibold">6. Site Infrastructure:</span>
                     <button onClick={() => handleEditStep(5)} className="text-slate-400 hover:text-white text-[10px] underline">Edit</button>
@@ -1196,10 +1292,9 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                 </div>
 
                 {/* 7. Skills */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  stepIndex === 6 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
-                  newlyFilledFields.includes('skills') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
-                }`}>
+                <div className={`p-3 rounded-xl border transition-all ${stepIndex === 6 ? 'border-amber-400 bg-amber-950/20 ring-2 ring-amber-400/40' :
+                    newlyFilledFields.includes('skills') ? 'bg-emerald-900/60 border-emerald-400 ring-1 ring-emerald-400/30' : 'bg-white/5 border-white/10'
+                  }`}>
                   <div className="flex justify-between items-center text-slate-400 text-[11px] mb-0.5">
                     <span className="font-semibold">7. Skills & Experience:</span>
                     <div className="flex items-center space-x-1.5">
@@ -1278,12 +1373,167 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
             </button>
           </div>
 
-          {gpsStatus && (
-            <div className="bg-emerald-50 border border-emerald-300 text-emerald-950 p-3 rounded-xl text-xs font-semibold flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>{gpsStatus}</span>
+          {/* A. Profile Photo & Gender Identity Card */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50/70 to-teal-50/70 border border-emerald-200/80 flex flex-col md:flex-row items-center justify-between gap-5">
+            <div className="flex items-center space-x-4">
+              <div className="relative shrink-0">
+                {profile.photo ? (
+                  <img
+                    src={profile.photo}
+                    alt="Entrepreneur Profile"
+                    className="w-20 h-20 rounded-2xl object-cover border-2 border-[#0F3D2E] shadow-md"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl bg-[#0F3D2E] text-amber-300 flex flex-col items-center justify-center font-bold text-xs shadow-md">
+                    <User className="w-8 h-8 mb-1 opacity-80" />
+                    <span className="text-[10px]">No Photo</span>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  ref={photoInputRef}
+                  onChange={handlePhotoUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="text-sm font-black text-slate-900 flex items-center space-x-2">
+                  <span>{t.photoLabel || 'Profile Photo'}</span>
+                  <span className="text-[10px] bg-emerald-100 text-[#0F3D2E] px-2 py-0.5 rounded-full font-bold">
+                    Official Avatar
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-500">
+                  Upload an official photo or avatar for your enterprise identity (PNG/JPG up to 5MB).
+                </p>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="flex items-center space-x-1.5 bg-[#0F3D2E] hover:bg-[#165440] text-white text-xs font-bold px-3.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{profile.photo ? 'Change Photo' : (t.uploadPhoto || 'Upload Photo')}</span>
+                  </button>
+
+                  {profile.photo && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="flex items-center space-x-1 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{t.removePhoto || 'Remove'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* Gender Selection */}
+            <div className="w-full md:w-56 bg-white p-3.5 rounded-xl border border-emerald-200 shadow-xs">
+              <label className="block font-bold text-slate-700 mb-1.5 text-xs">
+                {t.genderLabel || 'Gender'} *
+              </label>
+              <select
+                value={profile.gender || 'MALE'}
+                onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              >
+                <option value="MALE">{t.genderMale || 'Male (पुरुष)'}</option>
+                <option value="FEMALE">{t.genderFemale || 'Female (महिला)'}</option>
+                <option value="OTHER">{t.genderOther || 'Other (अन्य)'}</option>
+              </select>
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Required for MoSJE scheme gender concession matches.
+              </span>
+            </div>
+          </div>
+
+          {/* B. Complete Address Details Card */}
+          <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-3">
+            <div className="flex items-center space-x-2 pb-2 border-b border-stone-200">
+              <Home className="w-4 h-4 text-[#0F3D2E]" />
+              <h4 className="text-xs font-black text-stone-900 uppercase tracking-wider">
+                Permanent & Enterprise Address Details
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              {/* Full Address */}
+              <div className="md:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  {t.addressLabel || 'Street Address / House No. / Locality'} *
+                </label>
+                <input
+                  type="text"
+                  value={profile.address || ''}
+                  onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+                  placeholder="e.g. House No. 42, Main Bazar Road"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white font-medium"
+                />
+              </div>
+
+              {/* State */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  {t.stateLabel || 'State'} *
+                </label>
+                <input
+                  type="text"
+                  value={profile.state || ''}
+                  onChange={(e) => setProfile({ ...profile, state: e.target.value })}
+                  placeholder="e.g. Andhra Pradesh, Maharashtra"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white font-medium"
+                />
+              </div>
+
+              {/* PIN Code */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  {t.pincodeLabel || 'PIN Code'} *
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={profile.pincode || ''}
+                  onChange={(e) => setProfile({ ...profile, pincode: e.target.value.replace(/\D/g, '') })}
+                  placeholder="6-digit PIN code (e.g. 522213)"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                />
+              </div>
+
+              {/* Post Office */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  {t.postOfficeLabel || 'Post Office (Post)'} *
+                </label>
+                <input
+                  type="text"
+                  value={profile.post || ''}
+                  onChange={(e) => setProfile({ ...profile, post: e.target.value })}
+                  placeholder="e.g. Chebrole S.O."
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white font-medium"
+                />
+              </div>
+
+              {/* Police Station */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  {t.policeStationLabel || 'Police Station (PS)'} *
+                </label>
+                <input
+                  type="text"
+                  value={profile.police_station || ''}
+                  onChange={(e) => setProfile({ ...profile, police_station: e.target.value })}
+                  placeholder="e.g. Chebrole Police Station"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white font-medium"
+                />
+              </div>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
             <div>
@@ -1490,11 +1740,10 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
                       key={s}
                       type="button"
                       onClick={() => toggleSkill(s)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition ${
-                        active
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition ${active
                           ? 'bg-emerald-600 text-white shadow-sm'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
+                        }`}
                     >
                       {active ? `✓ ${s.replace('_', ' ')}` : `+ ${s.replace('_', ' ')}`}
                     </button>
@@ -1504,10 +1753,19 @@ export default function ProfileWizard({ profile, setProfile, onRunAdvisory, lang
             </div>
           </div>
 
-          <div className="pt-6 border-t border-slate-100 flex justify-end">
+          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleSaveProfileDirect}
+              className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-white hover:bg-emerald-50 text-emerald-800 border-2 border-emerald-700 px-6 py-3.5 rounded-xl font-black text-sm shadow-xs transition cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              <span>{t.saveProfileChanges || 'Save Profile Details'}</span>
+            </button>
+
             <button
               onClick={onRunAdvisory}
-              className="flex items-center space-x-2 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white px-8 py-3.5 rounded-xl font-black text-sm shadow-md transition transform hover:-translate-y-0.5"
+              className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white px-8 py-3.5 rounded-xl font-black text-sm shadow-md transition transform hover:-translate-y-0.5 cursor-pointer"
             >
               <FileCheck2 className="w-5 h-5" />
               <span>Complete Registration & Generate Dossier</span>

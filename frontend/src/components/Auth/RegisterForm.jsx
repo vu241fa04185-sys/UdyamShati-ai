@@ -81,15 +81,15 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
         </div>
         
         <p className="text-xs font-bold text-muted-text uppercase tracking-widest">
-          Welcome to UdyamSaarthi
+          {t.welcomeTitle || 'Welcome to UdyamSaarthi'}
         </p>
         
         <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-none text-forest">
-          Create your account
+          {t.registerTitle || 'Create Your Account'}
         </h2>
 
         <p className="text-xs font-semibold text-forest/80 pt-1">
-          Start your journey from idea to enterprise.
+          {t.registerSubtitle || 'Start your journey from idea to enterprise.'}
         </p>
       </div>
 
@@ -99,13 +99,13 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
         {/* FULL NAME */}
         <div>
           <label className="block text-xs font-bold text-dark-text uppercase tracking-wider mb-1">
-            Full Name
+            {t.fullNameLabel || 'Full Name'}
           </label>
           <input
             type="text"
             value={formData.fullName}
             onChange={(e) => handleChange('fullName', e.target.value)}
-            placeholder="Enter your full name"
+            placeholder={t.fullNamePlaceholder || "Enter your full name"}
             className={`w-full px-3.5 py-2.5 text-sm font-semibold rounded-xl border ${
               errors.fullName ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
             } text-dark-text focus:border-forest focus:ring-2 focus:ring-forest/10 outline-none transition`}
@@ -122,7 +122,7 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
         {/* MOBILE NUMBER */}
         <div>
           <label className="block text-xs font-bold text-dark-text uppercase tracking-wider mb-1">
-            Mobile Number
+            {t.mobileLabel || 'Mobile Number'}
           </label>
           <div className="relative flex items-center">
             <span className="absolute left-3.5 text-xs font-bold text-slate-500 border-r border-slate-300 pr-2">
@@ -134,7 +134,7 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
               maxLength={10}
               value={formData.mobile}
               onChange={(e) => handleChange('mobile', e.target.value.replace(/\D/g, ''))}
-              placeholder="Enter your 10-digit mobile number"
+              placeholder={t.mobilePlaceholder || "Enter your 10-digit mobile number"}
               className={`w-full pl-14 pr-3.5 py-2.5 text-sm font-semibold rounded-xl border ${
                 errors.mobile ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
               } text-dark-text focus:border-forest focus:ring-2 focus:ring-forest/10 outline-none transition`}
@@ -151,13 +151,13 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
         {/* EMAIL ADDRESS (OPTIONAL) */}
         <div>
           <label className="block text-xs font-bold text-dark-text uppercase tracking-wider mb-1">
-            Email Address <span className="text-[10px] font-normal text-muted-text">(Optional)</span>
+            {t.emailLabel || 'Email Address (Optional)'}
           </label>
           <input
             type="email"
             value={formData.email}
             onChange={(e) => handleChange('email', e.target.value)}
-            placeholder="Enter your email address"
+            placeholder={t.emailPlaceholder || "Enter your email address"}
             className={`w-full px-3.5 py-2.5 text-sm font-semibold rounded-xl border ${
               errors.email ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
             } text-dark-text focus:border-forest focus:ring-2 focus:ring-forest/10 outline-none transition`}
@@ -173,14 +173,14 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
         {/* PASSWORD */}
         <div>
           <label className="block text-xs font-bold text-dark-text uppercase tracking-wider mb-1">
-            Create Password
+            {t.createPasswordLabel || 'Create Password'}
           </label>
           <div className="relative flex items-center">
             <input
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={(e) => handleChange('password', e.target.value)}
-              placeholder="Create a password"
+              placeholder={t.passwordPlaceholder || "Create a password"}
               className={`w-full pl-3.5 pr-10 py-2.5 text-sm font-semibold rounded-xl border ${
                 errors.password ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
               } text-dark-text focus:border-forest focus:ring-2 focus:ring-forest/10 outline-none transition`}
@@ -204,14 +204,14 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
         {/* CONFIRM PASSWORD */}
         <div>
           <label className="block text-xs font-bold text-dark-text uppercase tracking-wider mb-1">
-            Confirm Password
+            {t.confirmPasswordLabel || 'Confirm Password'}
           </label>
           <div className="relative flex items-center">
             <input
               type={showConfirmPassword ? 'text' : 'password'}
               value={formData.confirmPassword}
               onChange={(e) => handleChange('confirmPassword', e.target.value)}
-              placeholder="Confirm your password"
+              placeholder={t.confirmPasswordPlaceholder || "Confirm your password"}
               className={`w-full pl-3.5 pr-10 py-2.5 text-sm font-semibold rounded-xl border ${
                 errors.confirmPassword ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
               } text-dark-text focus:border-forest focus:ring-2 focus:ring-forest/10 outline-none transition`}
@@ -242,7 +242,7 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
             <span>Creating Account...</span>
           ) : (
             <>
-              <span>Create Account</span>
+              <span>{t.registerBtn || 'Create Account'}</span>
               <ArrowRight className="w-4 h-4 text-gold" />
             </>
           )}
@@ -252,13 +252,13 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, lang 
 
       {/* ALREADY HAVE ACCOUNT LINK */}
       <div className="text-center text-xs text-muted-text pt-1 border-t border-slate-200/60">
-        <span>Already have an account? </span>
+        <span>{t.alreadyHaveAccount || 'Already have an account?'} </span>
         <button
           type="button"
           onClick={onSwitchToLogin}
           className="font-extrabold text-forest hover:text-gold transition cursor-pointer"
         >
-          Login
+          {t.loginBtn || 'Login'}
         </button>
       </div>
     </div>

@@ -14,24 +14,27 @@ import {
   HelpCircle,
   X
 } from 'lucide-react';
+import { translations } from '../../locales/translations';
 
-export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) {
+export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, lang = 'en' }) {
+  const t = translations[lang] || translations.en;
+
   const mainNavItems = [
-    { id: 'home', label: 'HOME', icon: Home },
-    { id: 'chat', label: 'My Conversations', icon: MessageSquare },
-    { id: 'recommendations', label: 'Business Analysis', icon: BarChart3 },
-    { id: 'market', label: 'Local Market Insights', icon: MapPin },
-    { id: 'finance', label: 'Financial Planner', icon: Wallet },
-    { id: 'schemes', label: 'Government Schemes', icon: Landmark },
-    { id: 'risk', label: 'Risk & Stress', icon: ShieldAlert },
-    { id: 'simulator', label: 'Simulator', icon: Sliders },
-    { id: 'report', label: 'My Business Plans', icon: FileText }
+    { id: 'home', label: t.navHome || 'HOME', icon: Home },
+    { id: 'chat', label: t.navConversations || 'My Conversations', icon: MessageSquare },
+    { id: 'recommendations', label: t.navBusinessAnalysis || 'Business Analysis', icon: BarChart3 },
+    { id: 'market', label: t.navLocalMarket || 'Local Market Insights', icon: MapPin },
+    { id: 'finance', label: t.navFinancialPlanner || 'Financial Planner', icon: Wallet },
+    { id: 'schemes', label: t.navGovtSchemes || 'Government Schemes', icon: Landmark },
+    { id: 'risk', label: t.navRiskStress || 'Risk & Stress', icon: ShieldAlert },
+    { id: 'simulator', label: t.navSimulator || 'Simulator', icon: Sliders },
+    { id: 'report', label: t.navBusinessPlans || 'My Business Plans', icon: FileText }
   ];
 
   const secondaryNavItems = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'help', label: 'Help & Support', icon: HelpCircle }
+    { id: 'profile', label: t.navProfile || 'Profile', icon: User },
+    { id: 'settings', label: t.navSettings || 'Settings', icon: Settings },
+    { id: 'help', label: t.navHelpSupport || 'Help & Support', icon: HelpCircle }
   ];
 
   const handleSelect = (id) => {
@@ -67,7 +70,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) 
               </span>
             </div>
             <p className="text-[11px] text-stone-500 font-medium tracking-wide mt-0.5">
-              — Your Business Companion —
+              — {t.tagline || 'Your Business Companion'} —
             </p>
           </div>
           {setIsOpen && (

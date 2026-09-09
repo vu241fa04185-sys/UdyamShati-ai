@@ -10,22 +10,22 @@ export default function RuralBrandHero({ lang }) {
   const features = [
     {
       id: 'opp',
-      label: lang === 'hi' ? 'अवसर खोजें' : lang === 'te' ? 'అవకాశాలు పొందండి' : 'Discover Opportunities',
+      label: t.featureOpportunities || 'Discover Opportunities',
       icon: Sprout,
     },
     {
       id: 'fin',
-      label: lang === 'hi' ? 'वित्तीय योजना' : lang === 'te' ? 'ఆర్థిక ప్రణాళిక' : 'Plan Finances',
+      label: t.featureFinances || 'Plan Finances',
       icon: IndianRupee,
     },
     {
       id: 'sch',
-      label: lang === 'hi' ? 'सरकारी योजनाएं' : lang === 'te' ? 'ప్రభుత్వ పథకాలు' : 'Explore Schemes',
+      label: t.featureSchemes || 'Explore Schemes',
       icon: Landmark,
     },
     {
       id: 'fut',
-      label: lang === 'hi' ? 'उज्ज्वल भविष्य' : lang === 'te' ? 'మెరుగైన భవిష్యత్తు' : 'Build a Better Future',
+      label: t.featureFuture || 'Build a Better Future',
       icon: TrendingUp,
     },
   ];
@@ -55,11 +55,11 @@ export default function RuralBrandHero({ lang }) {
 
         {/* Top-Center Branding: Empower | Enable | Expand */}
         <div className="hidden sm:flex items-center space-x-2 font-script text-2xl lg:text-3xl font-bold text-forest tracking-wide">
-          <span>Empower</span>
+          <span>{t.empower || 'Empower'}</span>
           <span className="text-gold font-sans font-semibold text-base">•</span>
-          <span>Enable</span>
+          <span>{t.enable || 'Enable'}</span>
           <span className="text-gold font-sans font-semibold text-base">•</span>
-          <span>Expand</span>
+          <span>{t.expand || 'Expand'}</span>
         </div>
       </div>
 
@@ -68,22 +68,22 @@ export default function RuralBrandHero({ lang }) {
         
         {/* Main Hero Headline */}
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15] mb-4 text-forest max-w-md">
-          Turn Your Idea into a{' '}
+          {t.ruralHeroHeadline || 'Turn Your Idea into a'}{' '}
           <span className="text-gold block sm:inline drop-shadow-xs">
-            Thriving Enterprise.
+            {t.thrivingEnterprise || 'Thriving Enterprise.'}
           </span>
         </h1>
 
         {/* Concise Supporting Copy (No paragraphs, NO quotes) */}
         <div className="space-y-1 mb-8 max-w-md">
           <p className="text-sm sm:text-base font-extrabold text-forest/90 leading-snug">
-            AI-driven insights. Local opportunities.
+            {t.heroSub1 || 'AI-driven insights. Local opportunities.'}
           </p>
           <p className="text-xs sm:text-sm font-bold text-forest/80">
-            Financial guidance. All in one place.
+            {t.heroSub2 || 'Financial guidance. All in one place.'}
           </p>
           <p className="text-xs sm:text-sm font-extrabold text-gold tracking-wide pt-1">
-            For every rural entrepreneur.
+            {t.heroSub3 || 'For every rural entrepreneur.'}
           </p>
         </div>
 
@@ -125,21 +125,21 @@ export default function RuralBrandHero({ lang }) {
             <div className="flex flex-col items-center">
               <Users className="w-3.5 h-3.5 text-gold mb-1" />
               <span className="text-[11px] font-bold text-white leading-tight">
-                Empowering Rural India
+                {t.empowerRuralIndia || 'Empowering Rural India'}
               </span>
             </div>
 
             <div className="flex flex-col items-center border-x border-emerald-800/80 px-2">
               <HeartHandshake className="w-3.5 h-3.5 text-gold mb-1" />
               <span className="text-[11px] font-bold text-white leading-tight">
-                Enabling Entrepreneurs
+                {t.enablingEntrepreneurs || 'Enabling Entrepreneurs'}
               </span>
             </div>
 
             <div className="flex flex-col items-center">
               <ShieldCheck className="w-3.5 h-3.5 text-gold mb-1" />
               <span className="text-[11px] font-bold text-white leading-tight">
-                Building Sustainable Communities
+                {t.buildingCommunities || 'Building Sustainable Communities'}
               </span>
             </div>
 

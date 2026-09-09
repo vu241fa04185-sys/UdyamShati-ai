@@ -9,28 +9,150 @@ import {
   BarChart2, 
   Wallet, 
   Landmark, 
-  Bot,
-  User,
-  Loader2,
-  Volume2
+  Bot, 
+  User, 
+  Loader2, 
+  Volume2, 
+  VolumeX, 
+  Square,
+  Radio,
+  Headphones
 } from 'lucide-react';
 import axios from 'axios';
+import { translations } from '../../locales/translations';
+import { cleanSpeechText, configureFemaleUtterance } from '../../utils/speechVoice';
 
-export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language }) {
+export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab, language = 'en' }) {
+  const t = translations[language] || translations.en;
+
+  // Canonical UdyamSarthi Greeting per Specification Section 11 (Female Persona)
+  const getInitialGreeting = (lang) => {
+    if (lang === 'hi') {
+      return "Namaste! 🙏\n\nMain UdyamSarthi hoon. Main aapko business start ya grow karne mein help karungi.\n\nSabse pehle, kya main aapka naam jaan sakti hoon?";
+    }
+    if (lang === 'te') {
+      return "నమస్కారం! 🙏\n\nనేను ఉద్యమ్‌సారథిని. వ్యాపారం ప్రారంభించడానికి మరియు వృద్ధి చేయడానికి నేను మీకు సహాయం చేస్తాను.\n\nముందుగా, మీ పేరు తెలుసుకోవచ్చా?";
+    }
+    return "Namaste! 🙏\n\nI am UdyamSarthi, your AI business advisor. I will help you start or scale your enterprise.\n\nFirst, may I know your name to get started?";
+  };
+
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: "Namaste! 👋\n\nI'm UdyamSaarthi, your business companion. Tell me what you want to do, and I'll guide you step by step.",
+      text: getInitialGreeting(language),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
+
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(true);
+  const [handsFreeMode, setHandsFreeMode] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
   const [speechError, setSpeechError] = useState(null);
+  const [sessionState, setSessionState] = useState({
+    name: null,
+    district: null,
+    state: null,
+    business: null,
+    businessIdea: null,
+    businessType: null,
+    subCategory: null,
+    animalType: null,
+    quantity: null,
+    productType: null,
+    budget: null,
+    landAvailable: null,
+    shedAvailable: null,
+    feedFodder: null,
+    rawMaterial: null,
+    experience: null,
+    goals: null,
+    lang: language
+  });
+  const hasVoiceStartedRef = useRef(false);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const synthRef = useRef(window.speechSynthesis || null);
+
+  // Synchronize greeting when language changes if brand new conversation
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].sender === 'ai') {
+        return [{
+          sender: 'ai',
+          text: getInitialGreeting(language),
+          timestamp: prev[0].timestamp
+        }];
+      }
+      return prev;
+    });
+    setSessionState((prev) => ({ ...prev, lang: language }));
+  }, [language]);
+
+  // Text-to-Speech Engine with Natural Female Indian AI Voice
+  const speakVoice = (text, lang = language) => {
+    if (!synthRef.current || !autoSpeak) return;
+    
+    try {
+      synthRef.current.cancel(); // Stop any pending speech
+
+      const spoken = cleanSpeechText(text);
+      if (!spoken) return;
+
+      const utterance = new SpeechSynthesisUtterance(spoken);
+      const langCode = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+      utterance.lang = langCode;
+
+      // Select natural female Indian voice (Swara, Heera, Shruti, Neerja, Google) & warm pitch
+      configureFemaleUtterance(utterance, synthRef.current, langCode);
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        // Pause listening while AI speaks to prevent echo feedback
+        if (isListening && recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch (e) {}
+          setIsListening(false);
+        }
+      };
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        // Hands-free continuous voice: automatically activate microphone for user's voice reply!
+        if (handsFreeMode && recognitionRef.current) {
+          setTimeout(() => {
+            try {
+              recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+              recognitionRef.current.start();
+              setIsListening(true);
+              setSpeechError(null);
+            } catch (err) {
+              // Ignore if already started
+            }
+          }, 600);
+        }
+      };
+
+      utterance.onerror = (e) => {
+        setIsSpeaking(false);
+      };
+
+      synthRef.current.speak(utterance);
+    } catch (err) {
+      console.warn("Speech synthesis error:", err);
+      setIsSpeaking(false);
+    }
+  };
+
+  const stopSpeaking = () => {
+    if (synthRef.current) {
+      synthRef.current.cancel();
+      setIsSpeaking(false);
+    }
+  };
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -38,21 +160,36 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.interimResults = true;
       recognition.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
 
       recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInputText(transcript);
-        setIsListening(false);
-        setSpeechError(null);
-        handleSend(transcript);
+        let interim = '';
+        let final = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const trans = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            final += trans;
+          } else {
+            interim += trans;
+          }
+        }
+        setLiveTranscript(interim || final);
+
+        if (final.trim()) {
+          setIsListening(false);
+          setLiveTranscript('');
+          handleSend(final.trim());
+        }
       };
 
       recognition.onerror = (event) => {
-        console.warn("Speech error:", event.error);
+        console.warn("Speech recognition notice:", event.error);
         setIsListening(false);
-        setSpeechError("Speech not recognized. Please try again or type.");
+        setLiveTranscript('');
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          setSpeechError("Speech input not heard clearly. Please try speaking again.");
+        }
       };
 
       recognition.onend = () => {
@@ -61,23 +198,46 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
 
       recognitionRef.current = recognition;
     }
-  }, [language]);
+
+    return () => {
+      if (synthRef.current) synthRef.current.cancel();
+    };
+  }, [language, handsFreeMode]);
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      setSpeechError("Speech recognition is not supported in this browser. Please use Chrome or Edge.");
+      setSpeechError("Microphone speech recognition is not supported in this browser. Please use Chrome or Edge.");
       return;
     }
+
+    // If initial start of conversation and user taps mic, speak greeting first if unread
+    if (!hasVoiceStartedRef.current && messages.length === 1 && !isSpeaking) {
+      hasVoiceStartedRef.current = true;
+      handleStartVoiceConversation();
+      return;
+    }
+
+    hasVoiceStartedRef.current = true;
+
+    // If AI is speaking, tapping mic stops AI and starts user listening
+    if (isSpeaking) {
+      stopSpeaking();
+    }
+
     if (isListening) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
       setIsListening(false);
+      setLiveTranscript('');
     } else {
       setSpeechError(null);
       try {
+        recognitionRef.current.lang = language === 'hi' ? 'hi-IN' : (language === 'te' ? 'te-IN' : 'en-IN');
         recognitionRef.current.start();
         setIsListening(true);
       } catch (err) {
-        console.error("Mic error:", err);
+        console.error("Mic start error:", err);
         setIsListening(false);
       }
     }
@@ -87,6 +247,9 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
     const text = textToSend.trim();
     if (!text || isLoading) return;
 
+    // Stop speaking immediately upon user sending
+    stopSpeaking();
+
     // Append user message
     const userMsg = {
       sender: 'user',
@@ -94,123 +257,192 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
     setInputText('');
+    setLiveTranscript('');
     setIsLoading(true);
 
     try {
-      // Call existing API chat endpoint
       const response = await axios.post('/api/chat', {
         message: text,
         profile: profile || {},
-        lang: language || 'en'
+        lang: language || 'hi',
+        session_state: sessionState,
+        history: nextMessages.slice(-6).map(m => ({ sender: m.sender, text: m.text }))
       });
 
-      const replyText = response.data?.reply || generateLocalSaarthiReply(text);
+      const replyText = response.data?.reply || "I am analyzing your business profile...";
+      const speakTextToUse = response.data?.speak_text || replyText;
       
+      // Update session state memory from backend
+      if (response.data?.session_state) {
+        setSessionState(response.data.session_state);
+      }
+
       const aiMsg = {
         sender: 'ai',
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        recommendations: response.data?.recommendations
+        recommendations: response.data?.top_recommendation
       };
 
       setMessages((prev) => [...prev, aiMsg]);
 
-      // If backend returned profile updates
-      if (response.data?.updatedProfile && onProfileUpdate) {
-        onProfileUpdate(response.data.updatedProfile);
+      // If backend returned profile updates, synchronize globally
+      if (response.data?.updated_profile && onProfileUpdate) {
+        onProfileUpdate(response.data.updated_profile);
+      }
+
+      // Speak response out loud through voice
+      if (autoSpeak) {
+        speakVoice(speakTextToUse, response.data?.session_state?.lang || language);
       }
     } catch (err) {
-      console.warn("Chat API fallback to local intelligence:", err);
-      const fallbackReply = generateLocalSaarthiReply(text);
+      console.warn("Chat API error:", err);
+      const fallbackReply = "Main aapke vyavasayik prashna ko samajh raha hoon. Kripya apna budget aur location batayein taaki main vishleshan kar sakoon.";
       const aiMsg = {
         sender: 'ai',
         text: fallbackReply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, aiMsg]);
+      if (autoSpeak) speakVoice(fallbackReply, language);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Local Saarthi intelligence for instant feedback
-  const generateLocalSaarthiReply = (query) => {
-    const q = query.toLowerCase();
-    if (q.includes('dairy') || q.includes('milk') || q.includes('cow') || q.includes('buffalo')) {
-      return "Dairy farming is an excellent high-demand enterprise in rural areas!\n\nTo see if dairy is right for your area:\n1. Where would you like to set up your unit?\n2. What is your approximate investment budget?\n3. Do you already have land or fodder source?\n\nYou can also click 'Business Analysis' in the left menu to view detailed profit models!";
-    }
-    if (q.includes('2 lakh') || q.includes('lakh') || q.includes('capital') || q.includes('budget') || q.includes('money')) {
-      return "With ₹2 Lakh capital, here are top micro-enterprises you can start:\n• Poultry / Broiler Farm (₹1.8L - ₹2.5L)\n• Food Processing & Flour Mill (₹1.5L - ₹2L)\n• Rural Retail & General Store (₹1.2L - ₹2L)\n• Solar Charging Kiosk (₹1L - ₹1.8L)\n\nWould you like me to calculate loan scheme options with 10% self-contribution?";
-    }
-    if (q.includes('scheme') || q.includes('loan') || q.includes('subsidy') || q.includes('government')) {
-      return "We have checked top government support programs for you:\n• PMEGP (up to 35% subsidy for rural entrepreneurs)\n• Mudra Kishore Loan (up to ₹5 Lakh at low interest)\n• NBCFDC / NMDFC Concessional Schemes for backward classes.\n\nClick 'Government Schemes' on the sidebar to check your eligibility!";
-    }
-    return `That's a great starting point. To give you the best personalized guidance for "${query}", tell me your location and budget, and I will generate a complete step-by-step business blueprint!`;
+  // Start voice interaction from greeting
+  const handleStartVoiceConversation = () => {
+    const greeting = messages[0]?.text || getInitialGreeting(language);
+    speakVoice(greeting, language);
   };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, liveTranscript]);
 
   const quickActions = [
     {
       id: 'recommendations',
-      title: 'Find a business idea',
+      title: t.quickActionFindIdea || 'Find a business idea',
       icon: Lightbulb,
       color: 'bg-amber-500/10 text-amber-600 border-amber-500/20'
     },
     {
       id: 'recommendations',
-      title: 'Analyze my business idea',
+      title: t.quickActionAnalyze || 'Analyze my business idea',
       icon: BarChart2,
       color: 'bg-emerald-600/10 text-[#0F3D2E] border-emerald-600/20'
     },
     {
       id: 'finance',
-      title: 'Plan my finances',
+      title: t.quickActionFinances || 'Plan my finances',
       icon: Wallet,
       color: 'bg-blue-500/10 text-blue-600 border-blue-500/20'
     },
     {
       id: 'schemes',
-      title: 'Explore government schemes',
+      title: t.quickActionSchemes || 'Explore government schemes',
       icon: Landmark,
       color: 'bg-purple-500/10 text-purple-600 border-purple-500/20'
     }
   ];
 
   const suggestedPrompts = [
-    "I want to start a dairy business",
-    "I have ₹2 lakh. What can I start?",
-    "Are there any government schemes?",
-    "I need a loan for my business",
-    "Is this business good in my area?",
-    "Help me create a business plan"
+    language === 'hi' ? "Mujhe dairy business karna hai" : (language === 'te' ? "నాకు పాడి వ్యాపారం చేయాలి" : "I want to start a dairy business"),
+    language === 'hi' ? "Mere paas 3 lakh hain" : (language === 'te' ? "నా దగ్గర 3 లక్షలు ఉన్నాయి" : "I have ₹3 lakh capital"),
+    language === 'hi' ? "Dairy aur poultry mein kya better hai?" : (language === 'te' ? "పాల వ్యాపారం మరియు పౌల్ట్రీలో ఏది ఉత్తమం?" : "Dairy vs poultry comparison"),
+    language === 'hi' ? "5 lakh loan ki EMI kitni hogi?" : (language === 'te' ? "5 లక్షల లోన్‌కు ఈఎమ్‌ఐ ఎంత?" : "What is EMI for ₹5 lakh loan?"),
+    language === 'hi' ? "Kaunsi sarkari scheme milegi?" : (language === 'te' ? "ఏ ప్రభుత్వ పథకం వర్తిస్తుంది?" : "Which government scheme is suitable?")
   ];
 
   return (
     <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-xl border border-emerald-900/10 flex flex-col justify-between">
       
-      {/* Top Header inside Saarthi Card */}
-      <div className="flex items-center space-x-3 pb-4 border-b border-stone-100">
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0F3D2E] to-[#17523f] text-amber-300 flex items-center justify-center shadow-md">
-          <Bot className="w-6 h-6" />
-        </div>
-        <div>
-          <div className="flex items-center space-x-2">
-            <h2 className="text-lg font-extrabold text-stone-900">Saarthi AI</h2>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#0F3D2E]">
-              Online Companion
-            </span>
+      {/* Top Header with Voice Agent Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-stone-100 gap-3">
+        <div className="flex items-center space-x-3">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md transition-all duration-300 ${
+            isSpeaking 
+              ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white ring-4 ring-amber-300 scale-105' 
+              : isListening
+              ? 'bg-gradient-to-br from-rose-500 to-rose-700 text-white ring-4 ring-rose-300 animate-pulse'
+              : 'bg-gradient-to-br from-[#0F3D2E] to-[#17523f] text-amber-300'
+          }`}>
+            {isSpeaking ? (
+              <Volume2 className="w-6 h-6 animate-pulse" />
+            ) : isListening ? (
+              <Mic className="w-6 h-6 animate-bounce" />
+            ) : (
+              <Bot className="w-6 h-6" />
+            )}
           </div>
-          <p className="text-xs text-stone-500 font-medium">Your 24/7 Rural Business Companion</p>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-lg font-extrabold text-stone-900">UdyamSarthi AI Voice Agent</h2>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                isSpeaking 
+                  ? 'bg-amber-100 text-amber-800 animate-pulse' 
+                  : isListening 
+                  ? 'bg-rose-100 text-rose-800 animate-pulse' 
+                  : 'bg-emerald-100 text-[#0F3D2E]'
+              }`}>
+                {isSpeaking ? '🔊 Speaking to You' : isListening ? '🎙️ Listening...' : '🟢 Voice Ready'}
+              </span>
+            </div>
+            <p className="text-xs text-stone-500 font-medium">
+              100% Conversational Voice Advisory • Hindi, Telugu & English
+            </p>
+          </div>
+        </div>
+
+        {/* Voice Control Action Buttons */}
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {isSpeaking && (
+            <button
+              onClick={stopSpeaking}
+              className="px-2.5 py-1 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition flex items-center space-x-1"
+              title="Stop speaking"
+            >
+              <Square className="w-3.5 h-3.5 fill-rose-600 text-rose-600" />
+              <span>Stop Voice</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setHandsFreeMode(!handsFreeMode)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center space-x-1.5 ${
+              handsFreeMode 
+                ? 'bg-emerald-50 text-[#0F3D2E] border-emerald-300' 
+                : 'bg-stone-50 text-stone-600 border-stone-200'
+            }`}
+            title="Auto-Listen hands-free voice loop"
+          >
+            <Radio className={`w-3.5 h-3.5 ${handsFreeMode ? 'text-emerald-600 animate-pulse' : 'text-stone-400'}`} />
+            <span>{handsFreeMode ? 'Auto-Listen: ON' : 'Auto-Listen: OFF'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (isSpeaking) stopSpeaking();
+              setAutoSpeak(!autoSpeak);
+            }}
+            className={`p-2 rounded-xl text-xs font-bold border transition ${
+              autoSpeak 
+                ? 'bg-[#0F3D2E] text-amber-300 border-[#0F3D2E]' 
+                : 'bg-stone-100 text-stone-500 border-stone-200'
+            }`}
+            title={autoSpeak ? "Voice Mute" : "Voice Unmute"}
+          >
+            {autoSpeak ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
       {/* Quick Action Cards (4 Cards) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
         {quickActions.map((action, idx) => {
           const Icon = action.icon;
           return (
@@ -218,7 +450,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
               key={idx}
               onClick={() => setActiveTab(action.id)}
               className={`
-                p-3.5 rounded-2xl border ${action.color} text-left transition-all duration-200 hover:-translate-y-0.5 shadow-2xs hover:shadow-md flex flex-col justify-between h-24
+                p-3.5 rounded-2xl border ${action.color} text-left transition-all duration-200 hover:-translate-y-0.5 shadow-2xs hover:shadow-md flex flex-col justify-between h-22
               `}
             >
               <Icon className="w-5 h-5" />
@@ -228,15 +460,83 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         })}
       </div>
 
-      {/* Conversation Window */}
-      <div className="bg-[#FAF8F5] rounded-2xl p-4 min-h-[220px] max-h-[320px] overflow-y-auto space-y-3 border border-stone-200/60 mb-5 custom-scrollbar">
+      {/* Dynamic AI Memory Pill Bar */}
+      {(sessionState.name || sessionState.district || sessionState.business || sessionState.businessIdea || sessionState.budget || sessionState.animalType || sessionState.productType || sessionState.subCategory || sessionState.landAvailable !== null || sessionState.shedAvailable !== null) && (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 mb-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl text-xs font-semibold text-[#0F3D2E] animate-in fade-in slide-in-from-top-1 duration-300 shadow-2xs">
+          <span className="flex items-center space-x-1 text-[11px] font-black uppercase text-emerald-900 tracking-wider">
+            <Sparkles className="w-3.5 h-3.5 text-[#C28A17] animate-pulse" />
+            <span>AI Memory:</span>
+          </span>
+          {sessionState.name && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              👤 <strong className="ml-1 text-[#0F3D2E]">{sessionState.name}</strong>
+            </span>
+          )}
+          {sessionState.district && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              📍 <strong className="ml-1 text-[#0F3D2E]">{sessionState.district}</strong>
+            </span>
+          )}
+          {(sessionState.business || sessionState.businessIdea) && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs capitalize">
+              💼 <strong className="ml-1 text-[#0F3D2E]">{sessionState.business || sessionState.businessIdea}</strong>
+            </span>
+          )}
+          {sessionState.animalType && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              {sessionState.animalType === 'Buffalo' ? '🐃' : sessionState.animalType === 'Cow' ? '🐄' : sessionState.animalType === 'Goat' ? '🐐' : '🐔'}
+              <strong className="ml-1 text-[#0F3D2E]">
+                {sessionState.quantity ? `${sessionState.quantity} ` : ''}{sessionState.animalType}
+              </strong>
+            </span>
+          )}
+          {sessionState.productType && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              🍲 <strong className="ml-1 text-[#0F3D2E]">{sessionState.productType}</strong>
+            </span>
+          )}
+          {sessionState.subCategory && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              🏷️ <strong className="ml-1 text-[#0F3D2E]">{sessionState.subCategory}</strong>
+            </span>
+          )}
+          {sessionState.budget && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              💰 <strong className="ml-1 text-[#0F3D2E]">₹{Number(sessionState.budget).toLocaleString('en-IN')}</strong>
+            </span>
+          )}
+          {sessionState.landAvailable !== null && sessionState.landAvailable !== undefined && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              🏡 <strong className="ml-1 text-[#0F3D2E]">Land: {sessionState.landAvailable ? 'Available' : 'Needed'}</strong>
+            </span>
+          )}
+          {sessionState.shedAvailable !== null && sessionState.shedAvailable !== undefined && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              🛖 <strong className="ml-1 text-[#0F3D2E]">Shed: {sessionState.shedAvailable ? 'Available' : 'Needed'}</strong>
+            </span>
+          )}
+          {sessionState.feedFodder && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              🌾 <strong className="ml-1 text-[#0F3D2E]">Fodder: {sessionState.feedFodder}</strong>
+            </span>
+          )}
+          {sessionState.rawMaterial && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-emerald-300/80 text-stone-800 shadow-2xs">
+              📦 <strong className="ml-1 text-[#0F3D2E]">Raw: {sessionState.rawMaterial}</strong>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Conversation Messages Display */}
+      <div className="bg-[#FAF8F5] rounded-2xl p-4 min-h-[220px] max-h-[300px] overflow-y-auto space-y-3 border border-stone-200/60 mb-4 custom-scrollbar">
         {messages.map((msg, idx) => (
           <div
             key={idx}
             className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
           >
             <div className={`
-              max-w-[85%] sm:max-w-[75%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-xs
+              max-w-[85%] sm:max-w-[78%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-xs
               ${msg.sender === 'user' 
                 ? 'bg-[#0F3D2E] text-white rounded-tr-xs' 
                 : 'bg-white text-stone-800 border border-stone-200/80 rounded-tl-xs'
@@ -245,13 +545,22 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
               <div className="flex items-center space-x-1.5 mb-1 opacity-80 text-[10px] font-semibold">
                 {msg.sender === 'user' ? (
                   <>
-                    <span>You</span>
+                    <span>You (Voice Input)</span>
                     <User className="w-3 h-3 text-amber-300" />
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-3 h-3 text-[#C28A17]" />
-                    <span className="text-[#0F3D2E] font-bold">Saarthi</span>
+                    <span className="text-[#0F3D2E] font-bold">UdyamSarthi</span>
+                    {autoSpeak && (
+                      <button 
+                        onClick={() => speakVoice(msg.text, language)}
+                        className="ml-2 text-stone-400 hover:text-[#0F3D2E]"
+                        title="Replay Voice"
+                      >
+                        <Volume2 className="w-3 h-3" />
+                      </button>
+                    )}
                   </>
                 )}
                 <span className="ml-auto">{msg.timestamp}</span>
@@ -261,11 +570,21 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
           </div>
         ))}
 
+        {/* Realtime Live Speech Feedback while speaking */}
+        {isListening && liveTranscript && (
+          <div className="flex justify-end animate-in fade-in duration-150">
+            <div className="bg-emerald-900/10 border border-emerald-600/30 text-emerald-950 rounded-2xl p-3 text-xs italic">
+              <span className="text-[10px] uppercase font-bold text-emerald-700 block mb-0.5">Hearing your voice:</span>
+              "{liveTranscript}..."
+            </div>
+          </div>
+        )}
+
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-xs p-3.5 flex items-center space-x-2 text-xs text-stone-500 font-medium">
+            <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-xs p-3.5 flex items-center space-x-2 text-xs text-stone-500 font-medium shadow-xs">
               <Loader2 className="w-4 h-4 text-[#0F3D2E] animate-spin" />
-              <span>Saarthi is thinking...</span>
+              <span>UdyamSarthi is evaluating local market & calculations...</span>
             </div>
           </div>
         )}
@@ -273,59 +592,93 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
       </div>
 
       {/* Main Large Central Voice Interaction Microphone */}
-      <div className="flex flex-col items-center justify-center my-2 text-center">
+      <div className="flex flex-col items-center justify-center my-3 text-center">
         
         {/* Layered Circular Microphone Button */}
         <div className="relative group">
           
-          {/* Animated Glow Rings when Listening */}
+          {/* Animated Glow Waves when Listening */}
           {isListening && (
             <>
-              <div className="absolute -inset-4 rounded-full bg-amber-400/30 animate-ping" />
-              <div className="absolute -inset-8 rounded-full bg-[#0F3D2E]/20 animate-pulse" />
+              <div className="absolute -inset-4 rounded-full bg-rose-400/40 animate-ping" />
+              <div className="absolute -inset-8 rounded-full bg-rose-600/20 animate-pulse" />
+            </>
+          )}
+
+          {/* Animated Glow Waves when Speaking */}
+          {isSpeaking && (
+            <>
+              <div className="absolute -inset-4 rounded-full bg-amber-400/30 animate-pulse" />
+              <div className="absolute -inset-8 rounded-full bg-emerald-600/20 animate-ping" />
             </>
           )}
 
           <button
             onClick={toggleListening}
             className={`
-              relative z-10 w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95
+              relative z-10 w-22 h-22 sm:w-26 sm:h-26 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95
               ${isListening 
-                ? 'bg-rose-600 text-white ring-4 ring-rose-300 scale-105' 
-                : 'bg-gradient-to-br from-[#0F3D2E] via-[#144d3b] to-[#1c664f] text-amber-400 hover:shadow-2xl hover:scale-105'
+                ? 'bg-rose-600 text-white ring-8 ring-rose-200 scale-110 animate-pulse' 
+                : isSpeaking
+                ? 'bg-gradient-to-br from-amber-600 via-amber-700 to-amber-800 text-white ring-8 ring-amber-200 scale-105'
+                : 'bg-gradient-to-br from-[#0F3D2E] via-[#144d3b] to-[#1c664f] text-amber-300 hover:shadow-2xl hover:scale-105'
               }
             `}
-            title="Tap to speak to Saarthi"
+            title="Tap to speak with UdyamSarthi"
           >
             {isListening ? (
-              <MicOff className="w-9 h-9 sm:w-10 sm:h-10 animate-bounce" />
+              <MicOff className="w-10 h-10 animate-bounce" />
+            ) : isSpeaking ? (
+              <Volume2 className="w-10 h-10 animate-pulse text-white" />
             ) : (
-              <Mic className="w-9 h-9 sm:w-10 sm:h-10" />
+              <Mic className="w-10 h-10" />
             )}
           </button>
         </div>
 
-        {/* Micro-Instructions */}
-        <div className="mt-3">
-          <p className="text-sm font-bold text-stone-800">
-            {isListening ? "Listening... Speak now!" : "Tap and speak to Saarthi"}
+        {/* Live Audio Equalizer Animation / Voice Status */}
+        <div className="mt-3.5 space-y-1">
+          <div className="flex items-center justify-center space-x-2">
+            <span className={`inline-block w-2.5 h-2.5 rounded-full ${
+              isListening ? 'bg-rose-500 animate-ping' : isSpeaking ? 'bg-amber-500 animate-pulse' : 'bg-emerald-600'
+            }`} />
+            <p className="text-sm font-black text-stone-900">
+              {isListening 
+                ? "🎙️ Listening to You... Speak Now!" 
+                : isSpeaking 
+                ? "🔊 UdyamSarthi is Speaking... Tap to Interrupt" 
+                : "Tap Microphone to Talk with UdyamSarthi"}
+            </p>
+          </div>
+
+          <p className="text-xs text-stone-500 font-medium">
+            Speak naturally in <span className="text-[#0F3D2E] font-bold">English</span>, <span className="text-[#0F3D2E] font-bold">हिंदी (Hinglish)</span> or <span className="text-[#0F3D2E] font-bold">తెలుగు</span>
           </p>
-          <p className="text-xs text-stone-500 mt-0.5 font-medium">
-            You can speak in <span className="text-[#0F3D2E] font-semibold">English</span>, <span className="text-[#0F3D2E] font-semibold">हिंदी</span> or <span className="text-[#0F3D2E] font-semibold">తెలుగు</span>
-          </p>
+
+          {/* Prompt to start initial voice conversation */}
+          {messages.length === 1 && !isSpeaking && !isListening && (
+            <button
+              onClick={handleStartVoiceConversation}
+              className="mt-2 inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-emerald-50 text-[#0F3D2E] border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition shadow-2xs"
+            >
+              <Headphones className="w-3.5 h-3.5 text-emerald-700" />
+              <span>🔊 Click to Hear UdyamSarthi Greeting</span>
+            </button>
+          )}
+
           {speechError && (
             <p className="text-xs text-rose-600 mt-1 font-semibold">{speechError}</p>
           )}
         </div>
       </div>
 
-      {/* Alternative Text Input */}
+      {/* Alternative Text Input for noisy environments */}
       <form 
         onSubmit={(e) => {
           e.preventDefault();
           handleSend();
         }} 
-        className="relative mt-5"
+        className="relative mt-4"
       >
         <div className="flex items-center bg-[#FAF8F5] border border-stone-300 focus-within:border-[#0F3D2E] focus-within:ring-2 focus-within:ring-[#0F3D2E]/10 rounded-2xl px-3.5 py-2 shadow-xs transition">
           <Keyboard className="w-4 h-4 text-stone-400 mr-2 shrink-0" />
@@ -333,7 +686,7 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Or type your message here..."
+            placeholder={t.chatPlaceholder || "Or type your message here if in a noisy area..."}
             className="w-full bg-transparent text-stone-800 text-xs sm:text-sm focus:outline-none placeholder:text-stone-400 font-medium"
           />
           <button
@@ -346,11 +699,11 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         </div>
       </form>
 
-      {/* Suggested Prompts ("Try saying...") */}
-      <div className="mt-5 pt-4 border-t border-stone-100">
-        <p className="text-xs font-bold text-stone-500 mb-2.5 flex items-center space-x-1">
+      {/* Suggested Voice Prompts ("Try saying...") */}
+      <div className="mt-4 pt-3.5 border-t border-stone-100">
+        <p className="text-xs font-bold text-stone-500 mb-2 flex items-center space-x-1">
           <Sparkles className="w-3.5 h-3.5 text-[#C28A17]" />
-          <span>Try saying...</span>
+          <span>{language === 'hi' ? 'बोल कर देखें (Voice Prompts):' : (language === 'te' ? 'మాట్లాడి చూడండి:' : 'Try Speaking:')}</span>
         </p>
         <div className="flex flex-wrap gap-2">
           {suggestedPrompts.map((prompt, i) => (

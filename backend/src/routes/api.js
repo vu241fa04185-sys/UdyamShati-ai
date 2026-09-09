@@ -10,6 +10,7 @@ const { verifyToken } = require('../middleware/auth');
 // Auth routes
 router.post('/auth/login', authController.login);
 router.post('/auth/demo-login', authController.demoLogin);
+router.post('/auth/change-password', verifyToken, authController.changePassword);
 
 // Profile routes
 router.get('/profile', verifyToken, profileController.getProfile);

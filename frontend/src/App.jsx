@@ -9,50 +9,78 @@ import SchemeMatcher from './components/SchemeMatcher';
 import RiskStressView from './components/RiskStressView';
 import SimulatorView from './components/SimulatorView';
 import ReportView from './components/ReportView';
+import SettingsView from './components/SettingsView';
 import LoginPage from './components/Auth/LoginPage';
 import Sidebar from './components/Dashboard/Sidebar';
 import TopHeader from './components/Dashboard/TopHeader';
 import HomeDashboard from './components/Dashboard/HomeDashboard';
 import { authService } from './services/authService';
+import { translations } from './locales/translations';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
-  const [lang, setLang] = useState('en'); // English default for wide readability
+  const [lang, setLang] = useState(() => {
+    try {
+      return localStorage.getItem('udyamsetu_lang') || 'en';
+    } catch {
+      return 'en';
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(Date.now());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState(() => {
+    try {
+      if (authService && typeof authService.getNotificationSettings === 'function') {
+        return authService.getNotificationSettings();
+      }
+    } catch (e) {}
+    return { barNotifications: true, emailNotifications: true };
+  });
+
+  const handleSetLang = (newLang) => {
+    setLang(newLang);
+    try {
+      localStorage.setItem('udyamsetu_lang', newLang);
+    } catch (e) {}
+    setProfile((prev) => ({ ...prev, preferred_language: newLang }));
+  };
 
   // Authentication state initialized from authService
   const [auth, setAuth] = useState(() => authService.getCurrentSession());
 
-  // Default Entrepreneur Profile
+  // Blank Entrepreneur Profile initialized with null/empty until user provides
   const [profile, setProfile] = useState({
-    name: 'Ramesh Kisan',
-    phone: '9876543210',
-    social_category: 'OBC',
-    gender: 'MALE',
-    annual_family_income: 180000,
-    state: 'Andhra Pradesh',
-    district: 'Vadlamudi',
-    mandal_or_block: 'Chebrole',
-    village_name: 'Vadlamudi',
-    pincode: '522213',
-    latitude: 16.2333,
-    longitude: 80.5500,
-    available_capital: 300000,
-    liquid_reserve: 20000,
-    land_acres: 2.0,
+    name: null,
+    phone: '',
+    photo: '',
+    social_category: null,
+    gender: null,
+    annual_family_income: null,
+    address: '',
+    state: null,
+    district: null,
+    mandal_or_block: '',
+    village_name: '',
+    pincode: '',
+    post: '',
+    police_station: '',
+    latitude: null,
+    longitude: null,
+    available_capital: null,
+    liquid_reserve: null,
+    land_acres: null,
     has_shop_building: false,
-    has_vehicle: true,
+    has_vehicle: false,
     has_machinery: false,
     has_electricity: true,
     has_water_source: true,
     has_internet: true,
     has_storage_facility: false,
-    skills: ['farming', 'agriculture'],
-    experience_years: 5,
+    skills: [],
+    experience_years: null,
     business_interest: null,
-    target_monthly_income: 25000,
+    target_monthly_income: null,
     risk_preference: 'MODERATE',
     preferred_language: 'en',
     analysis_radius_km: 10.0
@@ -136,10 +164,12 @@ export default function App() {
       <LoginPage
         onLoginSuccess={handleLoginSuccess}
         lang={lang}
-        setLang={setLang}
+        setLang={handleSetLang}
       />
     );
   }
+
+  const t = translations[lang] || translations.en;
 
   return (
     <div className="min-h-screen bg-[#FCFBF7] text-stone-800 flex font-sans antialiased">
@@ -149,6 +179,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
+        lang={lang}
       />
 
       {/* 2. Main Content Workspace (Offset by Sidebar on Desktop) */}
@@ -157,9 +188,12 @@ export default function App() {
         {/* Top Header Bar */}
         <TopHeader
           auth={auth}
+          profile={profile}
+          notificationSettings={notificationSettings}
+          setActiveTab={setActiveTab}
           onLogout={handleLogout}
           language={lang}
-          setLanguage={setLang}
+          setLanguage={handleSetLang}
           onOpenSidebar={() => setIsSidebarOpen(true)}
           onSearch={(query) => {
             setActiveTab('home');
@@ -264,6 +298,16 @@ export default function App() {
                   lang={lang}
                 />
               )}
+
+              {activeTab === 'settings' && (
+                <SettingsView
+                  auth={auth}
+                  profile={profile}
+                  notificationSettings={notificationSettings}
+                  onUpdateNotificationSettings={setNotificationSettings}
+                  language={lang}
+                />
+              )}
             </>
           )}
         </main>
@@ -272,10 +316,10 @@ export default function App() {
         <footer className="bg-white/80 border-t border-emerald-900/10 py-4 px-6 text-center text-xs text-stone-500">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <span className="font-bold text-[#0F3D2E]">
-              UdyamSaarthi AI • Your Business Companion
+              {t.appTitle || 'UdyamSaarthi AI'} • {t.tagline || 'Your Business Companion'}
             </span>
             <span>
-              Empowering Rural Micro-Entrepreneurs across India
+              {t.empowerRuralIndia || 'Empowering Rural Micro-Entrepreneurs across India'}
             </span>
           </div>
         </footer>

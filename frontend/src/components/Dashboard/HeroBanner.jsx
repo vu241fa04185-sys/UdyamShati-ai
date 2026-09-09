@@ -1,17 +1,20 @@
 import React from 'react';
 import { ArrowRight, Sparkles, Sprout } from 'lucide-react';
 import heroImg from '../../assets/rural_entrepreneur_hero.jpg';
+import { translations } from '../../locales/translations';
 
-export default function HeroBanner({ userName, onStartAnalysis }) {
+export default function HeroBanner({ userName, onStartAnalysis, language = 'en' }) {
+  const t = translations[language] || translations.en;
+
   // Get time-based greeting
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return t.goodMorning || 'Good morning';
+    if (hour < 17) return t.goodAfternoon || 'Good afternoon';
+    return t.goodEvening || 'Good evening';
   };
 
-  const firstName = userName ? userName.split(' ')[0] : 'Entrepreneur';
+  const firstName = userName ? userName.split(' ')[0] : (t.ruralEntrepreneurRole || 'Entrepreneur');
 
   return (
     <div className="relative w-full rounded-3xl overflow-hidden bg-[#0F3D2E] text-white shadow-xl border border-emerald-800/40">
@@ -32,7 +35,7 @@ export default function HeroBanner({ userName, onStartAnalysis }) {
         {/* Top Tag */}
         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-400/20 backdrop-blur-md border border-amber-400/30 text-amber-300 text-xs font-semibold w-fit mb-3">
           <Sprout className="w-3.5 h-3.5 text-amber-300" />
-          <span>Bharat Rural Enterprise Mission</span>
+          <span>{t.bharatMission || 'Bharat Rural Enterprise Mission'}</span>
         </div>
 
         {/* Greeting & Headline */}
@@ -41,10 +44,10 @@ export default function HeroBanner({ userName, onStartAnalysis }) {
             {getGreeting()}, <span className="text-amber-400">{firstName}</span>! ☀️
           </h1>
           <p className="text-lg sm:text-xl font-bold text-white mt-1 leading-snug">
-            Your ideas can create a stronger tomorrow.
+            {t.heroBannerHeadline || 'Your ideas can create a stronger tomorrow.'}
           </p>
           <p className="text-xs sm:text-sm text-stone-200 mt-2 font-normal leading-relaxed max-w-lg">
-            Talk to <span className="text-amber-300 font-semibold">UdyamSaarthi</span> — your AI companion for business guidance, financial planning and government support.
+            {t.heroBannerDesc || 'Talk to UdyamSaarthi — your AI companion for business guidance, financial planning and government support.'}
           </p>
         </div>
 
@@ -54,7 +57,7 @@ export default function HeroBanner({ userName, onStartAnalysis }) {
             onClick={onStartAnalysis}
             className="inline-flex items-center space-x-2 px-6 py-3 rounded-2xl bg-[#C28A17] hover:bg-[#b07d14] text-white font-bold text-sm shadow-lg shadow-amber-900/30 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
           >
-            <span>Start New Business Analysis</span>
+            <span>{t.startNewAnalysis || 'Start New Business Analysis'}</span>
             <ArrowRight className="w-4 h-4 text-white" />
           </button>
         </div>

@@ -20,6 +20,7 @@ import {
 import axios from 'axios';
 import { detectAccurateLocation } from '../utils/geolocation';
 import { translations } from '../locales/translations';
+import { cleanSpeechText, configureFemaleUtterance } from '../utils/speechVoice';
 
 export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiveTab }) {
   const t = translations[lang] || translations.en;
@@ -28,10 +29,10 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
     {
       sender: 'ai',
       text: lang === 'hi' 
-        ? "नमस्ते! मैं आपका उद्यमसेतु एआई सलाहकार हूँ। आप बोलकर या लिखकर सवाल पूछ सकते हैं — जैसे 'मेरा करंट लोकेशन क्या है?', 'मेरे पास 3 लाख रुपये हैं', या 'डेयरी लोन की ईएमआई कितनी होगी?'।"
+        ? "नमस्ते! मैं आपकी उद्यमसारथी एआई बिजनेस एडवाइजर हूँ। आप बोलकर या लिखकर बात कर सकते हैं — जैसे 'मेरा नाम राजू है', 'गुंटूर में डेयरी फार्मिंग शुरू करनी है', या 'अचार का बिजनेस कैसे करें?'।"
         : lang === 'te'
-        ? "నమస్కారం! నేను మీ ఉద్యమ్ సేతు ఏఐ సలహాదారుని. మాట్లాడండి — మీ వివరాలు మరియు ప్రశ్నలకు తక్షణ సమాధానం లభిస్తుంది."
-        : "Welcome to UdyamSetu AI! Speak or type naturally — ask about your location, suggest a business for your capital, or calculate loan EMIs.",
+        ? "నమస్కారం! నేను మీ ఉద్యమ్‌సారథి ఏఐ సలహాదారుని. మాట్లాడండి — మీ వ్యాపార ప్రశ్నలకు తక్షణ సమాధానం మరియు మార్గదర్శకత్వం లభిస్తుంది."
+        : "Namaste! I am UdyamSarthi, your AI Business Advisor. Speak or type naturally — ask about starting a dairy farm, poultry, goat farming, or food processing.",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       entities: null,
       topRec: null,
@@ -43,8 +44,27 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [autoSpeak, setAutoSpeak] = useState(true); // Default ON so AI talks with user
-  const [lastExtractedNotice, setLastExtractedNotice] = useState(null);
   const [gpsDetecting, setGpsDetecting] = useState(false);
+  const [sessionState, setSessionState] = useState({
+    name: null,
+    district: null,
+    state: null,
+    business: null,
+    businessIdea: null,
+    businessType: null,
+    subCategory: null,
+    animalType: null,
+    quantity: null,
+    productType: null,
+    budget: null,
+    landAvailable: null,
+    shedAvailable: null,
+    feedFodder: null,
+    rawMaterial: null,
+    experience: null,
+    goals: null,
+    lang: lang
+  });
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -105,11 +125,18 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
 
   const speakText = (text) => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text.replace(/\*\*/g, '').replace(/•/g, ''));
-      utterance.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
-      utterance.rate = 1.0;
-      window.speechSynthesis.speak(utterance);
+      try {
+        window.speechSynthesis.cancel();
+        const clean = cleanSpeechText(text);
+        if (!clean) return;
+        const utterance = new SpeechSynthesisUtterance(clean);
+        const langCode = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+        utterance.lang = langCode;
+        configureFemaleUtterance(utterance, window.speechSynthesis, langCode);
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn("TTS speak error:", err);
+      }
     }
   };
 
@@ -172,10 +199,17 @@ export default function ChatAssistant({ lang, profile, onProfileUpdate, setActiv
     try {
       const response = await axios.post('/api/chat', {
         message: queryText,
-        profile: profile
+        profile: profile,
+        lang: lang,
+        session_state: sessionState,
+        history: [...messages, userMsg].slice(-6).map(m => ({ sender: m.sender, text: m.text }))
       });
 
-      const { reply, updated_profile, top_recommendation, nlu, action_type } = response.data;
+      const { reply, updated_profile, top_recommendation, session_state } = response.data;
+
+      if (session_state) {
+        setSessionState(session_state);
+      }
 
       // Update global profile state if updated by AI
       if (updated_profile && onProfileUpdate) {

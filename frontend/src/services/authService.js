@@ -266,6 +266,86 @@ export const authService = {
     authService.saveSession(session);
     return { status: 'SUCCESS', session };
   },
+
+  /**
+   * Change Password (Old Password + New Password)
+   */
+  changePassword: async (oldPassword, newPassword) => {
+    if (!oldPassword || !newPassword) {
+      return { status: 'ERROR', message: 'Both old password and new password are required.' };
+    }
+    if (newPassword.length < 6) {
+      return { status: 'ERROR', message: 'New password must be at least 6 characters long.' };
+    }
+
+    const currentSession = authService.getCurrentSession();
+    const currentUser = currentSession?.user;
+
+    let registeredUsers = [];
+    try {
+      const stored = localStorage.getItem(USERS_REGISTRY_KEY);
+      if (stored) registeredUsers = JSON.parse(stored);
+    } catch (e) {}
+
+    const userIndex = registeredUsers.findIndex(
+      (u) => (currentUser?.mobile && u.mobile === currentUser.mobile) ||
+             (currentUser?.email && u.email === currentUser.email)
+    );
+
+    if (userIndex !== -1) {
+      if (registeredUsers[userIndex].password && registeredUsers[userIndex].password !== oldPassword) {
+        return { status: 'ERROR', message: 'Current password does not match our records.' };
+      }
+      registeredUsers[userIndex].password = newPassword;
+      try {
+        localStorage.setItem(USERS_REGISTRY_KEY, JSON.stringify(registeredUsers));
+      } catch (e) {}
+    } else {
+      const validDemo = ['kisan123', 'admin123', '123456', 'demo123'];
+      const stored = localStorage.getItem('udyam_demo_password');
+      if (stored) {
+        if (oldPassword !== stored) {
+          return { status: 'ERROR', message: 'Current password is incorrect.' };
+        }
+      } else if (!validDemo.includes(oldPassword)) {
+        return { status: 'ERROR', message: 'Current password is incorrect (Default: kisan123).' };
+      }
+      try {
+        localStorage.setItem('udyam_demo_password', newPassword);
+      } catch (e) {}
+    }
+
+    try {
+      await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': currentSession?.token ? `Bearer ${currentSession.token}` : ''
+        },
+        body: JSON.stringify({ oldPassword, newPassword })
+      });
+    } catch (e) {}
+
+    return { status: 'SUCCESS', message: 'Password updated successfully!' };
+  },
+
+  /**
+   * Notification Settings (In-App / Bar and Email)
+   */
+  getNotificationSettings: () => {
+    try {
+      const stored = localStorage.getItem('udyam_notification_settings');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return { barNotifications: true, emailNotifications: true };
+  },
+
+  saveNotificationSettings: (settings) => {
+    try {
+      localStorage.setItem('udyam_notification_settings', JSON.stringify(settings));
+    } catch (e) {}
+    return settings;
+  },
 };
 
 // Helper JWT parser for Google ID token payload
