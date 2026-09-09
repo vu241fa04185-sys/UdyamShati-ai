@@ -157,6 +157,7 @@ export default function App() {
         {/* Top Header Bar */}
         <TopHeader
           auth={auth}
+          userName={profile.name}
           onLogout={handleLogout}
           language={lang}
           setLanguage={setLang}

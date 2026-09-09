@@ -12,18 +12,19 @@ import {
 
 export default function TopHeader({ 
   auth, 
+  userName: customUserName,
   onLogout, 
   language, 
   setLanguage, 
-  onOpenSidebar,
+  onOpenSidebar, 
   onSearch 
 }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Extract logged-in user name
-  const userName = auth?.user?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
+  // Extract logged-in user name or custom profile name
+  const userName = customUserName || auth?.user?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
   
   // Helper for user initials
   const getInitials = (name) => {
