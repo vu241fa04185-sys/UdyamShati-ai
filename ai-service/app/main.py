@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
@@ -161,15 +161,44 @@ def evaluate_schemes(profile: Dict[str, Any], project_cost: float = 300000.0):
     return scheme_engine.evaluate_schemes(profile, project_cost)
 
 @app.post("/api/recommendations")
-def get_recommendations(profile: ProfileRequest):
+def get_recommendations(req: Dict[str, Any] = Body(...)):
     """Executes full multi-factor decision pipeline to generate explainable recommendations."""
-    profile_dict = profile.model_dump()
-    results = recommendation_engine.evaluate_recommendations(profile_dict, profile.analysis_radius_km)
+    norm = udyam_sarthi_agent.normalize_profile(req)
+    
+    cap = norm.get("financial", {}).get("capital") or req.get("available_capital") or req.get("capital") or 300000.0
+    land = norm.get("land_workspace", {}).get("land_area") or req.get("land_acres") or 1.0
+    radius = req.get("analysis_radius_km") or 10.0
+    lang = norm.get("personal", {}).get("language") or req.get("preferred_language") or "hi"
+    
+    profile_dict = {
+        "name": norm.get("personal", {}).get("name") or req.get("name") or "Entrepreneur",
+        "social_category": norm.get("government", {}).get("social_category") or req.get("social_category") or "OBC",
+        "gender": req.get("gender") or "MALE",
+        "annual_family_income": req.get("annual_family_income") or 180000.0,
+        "latitude": req.get("latitude") or 20.1706,
+        "longitude": req.get("longitude") or 73.9840,
+        "available_capital": cap,
+        "liquid_reserve": req.get("liquid_reserve") or 20000.0,
+        "land_acres": land,
+        "has_shop_building": bool(req.get("has_shop_building")),
+        "has_vehicle": bool(req.get("has_vehicle")),
+        "has_machinery": bool(req.get("has_machinery")),
+        "has_electricity": bool(req.get("has_electricity", True)),
+        "has_water_source": bool(norm.get("resources", {}).get("water") or req.get("has_water_source", True)),
+        "has_internet": bool(req.get("has_internet", True)),
+        "skills": req.get("skills") or ["farming"],
+        "experience_years": norm.get("farmer", {}).get("farming_experience_years") or req.get("experience_years") or 3,
+        "business_interest": norm.get("business", {}).get("business_idea") or req.get("business_interest"),
+        "preferred_language": lang,
+        "analysis_radius_km": radius
+    }
+    
+    results = recommendation_engine.evaluate_recommendations(profile_dict, radius)
     
     # Attach explainability to the top recommendation
     if results.get("top_recommendation"):
         top_rec = results["top_recommendation"]
-        explanation = explainability_engine.generate_explanation(top_rec, profile.preferred_language)
+        explanation = explainability_engine.generate_explanation(top_rec, lang)
         results["top_recommendation"]["explanation"] = explanation
 
     return results
