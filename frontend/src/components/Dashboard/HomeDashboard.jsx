@@ -11,7 +11,7 @@ export default function HomeDashboard({
   setActiveTab, 
   language 
 }) {
-  const userName = auth?.name || auth?.user?.name || profile?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
+  const userName = auth?.name || auth?.user?.name || profile?.name || 'Entrepreneur';
 
   return (
     <div className="space-y-8 pb-12">

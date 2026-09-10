@@ -256,7 +256,7 @@ export const authService = {
       loginTime: Date.now(),
       user: {
         id: 'demo_user_sih',
-        name: 'Demo Entrepreneur',
+        name: 'Entrepreneur',
         mobile: '9876543210',
         email: 'demo.entrepreneur@udyam.in',
         isDemo: true,

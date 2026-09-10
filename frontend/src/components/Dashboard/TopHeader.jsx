@@ -41,7 +41,7 @@ export default function TopHeader({
   const [searchQuery, setSearchQuery] = useState('');
 
   // Extract logged-in user name from customUserName, auth, or profile
-  const userName = customUserName || auth?.name || auth?.user?.name || profile?.name || (auth?.user?.isDemo ? 'Demo Entrepreneur' : 'Entrepreneur');
+  const userName = customUserName || auth?.name || auth?.user?.name || profile?.name || 'Entrepreneur';
   
   // Helper for user initials
   const getInitials = (name) => {

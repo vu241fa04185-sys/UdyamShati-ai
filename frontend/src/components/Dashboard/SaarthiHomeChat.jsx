@@ -470,13 +470,23 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         setSessionState(response.data.session_state);
         
         // Sync dossier from session_state where applicable
+        const sState = response.data.session_state || {};
+        const masterProf = response.data.updated_profile || {};
+        const resrc = masterProf?.resources || {};
+        const farm = masterProf?.farmer || {};
+
         setDossier(prev => ({
           ...prev,
-          name: response.data.session_state.name || prev.name,
-          businessIdea: response.data.session_state.business || response.data.session_state.businessIdea || prev.businessIdea,
-          location: response.data.session_state.district || prev.location,
-          capital: response.data.session_state.budget || prev.capital,
-          experience: response.data.session_state.experience || prev.experience
+          name: sState.name || masterProf?.name || prev.name,
+          businessIdea: sState.business || sState.businessIdea || masterProf?.business?.business_idea || prev.businessIdea,
+          location: sState.district || masterProf?.location?.village || prev.location,
+          capital: sState.budget !== undefined && sState.budget !== null ? sState.budget : (masterProf?.financial?.capital ?? prev.capital),
+          land: sState.landAvailable ? `${sState.landAvailable} Acres` : (resrc.land_acres ? `${resrc.land_acres} Acres` : prev.land),
+          experience: sState.experience ? `${sState.experience} Years` : (farm.farming_experience_years ? `${farm.farming_experience_years} Years` : prev.experience),
+          shed: sState.shed !== undefined ? sState.shed : (resrc.shed ?? prev.shed),
+          water: sState.water !== undefined ? sState.water : (resrc.water ?? prev.water),
+          cattle: sState.cattle_count ? `${sState.cattle_count} ${sState.cattle || 'Units'}` : (resrc.cattle_count ? `${resrc.cattle_count} ${resrc.cattle || 'Units'}` : prev.cattle),
+          completeness: response.data.profile_completeness?.score || prev.completeness
         }));
       }
 
@@ -1393,14 +1403,71 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
               </div>
 
               {/* Field 6: Experience & Skills */}
-              <div className="bg-white p-2.5 rounded-xl border border-stone-200/80 flex items-center justify-between">
+              <div className="bg-white p-2 rounded-xl border border-stone-200/80 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-stone-400 block font-semibold">6. Core Skills</span>
+                  <span className="text-[10px] text-stone-400 block font-semibold">6. Experience</span>
                   <span className="font-bold text-stone-900 capitalize truncate max-w-[120px] block">
                     {dossier.experience || <span className="text-amber-600 font-normal italic">Pending input...</span>}
                   </span>
                 </div>
                 {dossier.experience ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
+                )}
+              </div>
+
+              {/* Field 7: Cattle Shed Infrastructure */}
+              <div className="bg-white p-2 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">7. Animal Shed</span>
+                  <span className="font-bold text-stone-900">
+                    {dossier.shed !== undefined && dossier.shed !== null ? (dossier.shed ? "Available (Ready)" : "Required") : <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.shed !== undefined && dossier.shed !== null ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
+                )}
+              </div>
+
+              {/* Field 8: Water / Borewell Facility */}
+              <div className="bg-white p-2 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">8. Water / Borewell</span>
+                  <span className="font-bold text-stone-900">
+                    {dossier.water !== undefined && dossier.water !== null ? (dossier.water ? "Available (Borewell)" : "Shortage") : <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.water !== undefined && dossier.water !== null ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Captured
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    Missing
+                  </span>
+                )}
+              </div>
+
+              {/* Field 9: Livestock / Cattle Base */}
+              <div className="bg-white p-2 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-semibold">9. Livestock Base</span>
+                  <span className="font-bold text-stone-900">
+                    {dossier.cattle || <span className="text-amber-600 font-normal italic">Pending input...</span>}
+                  </span>
+                </div>
+                {dossier.cattle ? (
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
                     <Check className="w-3 h-3 text-emerald-600" /> Captured
                   </span>

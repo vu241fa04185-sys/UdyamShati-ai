@@ -54,47 +54,117 @@ class UdyamSarthiAgent:
             self.schemes = []
 
     def get_default_profile(self) -> Dict[str, Any]:
-        """Returns clean Section 12 structured profile."""
+        """Returns clean Section 3 Master Farmer & Entrepreneur Profile."""
         return {
-            "name": None,
-            "language": "HINDI",
+            "personal": {
+                "name": None,
+                "age": None,
+                "gender": "",
+                "language": "HINDI",
+                "education": ""
+            },
             "location": {
-                "state": "Maharashtra",
+                "village": "",
+                "town": "",
                 "district": "Nashik",
-                "mandal": "Niphad",
-                "village": "Pimpalgaon Baswant",
+                "state": "Maharashtra",
                 "pincode": "422209",
                 "latitude": 20.1706,
                 "longitude": 73.9840
             },
+            "business": {
+                "business_idea": "",
+                "business_type": "",
+                "business_stage": "PLANNING",
+                "new_or_existing": "NEW",
+                "business_goal": "",
+                "interest": None
+            },
             "financial": {
+                "available_capital": None,
                 "capital": None,
                 "investable_capital": None,
+                "own_contribution": None,
+                "expected_project_cost": None,
                 "loan_required": None,
-                "loan_amount": None
+                "loan_amount": None,
+                "monthly_income": None,
+                "monthly_expenses": None,
+                "existing_debt": None,
+                "monthly_emi": None
             },
+            "land_workspace": {
+                "land_available": None,
+                "land_area": None,
+                "land_unit": "acres",
+                "ownership": "",
+                "workspace_available": None,
+                "workspace_size": None,
+                "shop_available": None
+            },
+            "farmer": {
+                "farmer": False,
+                "farming_experience_years": None,
+                "crops": [],
+                "livestock": [],
+                "current_farming_activity": "",
+                "irrigation": "",
+                "water_availability": "",
+                "electricity": "",
+                "equipment": [],
+                "machinery": []
+            },
+            "skills": {
+                "core_skills": [],
+                "business_experience": [],
+                "technical_skills": [],
+                "training": [],
+                "certifications": []
+            },
+            "resources": {
+                "cattle": None,
+                "cattle_count": None,
+                "shed": None,
+                "water": None,
+                "electricity": None,
+                "equipment": [],
+                "vehicles": [],
+                "storage": None,
+                "raw_material_access": None,
+                "land": False,
+                "land_acres": None,
+                "shop": False,
+                "building": False
+            },
+            "market": {
+                "target_customers": "",
+                "existing_customers": "",
+                "nearby_market": "",
+                "supplier_access": "",
+                "transport_access": "",
+                "selling_channel": ""
+            },
+            "preferences": {
+                "risk_tolerance": "MODERATE",
+                "working_hours": "",
+                "family_support": "",
+                "employment_goal": "",
+                "income_goal": None
+            },
+            "government": {
+                "social_category": "OBC",
+                "special_category": "",
+                "previous_government_loan": None,
+                "previous_subsidy": None
+            },
+            # Top-level legacy aliases for complete backward compatibility
+            "name": None,
+            "language": "HINDI",
             "experience": {
                 "skills": [],
                 "occupation": None,
                 "experience": [],
                 "experience_years": None
-            },
-            "resources": {
-                "land": False,
-                "land_acres": None,
-                "shop": False,
-                "shop_area": None,
-                "building": False,
-                "vehicle": False,
-                "machinery": False,
-                "water": True,
-                "electricity": True,
-                "storage": False
-            },
-            "business": {
-                "interest": None,
-                "status": None,
-                "existing_business": None
             },
             "goal": None,
             "expected_monthly_income": None,
@@ -103,13 +173,15 @@ class UdyamSarthiAgent:
         }
 
     def normalize_profile(self, raw_profile: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        """Ensures incoming profile conforms to schema while preserving existing data."""
+        """Ensures incoming profile conforms to Section 3 Master Schema while preserving existing data."""
         base = self.get_default_profile()
         if not raw_profile:
             return base
 
-        name = raw_profile.get("name") or base["name"]
-        lang = raw_profile.get("language") or raw_profile.get("preferred_language") or base["language"]
+        # 1. Personal
+        pers = raw_profile.get("personal", {})
+        name = pers.get("name") or raw_profile.get("name") or base["personal"]["name"]
+        lang = pers.get("language") or raw_profile.get("language") or raw_profile.get("preferred_language") or base["personal"]["language"]
         if lang in ["hi", "HINDI"]:
             lang = "HINDI"
         elif lang in ["te", "TELUGU"]:
@@ -117,75 +189,113 @@ class UdyamSarthiAgent:
         elif lang in ["en", "ENGLISH"]:
             lang = "ENGLISH"
 
+        base["personal"]["name"] = name
+        base["personal"]["language"] = lang
         base["name"] = name
         base["language"] = lang
-        base["social_category"] = raw_profile.get("social_category") or base["social_category"]
-        base["goal"] = raw_profile.get("goal") or base["goal"]
-        base["expected_monthly_income"] = raw_profile.get("expected_monthly_income") or base["expected_monthly_income"]
-        base["risk_preference"] = raw_profile.get("risk_preference") or base["risk_preference"]
 
-        # Location
+        # 2. Location
         loc = raw_profile.get("location", {})
-        base["location"]["state"] = loc.get("state") or raw_profile.get("state") or base["location"]["state"]
+        base["location"]["village"] = loc.get("village") or raw_profile.get("village_name") or loc.get("district") or base["location"]["village"]
         base["location"]["district"] = loc.get("district") or raw_profile.get("district") or base["location"]["district"]
-        base["location"]["mandal"] = loc.get("mandal") or raw_profile.get("mandal") or base["location"]["mandal"]
-        base["location"]["village"] = loc.get("village") or raw_profile.get("village_name") or base["location"]["village"]
+        base["location"]["state"] = loc.get("state") or raw_profile.get("state") or base["location"]["state"]
         base["location"]["pincode"] = loc.get("pincode") or raw_profile.get("pincode") or base["location"]["pincode"]
         base["location"]["latitude"] = float(loc.get("latitude") or raw_profile.get("latitude") or base["location"]["latitude"])
         base["location"]["longitude"] = float(loc.get("longitude") or raw_profile.get("longitude") or base["location"]["longitude"])
 
-        # Financial
+        # 3. Financial
         fin = raw_profile.get("financial", {})
-        capital = fin.get("capital") if fin.get("capital") is not None else raw_profile.get("available_capital")
+        capital = fin.get("capital") if fin.get("capital") is not None else (fin.get("available_capital") if fin.get("available_capital") is not None else raw_profile.get("available_capital"))
+        if capital is None:
+            capital = raw_profile.get("capital")
         base["financial"]["capital"] = float(capital) if capital is not None else None
+        base["financial"]["available_capital"] = base["financial"]["capital"]
         base["financial"]["investable_capital"] = float(fin.get("investable_capital") or (capital * 0.9 if capital else 0.0))
 
-        # Experience
+        # 4. Land & Workspace
+        lw = raw_profile.get("land_workspace", {})
+        res = raw_profile.get("resources", {})
+        land_area = lw.get("land_area") if lw.get("land_area") is not None else (res.get("land_acres") if res.get("land_acres") is not None else raw_profile.get("land_acres"))
+        base["land_workspace"]["land_area"] = float(land_area) if land_area is not None else None
+        base["land_workspace"]["land_available"] = (base["land_workspace"]["land_area"] or 0) > 0 or bool(res.get("land", False))
+        base["resources"]["land_acres"] = base["land_workspace"]["land_area"]
+        base["resources"]["land"] = base["land_workspace"]["land_available"]
+
+        # 5. Farmer & Experience
+        frm = raw_profile.get("farmer", {})
         exp = raw_profile.get("experience", {})
+        exp_years = frm.get("farming_experience_years") if frm.get("farming_experience_years") is not None else (exp.get("experience_years") if exp.get("experience_years") is not None else raw_profile.get("experience_years"))
+        base["farmer"]["farming_experience_years"] = int(exp_years) if exp_years is not None else None
+        base["farmer"]["farmer"] = bool(frm.get("farmer") or (exp_years and exp_years > 0))
+        base["experience"]["experience_years"] = base["farmer"]["farming_experience_years"]
         skills = exp.get("skills") if isinstance(exp.get("skills"), list) else raw_profile.get("skills", [])
         base["experience"]["skills"] = list(set(skills))
-        exp_years = exp.get("experience_years") if exp.get("experience_years") is not None else raw_profile.get("experience_years")
-        base["experience"]["experience_years"] = int(exp_years) if exp_years is not None else None
 
-        # Resources
-        res = raw_profile.get("resources", {})
-        land_acres = res.get("land_acres") if res.get("land_acres") is not None else raw_profile.get("land_acres")
-        base["resources"]["land_acres"] = float(land_acres) if land_acres is not None else None
-        base["resources"]["land"] = (base["resources"]["land_acres"] or 0) > 0 or bool(res.get("land", False))
+        # 6. Resources (Shed, Water, Electricity, Cattle)
+        base["resources"]["shed"] = res.get("shed") if res.get("shed") is not None else raw_profile.get("shed")
+        base["resources"]["water"] = res.get("water") if res.get("water") is not None else raw_profile.get("water")
+        base["resources"]["electricity"] = res.get("electricity") if res.get("electricity") is not None else raw_profile.get("electricity")
+        base["resources"]["cattle_count"] = res.get("cattle_count") if res.get("cattle_count") is not None else raw_profile.get("cattle_count")
+        base["resources"]["cattle"] = res.get("cattle") or raw_profile.get("cattle")
 
-        # Business
+        # 7. Business
         biz = raw_profile.get("business", {})
-        base["business"]["interest"] = biz.get("interest") or raw_profile.get("business_interest") or raw_profile.get("business_idea")
+        biz_idea = biz.get("business_idea") or biz.get("interest") or raw_profile.get("business_interest") or raw_profile.get("business_idea")
+        base["business"]["business_idea"] = biz_idea or ""
+        base["business"]["interest"] = biz_idea or None
+
+        # 8. Social Category
+        base["government"]["social_category"] = raw_profile.get("social_category") or base["government"]["social_category"]
+        base["social_category"] = base["government"]["social_category"]
 
         return base
 
     def compute_profile_completeness(self, profile: Dict[str, Any]) -> Tuple[int, List[str], List[str]]:
-        """Calculates profile completion percentage and missing fields."""
-        required_fields = {
-            "name": bool(profile.get("name")),
-            "capital": profile.get("financial", {}).get("capital") is not None,
-            "location": bool(profile.get("location", {}).get("village")),
-            "skills_or_experience": len(profile.get("experience", {}).get("skills", [])) > 0 or profile.get("experience", {}).get("experience_years") is not None,
-            "goal": bool(profile.get("goal"))
+        """Calculates dynamic completion score, completed fields, and missing fields."""
+        p_name = bool(profile["personal"]["name"] or profile.get("name"))
+        p_cap = (profile["financial"]["capital"] is not None) or (profile["financial"]["available_capital"] is not None)
+        p_loc = bool(profile["location"]["village"] and profile["location"]["village"] != "Pimpalgaon Baswant")
+        p_biz = bool(profile["business"]["business_idea"] or profile["business"]["interest"])
+        p_land = profile["land_workspace"]["land_area"] is not None or profile["resources"]["land_acres"] is not None
+        p_exp = profile["farmer"]["farming_experience_years"] is not None or profile["experience"]["experience_years"] is not None
+        p_shed = profile["resources"]["shed"] is not None
+        p_water = profile["resources"]["water"] is not None
+        p_cattle = (profile["resources"]["cattle_count"] is not None) or (profile["resources"]["cattle"] is not None)
+
+        biz_code = (profile["business"]["business_idea"] or profile["business"]["interest"] or "").upper()
+
+        required_checklist = {
+            "name": p_name,
+            "business_idea": p_biz,
+            "capital": p_cap,
+            "location": p_loc
         }
 
-        optional_fields = {
-            "land_or_shop": profile.get("resources", {}).get("land") or profile.get("resources", {}).get("shop"),
-            "risk_preference": bool(profile.get("risk_preference")),
-            "expected_income": profile.get("expected_monthly_income") is not None
-        }
+        # Dynamic business-specific requirements
+        if "DAIRY" in biz_code:
+            required_checklist["land_or_shed"] = p_land or p_shed
+            required_checklist["water_availability"] = p_water
+            required_checklist["cattle_or_livestock"] = p_cattle
+            required_checklist["farming_experience"] = p_exp
+        elif "POULTRY" in biz_code:
+            required_checklist["shed_or_workspace"] = p_shed or p_land
+            required_checklist["water_or_electricity"] = p_water or (profile["resources"]["electricity"] is not None)
+            required_checklist["farming_experience"] = p_exp
+        elif "GROCERY" in biz_code or "KIRANA" in biz_code:
+            required_checklist["shop_or_location"] = p_loc or bool(profile["land_workspace"].get("shop_available"))
+        elif profile["farmer"]["farmer"]:
+            required_checklist["land"] = p_land
+            required_checklist["experience"] = p_exp
+            required_checklist["water_availability"] = p_water
 
-        req_passed = sum(1 for v in required_fields.values() if v)
-        req_total = len(required_fields)
-        opt_passed = sum(1 for v in optional_fields.values() if v)
-        opt_total = len(optional_fields)
+        passed = sum(1 for v in required_checklist.values() if v)
+        total = len(required_checklist)
+        score = int(round((passed / total) * 100)) if total > 0 else 20
 
-        score = int(round((req_passed / req_total * 75) + (opt_passed / opt_total * 25)))
+        missing_required = [k for k, v in required_checklist.items() if not v]
+        completed = [k for k, v in required_checklist.items() if v]
 
-        missing_required = [k for k, v in required_fields.items() if not v]
-        missing_optional = [k for k, v in optional_fields.items() if not v]
-
-        return score, missing_required, missing_optional
+        return score, missing_required, completed
 
     def detect_language(self, text: str, previous_lang: str = "HINDI") -> str:
         """Detects language: HINDI, ENGLISH, TELUGU, or MIXED."""
@@ -203,7 +313,7 @@ class UdyamSarthiAgent:
         has_telugu = any('\u0C00' <= c <= '\u0C7F' for c in text)
 
         telugu_words = ["రూపాయలు", "వ్యాపారం", "సాగు", "నా దగ్గర", "ఎక్కడ", "పెట్టుబడి", "రుణం", "లాభం", "ఖర్చు", "భూమి", "చెప్పండి", "ఉంది", "చేయాలి", "ఎలా", "తెలుగు", "గురించి", "కావాలి", "పాల", "కోళ్ల", "మేకల", "ఆవులు", "గేదెలు"]
-        hindi_words = ["paas", "rupaye", "lakh", "karo", "kaunsa", "mere", "hai", "kheti", "kya", "batao", "sakte", "hain", "mera", "meri", "naam", "zamin", "gaon", "shehar", "chahiye", "karun", "mujhe", "hogi", "kitni", "main", "saal", "se", "raha", "hoon", "chahta", "karna", "shuru"]
+        hindi_words = ["paas", "rupaye", "lakh", "karo", "kaunsa", "mere", "hai", "kheti", "kya", "batao", "sakte", "hain", "mera", "meri", "naam", "zamin", "gaon", "shehar", "chahiye", "karun", "mujhe", "hogi", "kitni", "main", "saal", "se", "raha", "hoon", "chahta", "karna", "shuru", "bhi"]
         english_words = ["business", "want", "capital", "investment", "loan", "profit", "start", "suggest", "compare", "village", "market", "acres", "lakhs", "match", "what", "need", "where", "shop", "open"]
 
         is_te = has_telugu or any(w in t for w in telugu_words)
@@ -220,59 +330,147 @@ class UdyamSarthiAgent:
         return previous_lang
 
     def extract_entities(self, text: str) -> Dict[str, Any]:
-        """Extracts capital, land, experience, skills, location, name, business idea."""
+        """Deep entity extraction from natural language across Hindi, Telugu, English, and Hinglish."""
         t = text.lower().strip()
         entities = {}
 
-        # 1. Capital Extraction
-        lakh_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:lakh|lac|लाख|లక్ష)', t)
-        if lakh_match:
-            entities["capital"] = float(lakh_match.group(1)) * 100000.0
-        else:
-            k_match = re.search(r'(\d+)\s*(?:k|hazar|हजार|వేలు)', t)
-            if k_match:
-                entities["capital"] = float(k_match.group(1)) * 1000.0
+        # 1. Spoken words to capital amount mapping
+        word_capital_map = {
+            "ek lakh": 100000.0, "one lakh": 100000.0, "1 lakh": 100000.0, "ఒక లక్ష": 100000.0,
+            "do lakh": 200000.0, "two lakh": 200000.0, "2 lakh": 200000.0, "రెండు లక్షలు": 200000.0,
+            "teen lakh": 300000.0, "three lakh": 300000.0, "3 lakh": 300000.0, "మూడు లక్షలు": 300000.0,
+            "char lakh": 400000.0, "four lakh": 400000.0, "4 lakh": 400000.0, "నాలుగు లక్షలు": 400000.0,
+            "paanch lakh": 500000.0, "panch lakh": 500000.0, "five lakh": 500000.0, "5 lakh": 500000.0, "ఐదు లక్షలు": 500000.0,
+            "das lakh": 1000000.0, "ten lakh": 1000000.0, "10 lakh": 1000000.0, "పది లక్షలు": 1000000.0
+        }
+        for phrase, val in word_capital_map.items():
+            if phrase in t:
+                entities["capital"] = val
+                break
+
+        if "capital" not in entities:
+            lakh_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:lakh|lac|लाख|లక్ష|lacs)', t)
+            if lakh_match:
+                entities["capital"] = float(lakh_match.group(1)) * 100000.0
             else:
-                num_match = re.search(r'(?:₹|rs\.?|inr)?\s*(\d{5,8})', t)
-                if num_match:
-                    entities["capital"] = float(num_match.group(1))
+                k_match = re.search(r'(\d+)\s*(?:k|hazar|हजार|వేలు)', t)
+                if k_match:
+                    entities["capital"] = float(k_match.group(1)) * 1000.0
+                else:
+                    num_match = re.search(r'(?:₹|rs\.?|inr)?\s*(\d{5,8})', t)
+                    if num_match:
+                        entities["capital"] = float(num_match.group(1))
 
         # 2. Land Acres
         land_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:acre|acres|ekad|एकड़|ఎకరాలు|ఎకరం)', t)
         if land_match:
             entities["land_acres"] = float(land_match.group(1))
+        elif any(w in t for w in ["aadha acre", "half acre", "అర ఎకరం"]):
+            entities["land_acres"] = 0.5
+        elif any(w in t for w in ["zameen hai", "land hai", "plot hai", "khet hai", "భూమి ఉంది"]):
+            entities["land_available"] = True
 
-        # 3. Experience Years
+        # 3. Experience Years & Farmer Identity
         exp_match = re.search(r'(\d+)\s*(?:saal|saal se|years|year|varsh|సంవత్సరాలు|ఏళ్లు)', t)
         if exp_match:
             entities["experience_years"] = int(exp_match.group(1))
+            if any(w in t for w in ["farming", "kheti", "saavu", "వ్యవసాయం", "farmer"]):
+                entities["farmer"] = True
 
-        # 4. Entrepreneur Name & Village
+        if any(w in t for w in ["main farmer hoon", "kisan hoon", "farming karta hoon", "వ్యవసాయదారుడిని", "i am a farmer", "farmer hoon"]):
+            entities["farmer"] = True
+
+        # 4. Entrepreneur Name
         name_match = re.search(r'(?:mera naam|my name is|na peru|naam|main hoon|i am)\s+([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+(?:\s+[a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+)?)', t)
         if name_match:
             raw_n = name_match.group(1).strip()
-            raw_n = re.sub(r'\b(hai|hoon|ji|గారు|అండి|is|from|se)\b', '', raw_n).strip()
-            if len(raw_n) >= 2 and raw_n.lower() not in ["business", "kisan", "farmer"]:
+            raw_n = re.sub(r'\b(hai|hoon|ji|గారు|అండి|is|from|se|a|an)\b', '', raw_n).strip()
+            if len(raw_n) >= 2 and raw_n.lower() not in ["business", "kisan", "farmer", "dairy", "poultry", "english", "hindi", "telugu"]:
                 entities["name"] = " ".join([w.capitalize() for w in raw_n.split()])
 
-        loc_match = re.search(r'([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]{3,})\s+(?:village|gaon|se hoon|nunchi)', t)
-        if loc_match and loc_match.group(1).lower() not in ["hai", "hoon", "naam", "mera", "main"]:
-            entities["village"] = loc_match.group(1).capitalize()
+        # Standalone name recognition (e.g. "Rajeev" when input is just 1-2 words and doesn't match commands)
+        words = t.split()
+        lang_or_cmd_words = {
+            "hello", "namaste", "dairy", "poultry", "yes", "haan", "nahi", "no", "start", "business", 
+            "help", "scheme", "loan", "risk", "english", "hindi", "telugu", "mein", "batao", "bataiye", 
+            "karo", "cheppandi", "cheppu", "dikhao", "chahiye", "karna", "hai", "kisan", "farmer",
+            "agriculture", "farming", "zameen", "plot", "borewell", "water", "shed", "pashu", "गाय", "भैंस",
+            "తెలుగులో", "చెప్పండి", "बोलिए", "बताइए", "नमस्ते", "ధన్యవాదాలు"
+        }
+        if len(words) in [1, 2] and not entities.get("name"):
+            first_w = words[0].strip(".,!?;:\"'")
+            if (len(first_w) >= 3 and 
+                first_w.lower() not in lang_or_cmd_words and 
+                not any(w in t for w in ["english", "hindi", "telugu", "తెలుగు", "हिंदी", "अंग्रेजी", "अंग्रेज़ी"]) and
+                not re.search(r'\d', first_w)):
+                entities["name"] = first_w.capitalize()
 
-        # 5. Business Interest
-        if any(w in t for w in ["dairy", "डेयरी", "పాడి"]):
+        # Clean up any accidental language names
+        if entities.get("name") and entities["name"].lower() in ["english", "hindi", "telugu", "తెలుగులో", "हिंदी"]:
+            entities.pop("name", None)
+
+        # 5. Shed Infrastructure
+        if any(w in t for w in ["shed hai", "cattle shed", "shed available", "shed unnaadi", "yes shed", "shed bhi hai", "mere paas shed"]):
+            entities["shed"] = True
+        elif any(w in t for w in ["shed nahi hai", "shed ledu", "shed banani padegi", "no shed"]):
+            entities["shed"] = False
+
+        # 6. Water / Borewell Infrastructure
+        if any(w in t for w in ["borewell bhi hai", "borewell hai", "pani hai", "borewell undi", "water available", "well hai", "pani ki suvidha", "water facility", "borwell"]):
+            entities["water"] = True
+        elif any(w in t for w in ["pani nahi hai", "borewell ledu", "water shortage"]):
+            entities["water"] = False
+
+        # 7. Electricity Infrastructure
+        if any(w in t for w in ["bijli hai", "power hai", "electricity available", "3 phase", "current undi", "power connection"]):
+            entities["electricity"] = True
+
+        # 8. Livestock / Cattle Count
+        cows_match = re.search(r'(\d+)\s*(?:cows|cow|gay|gaye|gaay|ఆవులు)', t)
+        if cows_match:
+            entities["cattle_count"] = int(cows_match.group(1))
+            entities["cattle"] = "Cow"
+
+        buff_match = re.search(r'(\d+)\s*(?:buffaloes|buffalo|bhains|గేదెలు)', t)
+        if buff_match:
+            entities["cattle_count"] = int(buff_match.group(1))
+            entities["cattle"] = "Buffalo"
+
+        goat_match = re.search(r'(\d+)\s*(?:goats|goat|bakri|bakriyan|మేకలు)', t)
+        if goat_match:
+            entities["goat_count"] = int(goat_match.group(1))
+            entities["cattle"] = "Goat"
+
+        bird_match = re.search(r'(\d+)\s*(?:birds|chickens|chicks|murgi|కోళ్లు)', t)
+        if bird_match:
+            entities["bird_count"] = int(bird_match.group(1))
+            entities["cattle"] = "Poultry"
+
+        # 9. Business Interest
+        if any(w in t for w in ["dairy", "डेयरी", "పాడి", "doodh"]):
             entities["business_interest"] = "DAIRY_FARMING"
-        elif any(w in t for w in ["poultry", "पोल्ट्री", "కోళ్ల"]):
+        elif any(w in t for w in ["poultry", "पोल्ट्री", "కోళ్ల", "murgi", "broiler", "layer"]):
             entities["business_interest"] = "POULTRY_BROILER"
         elif any(w in t for w in ["goat", "bakri", "बकरी", "మేకల"]):
             entities["business_interest"] = "GOAT_FARMING"
         elif any(w in t for w in ["mushroom", "मशरूम", "పుట్టగొడుగుల"]):
             entities["business_interest"] = "MUSHROOM_CULTIVATION"
+        elif any(w in t for w in ["kirana", "grocery", "किराना", "కిరాణా", "provisions"]):
+            entities["business_interest"] = "GROCERY_STORE"
+        elif any(w in t for w in ["milk shop", "dairy retail", "doodh ki dukan"]):
+            entities["business_interest"] = "MILK_SHOP"
+        elif any(w in t for w in ["food processing", "flour mill", "oil mill", "atta chakki", "processing"]):
+            entities["business_interest"] = "FOOD_PROCESSING"
+
+        # 10. Location (Village / Town / District)
+        loc_match = re.search(r'([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]{3,})\s+(?:village|gaon|se hoon|nunchi|mein|me)', t)
+        if loc_match and loc_match.group(1).lower() not in ["hai", "hoon", "naam", "mera", "main", "dairy", "poultry", "english", "hindi", "telugu", "marathi"]:
+            entities["village"] = loc_match.group(1).capitalize()
 
         return entities
 
-    def detect_intent(self, text: str) -> str:
-        """High-precision classification into all supported intents."""
+    def detect_intent(self, text: str, profile: Optional[Dict[str, Any]] = None, extracted: Optional[Dict[str, Any]] = None) -> str:
+        """High-precision classification into all supported intents adhering to Section 13 & 28."""
         t = text.lower().strip()
 
         # 1. Out-of-domain check (Section 24)
@@ -319,7 +517,7 @@ class UdyamSarthiAgent:
             return "SCHEME_ELIGIBILITY"
 
         if any(w in t for w in ["scheme", "yojana", "subsidy", "sarkari", "योजना", "పథకం", "nbcfdc", "nsfdc", "pmegp", "mudra", "government scheme", "explore government schemes"]):
-            return "SCHEME_SEARCH"
+            return "GOVERNMENT_SCHEME_SEARCH"
 
         # 9. Location & Open Shop Query (Section 5 & 12)
         if any(w in t for w in ["where can i open", "where to open", "kahan kholoon", "kahan start karun", "kahan khol sakte", "location for open", "best location for", "ఎక్కడ తెరవాలి"]):
@@ -364,48 +562,265 @@ class UdyamSarthiAgent:
         if any(w in t for w in ["analyze my business", "analyze my business idea", "business feasibility", "feasibility check", "vyavasayik vishleshan", "వ్యాపార విశ్లేషణ"]):
             return "BUSINESS_FEASIBILITY"
 
-        # 16. Specific business interest
-        biz_words = ["dairy", "poultry", "mushroom", "goat", "bakri", "kirana", "flour mill", "fisheries", "murgi", "डेयरी", "पोल्ट्री", "మష్రూమ్", "పాడి", "కోళ్ల"]
-        start_words = ["shuru", "start", "karni", "karna", "kholna", "చేయాలి", "want", "setup", "planning", "karu", "karun", "చేయాలనుకుంటున్నాను"]
-        if any(b in t for b in biz_words) and any(s in t for s in start_words):
-            return "BUSINESS_INTEREST"
-        if any(w in t for w in ["dairy karni", "poultry karni", "mushroom karna", "farming karna", "kirana kholna"]):
-            return "BUSINESS_INTEREST"
-
-        # 17. Business recommendation
-        if any(w in t for w in ["find a business idea", "find business", "find an idea", "best business", "best business batao", "kaunsa business", "business suggest", "business idea", "what can i start", "suitable business", "వ్యాపార ఆలోచన", "వ్యాపారం చెప్పండి"]):
+        # 16. Business recommendation queries
+        rec_triggers = ["best business", "best business batao", "kaunsa business", "business suggest", "which business is best", "what business can i start", "find a business idea", "find business idea", "వ్యాపారం చెప్పండి", "ఏ వ్యాపారం మంచిది"]
+        if any(w in t for w in rec_triggers):
             return "BUSINESS_RECOMMENDATION"
 
-        # 18. Start business
-        if any(w in t for w in ["business", "start", "invest", "karna hai", "వ్యాపారం"]):
-            return "START_BUSINESS"
+        # 17. Explicit business start intent (Section 34)
+        if any(w in t for w in ["mujhe business start karna hai", "business start karna hai", "i want to start a business", "business shuru karna hai", "naaku business start cheyyali", "want to start business"]):
+            if not (extracted and (extracted.get("capital") or extracted.get("business_interest"))):
+                return "START_BUSINESS"
 
-        return "GENERAL_BUSINESS_INFORMATION"
+        # 18. Profile Update (Section 28: USER IS PROVIDING INFORMATION)
+        if extracted and (
+            extracted.get("name") or 
+            extracted.get("capital") is not None or 
+            extracted.get("land_acres") is not None or 
+            extracted.get("experience_years") is not None or 
+            extracted.get("shed") is not None or 
+            extracted.get("water") is not None or 
+            extracted.get("cattle_count") is not None or 
+            extracted.get("business_interest")
+        ):
+            return "PROFILE_UPDATE"
+
+        # Short interview answers
+        if any(t == w or t.startswith(w) for w in ["yes", "haan", "haanji", "available", "available hai", "avunu", "no", "nahi", "ledu", "nahi hai"]):
+            return "PROFILE_UPDATE"
+
+        return "START_BUSINESS"
+
+    def _format_profile_update(self, profile: Dict[str, Any], extracted: Dict[str, Any], lang: str) -> Tuple[str, str]:
+        """Dynamic progressive question generator obeying Minimum Information Principle (Section 6, 7 & 28)."""
+        user_name = profile["personal"]["name"] or profile.get("name") or ("उद्यमी" if lang == "HINDI" else ("మిత్రమా" if lang == "TELUGU" else "Friend"))
+        cap = profile["financial"]["capital"]
+        land = profile["land_workspace"]["land_area"] or profile["resources"]["land_acres"]
+        exp = profile["farmer"]["farming_experience_years"] or profile["experience"]["experience_years"]
+        biz = profile["business"]["business_idea"] or profile["business"]["interest"]
+        shed = profile["resources"]["shed"]
+        water = profile["resources"]["water"]
+        cattle_count = profile["resources"]["cattle_count"]
+        cattle_type = profile["resources"]["cattle"]
+
+        ack_parts = []
+        if extracted.get("name"):
+            ack_parts.append(f"नमस्ते {extracted['name']} जी! 🙏" if lang == "HINDI" else (f"నమస్కారం {extracted['name']} గారు! 🙏" if lang == "TELUGU" else f"Welcome {extracted['name']}! 🙏"))
+        if extracted.get("capital"):
+            cap_fmt = f"₹{extracted['capital']:,.0f}"
+            ack_parts.append(f"आपका {cap_fmt} का बजट दर्ज हो गया है। 👍" if lang == "HINDI" else (f"మీ {cap_fmt} పెట్టుబడి నమోదైంది. 👍" if lang == "TELUGU" else f"Budget of {cap_fmt} is noted. 👍"))
+        if extracted.get("land_acres"):
+            ack_parts.append(f"{extracted['land_acres']} एकड़ ज़मीन दर्ज हो गई है। 🌾" if lang == "HINDI" else (f"{extracted['land_acres']} ఎకరాల భూమి నమోదైంది. 🌾" if lang == "TELUGU" else f"{extracted['land_acres']} acres land recorded. 🌾"))
+        if extracted.get("experience_years"):
+            ack_parts.append(f"{extracted['experience_years']} साल का अनुभव दर्ज हो गया है।" if lang == "HINDI" else (f"{extracted['experience_years']} సంవత్సరాల అనుభవం నమోదైంది." if lang == "TELUGU" else f"{extracted['experience_years']} years experience recorded."))
+        if extracted.get("shed") is True:
+            ack_parts.append("पशु शेड की सुविधा उपलब्ध है। 👍" if lang == "HINDI" else ("షెడ్ సదుపాయం ఉంది. 👍" if lang == "TELUGU" else "Cattle shed recorded. 👍"))
+        if extracted.get("water") is True:
+            ack_parts.append("बोरवेल और पानी की सुविधा दर्ज हो गई है। 💧" if lang == "HINDI" else ("నీటి వసతి మరియు బోర్ ఉంది. 💧" if lang == "TELUGU" else "Borewell & water source recorded. 💧"))
+        if extracted.get("cattle_count"):
+            c_label = extracted.get("cattle") or "पशु"
+            ack_parts.append(f"{extracted['cattle_count']} {c_label} दर्ज हो गए हैं। 🐄" if lang == "HINDI" else (f"{extracted['cattle_count']} పశువులు నమోదయ్యాయి. 🐄" if lang == "TELUGU" else f"{extracted['cattle_count']} {c_label} units recorded. 🐄"))
+        if extracted.get("business_interest"):
+            b_label = "डेयरी फार्मिंग" if extracted["business_interest"] == "DAIRY_FARMING" else ("पोल्ट्री फार्मिंग" if extracted["business_interest"] == "POULTRY_BROILER" else extracted["business_interest"])
+            ack_parts.append(f"{b_label} का चयन किया गया है।" if lang == "HINDI" else f"{b_label} selected.")
+
+        ack_text = " ".join(ack_parts)
+
+        # Determine next logical missing question based on business
+        next_q = ""
+        action_type = "PROFILE_COLLECTION"
+
+        if not biz:
+            if lang == "HINDI":
+                next_q = "आप किस व्यवसाय को शुरू करने का विचार कर रहे हैं? (उदा. डेयरी फार्मिंग, पोल्ट्री, किराना स्टोर, या खाद्य प्रसंस्करण) या मैं आपके लिए उपयुक्त अवसर सुझाऊँ?"
+            elif lang == "TELUGU":
+                next_q = "మీరు ఏ వ్యాపారాన్ని ప్రారంభించాలనుకుంటున్నారు? (ఉదా: పాడి పరిశ్రమ, పౌల్ట్రీ, కిరాణా దుకాణం), లేదా నేను మంచి అవకాశాలను సూచించమంటారా?"
+            else:
+                next_q = "Which enterprise are you planning to start (e.g. Dairy Farming, Poultry, Grocery, Food Processing), or would you like recommendations?"
+            action_type = "ASK_BUSINESS_INTEREST"
+
+        elif "DAIRY" in biz.upper():
+            if land is None and shed is None:
+                if lang == "HINDI":
+                    next_q = "डेयरी फार्मिंग के लिए क्या आपके पास अपनी ज़मीन या पशु शेड (Shed) उपलब्ध है?"
+                elif lang == "TELUGU":
+                    next_q = "పాడి పరిశ్రమ కోసం మీ వద్ద వ్యవసాయ భూమి లేదా పశువుల షెడ్ అందుబాటులో ఉన్నాయా?"
+                else:
+                    next_q = "For Dairy Farming, do you have land or a cattle shed available?"
+                action_type = "ASK_RESOURCES"
+            elif water is None:
+                if lang == "HINDI":
+                    next_q = "बहुत बढ़िया! क्या वहां पर्याप्त पानी या बोरवेल की व्यवस्था उपलब्ध है?"
+                elif lang == "TELUGU":
+                    next_q = "చాలా బాగుంది! అక్కడ తగినంత నీటి వసతి లేదా బోర్ వెల్ సదుపాయం ఉందా?"
+                else:
+                    next_q = "Great! Do you have reliable water availability or a borewell at the site?"
+                action_type = "ASK_WATER"
+            elif cattle_count is None and cattle_type is None:
+                if lang == "HINDI":
+                    next_q = "क्या आपके पास अभी कोई पशु (गाय/भैंस) उपलब्ध हैं, या नए पशु खरीदने की योजना है?"
+                elif lang == "TELUGU":
+                    next_q = "మీ వద్ద ప్రస్తుతం ఏవైనా పాడి పశువులు (ఆవులు/గేదెలు) ఉన్నాయా, లేదా కొత్తవి కొనాలనుకుంటున్నారా?"
+                else:
+                    next_q = "Do you currently own any cattle (cows/buffaloes), or are you planning to purchase new livestock?"
+                action_type = "ASK_LIVESTOCK"
+            elif cap is None:
+                if lang == "HINDI":
+                    next_q = "इस डेयरी इकाई को शुरू करने के लिए आपके पास अपनी खुद की कितनी पूँजी (Investment Capital) उपलब्ध है?"
+                elif lang == "TELUGU":
+                    next_q = "ఈ డైరీ యూనిట్ ప్రారంభించడానికి మీ వద్ద ఎంత సొంత పెట్టుబడి అందుబాటులో ఉంది?"
+                else:
+                    next_q = "How much liquid capital or savings do you have available to invest in this dairy unit?"
+                action_type = "ASK_CAPITAL"
+            elif exp is None:
+                if lang == "HINDI":
+                    next_q = "क्या आपको डेयरी फार्मिंग या पशुपालन का पूर्व अनुभव है?"
+                elif lang == "TELUGU":
+                    next_q = "మీకు పాడి పరిశ్రమ లేదా పశువుల పెంపకంలో ముందస్తు అనుభవం ఉందా?"
+                else:
+                    next_q = "Do you have prior experience in dairy farming or livestock management?"
+                action_type = "ASK_EXPERIENCE"
+            elif not profile["location"]["village"] or profile["location"]["village"] == "Pimpalgaon Baswant":
+                if lang == "HINDI":
+                    next_q = "आप किस गांव या कस्बे (Location) में यह डेयरी शुरू करना चाहते हैं?"
+                elif lang == "TELUGU":
+                    next_q = "మీరు ఏ గ్రామం లేదా పట్టణంలో ఈ డైరీని ప్రారంభించాలనుకుంటున్నారు?"
+                else:
+                    next_q = "In which village or town location would you like to set up this enterprise?"
+                action_type = "ASK_LOCATION"
+            else:
+                # All Dairy Core Profile collected! Run full feasibility analysis!
+                fin = self.finance_engine.structure_project((cap or 300000.0) * 1.6, cap or 300000.0)
+                if lang == "HINDI":
+                    reply = (
+                        f"{ack_text}\n\n"
+                        f"🎉 **बधाई हो {user_name} जी! आपका डेयरी उद्यम प्रोफाइल पूरी तरह से तैयार है।**\n\n"
+                        f"• **उपलब्ध पूँजी:** ₹{(cap or 300000):,.0f}\n"
+                        f"• **ज़मीन व बुनियादी ढांचा:** {land or 2} एकड़, शेड व बोरवेल उपलब्ध\n"
+                        f"• **पशुधन आधार:** {cattle_count or 4} गाय/भैंस\n"
+                        f"• **परियोजना लागत:** ₹{fin['project_cost']:,.0f} (बैंक ऋण: ₹{fin['loan_amount']:,.0f} @ EMI: ₹{fin['monthly_emi']:,.0f}/माह)\n"
+                        f"• **ऋण सेवा क्षमता (DSCR):** {fin['dscr']}x (उत्कृष्ट पुनर्भुगतान)\n\n"
+                        f"नीचे दिए गए एक्शन कार्ड से विस्तृत वित्तीय विवरण और नाबार्ड/PMFME सब्सिडी योजनाएं देखें।"
+                    )
+                else:
+                    reply = (
+                        f"{ack_text}\n\n"
+                        f"🎉 **Enterprise Profile Complete for {user_name}!**\n\n"
+                        f"• **Available Capital:** ₹{(cap or 300000):,.0f}\n"
+                        f"• **Land & Setup:** {land or 2} acres, Cattle Shed & Borewell ready\n"
+                        f"• **Livestock Base:** {cattle_count or 4} Cattle units\n"
+                        f"• **Project Cost:** ₹{fin['project_cost']:,.0f} (Term Loan: ₹{fin['loan_amount']:,.0f} @ EMI: ₹{fin['monthly_emi']:,.0f}/mo)\n"
+                        f"• **DSCR:** {fin['dscr']}x (Healthy debt servicing)\n\n"
+                        f"Explore your detailed financial structure and verified government subsidies below."
+                    )
+                return reply, "SHOW_FINANCE"
+
+        elif "POULTRY" in biz.upper():
+            if land is None and shed is None:
+                next_q = "पोल्ट्री फार्म के लिए क्या आपके पास शेड और ज़मीन उपलब्ध है?" if lang == "HINDI" else "For Poultry, do you have a dedicated shed and land available?"
+                action_type = "ASK_RESOURCES"
+            elif cap is None:
+                next_q = "पोल्ट्री इकाई के लिए आपकी उपलब्ध पूँजी कितनी है?" if lang == "HINDI" else "What is your available investment budget for poultry?"
+                action_type = "ASK_CAPITAL"
+            else:
+                next_q = "आप कितने ब्रायलर पक्षियों (Bird capacity, e.g. 500 ya 1000) से शुरुआत करना चाहते हैं?" if lang == "HINDI" else "What is your target bird capacity (e.g. 500 or 1000 birds)?"
+                action_type = "ASK_SCALE"
+
+        elif cap is None:
+            if lang == "HINDI":
+                next_q = "इस व्यवसाय के लिए आपके पास अपनी खुद की कितनी पूँजी (Investment Capital) उपलब्ध है?"
+            elif lang == "TELUGU":
+                next_q = "ఈ వ్యాపారంలో మీరు ఎంత పెట్టుబడి పెట్టగలరు?"
+            else:
+                next_q = "What is your available investment capital for this enterprise?"
+            action_type = "ASK_CAPITAL"
+
+        elif land is None:
+            if lang == "HINDI":
+                next_q = "क्या आपके पास इस व्यवसाय के लिए ज़मीन, दुकान या कार्यशाला उपलब्ध है?"
+            elif lang == "TELUGU":
+                next_q = "ఈ వ్యాపారం కోసం మీ వద్ద భూమి, దుకాణం లేదా వర్క్‌స్పేస్ ఉందా?"
+            else:
+                next_q = "Do you have land, a shop space, or a workspace available?"
+            action_type = "ASK_RESOURCES"
+
+        else:
+            if lang == "HINDI":
+                next_q = "आप किस गांव या कस्बे में यह व्यवसाय शुरू करना चाहते हैं?"
+            elif lang == "TELUGU":
+                next_q = "మీరు ఏ ప్రాంతంలో ఈ వ్యాపారాన్ని ప్రారంభించాలనుకుంటున్నారు?"
+            else:
+                next_q = "In which village or town location would you like to operate?"
+            action_type = "ASK_LOCATION"
+
+        full_reply = f"{ack_text}\n\n{next_q}".strip() if ack_text else next_q
+        return full_reply, action_type
+
+    def _format_start_business(self, user_name: str, lang: str) -> str:
+        """Natural conversational initiation (Section 34). Never spams 10 questions."""
+        if lang == "HINDI":
+            return (
+                f"नमस्ते {user_name} जी! 😊\n\n"
+                f"बिल्कुल, ग्रामीण और छोटे कस्बों में नए उद्यम शुरू करने के लिए कई बेहतरीन अवसर हैं।\n\n"
+                f"क्या आपके मन में कोई **विशिष्ट व्यवसाय विचार** है (जैसे डेयरी फार्मिंग, पोल्ट्री, किराना दुकान, या खाद्य प्रसंस्करण), या मैं आपके बजट और संसाधनों के अनुसार **सर्वश्रेष्ठ विकल्प** सुझाऊँ?"
+            )
+        elif lang == "TELUGU":
+            return (
+                f"నమస్కారం {user_name} గారు! 😊\n\n"
+                f"తప్పకుండా, గ్రామీణ మరియు చిన్న పట్టణాల్లో వ్యాపారం ప్రారంభించడానికి ఎన్నో మంచి అవకాశాలు ఉన్నాయి.\n\n"
+                f"మీ మనస్సులో ఏదైనా **నిర్దిష్ట వ్యాపార ఆలోచన** ఉందా (ఉదా: పాడి పరిశ్రమ, పౌల్ట్రీ, కిరాణా దుకాణం), లేదా నేను మీ కోసం **ఉత్తమ అవకాశాలను** సూచించమంటారా?"
+            )
+        else:
+            return (
+                f"Hello {user_name}! 😊\n\n"
+                f"Certainly, there are high-potential enterprise opportunities in rural and semi-urban markets.\n\n"
+                f"Do you already have a **specific business idea** in mind (such as Dairy, Poultry, Retail Store, or Food Processing), or would you like me to **recommend the best options** for you?"
+            )
 
     def process_turn(self, user_message: str, current_profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Executes full Turn Lifecycle."""
+        """Executes full Turn Lifecycle adhering to Section 1 & 28."""
         profile = self.normalize_profile(current_profile)
-        detected_lang = self.detect_language(user_message, profile["language"])
+        detected_lang = self.detect_language(user_message, profile["personal"]["language"])
+        profile["personal"]["language"] = detected_lang
         profile["language"] = detected_lang
 
         extracted = self.extract_entities(user_message)
         if extracted.get("name"):
-            profile["name"] = extracted["name"]
+            if not profile["personal"]["name"] or any(k in user_message.lower() for k in ["naam", "name", "peru", "main hoon", "i am"]):
+                profile["personal"]["name"] = extracted["name"]
+                profile["name"] = extracted["name"]
         if extracted.get("village"):
             profile["location"]["village"] = extracted["village"]
         if extracted.get("capital") is not None:
             profile["financial"]["capital"] = extracted["capital"]
+            profile["financial"]["available_capital"] = extracted["capital"]
             profile["financial"]["investable_capital"] = extracted["capital"] * 0.9
         if extracted.get("land_acres") is not None:
+            profile["land_workspace"]["land_area"] = extracted["land_acres"]
+            profile["land_workspace"]["land_available"] = extracted["land_acres"] > 0
             profile["resources"]["land_acres"] = extracted["land_acres"]
             profile["resources"]["land"] = extracted["land_acres"] > 0
         if extracted.get("experience_years") is not None:
+            profile["farmer"]["farming_experience_years"] = extracted["experience_years"]
+            profile["farmer"]["farmer"] = True
             profile["experience"]["experience_years"] = extracted["experience_years"]
+        if extracted.get("farmer"):
+            profile["farmer"]["farmer"] = True
+        if extracted.get("shed") is not None:
+            profile["resources"]["shed"] = extracted["shed"]
+        if extracted.get("water") is not None:
+            profile["resources"]["water"] = extracted["water"]
+        if extracted.get("electricity") is not None:
+            profile["resources"]["electricity"] = extracted["electricity"]
+        if extracted.get("cattle_count") is not None:
+            profile["resources"]["cattle_count"] = extracted["cattle_count"]
+            profile["resources"]["cattle"] = extracted.get("cattle") or "Cattle"
         if extracted.get("business_interest"):
+            profile["business"]["business_idea"] = extracted["business_interest"]
             profile["business"]["interest"] = extracted["business_interest"]
 
-        comp_score, missing_req, missing_opt = self.compute_profile_completeness(profile)
-        intent = self.detect_intent(user_message)
+        comp_score, missing_req, completed_fields = self.compute_profile_completeness(profile)
+        intent = self.detect_intent(user_message, profile, extracted)
 
         reply = ""
         action_type = None
@@ -416,13 +831,23 @@ class UdyamSarthiAgent:
         map_action = None
         sources = []
 
-        user_name = profile["name"] or ("उद्यमी" if detected_lang == "HINDI" else ("మిత్రమా" if detected_lang == "TELUGU" else "Entrepreneur"))
+        user_name = profile["personal"]["name"] or profile.get("name") or ("उद्यमी" if detected_lang == "HINDI" else ("మిత్రమా" if detected_lang == "TELUGU" else "Entrepreneur"))
 
         if intent == "OUT_OF_DOMAIN":
             reply = self._format_out_of_domain(detected_lang)
 
         elif intent == "GREETING":
-            reply = self._format_greeting(user_name, bool(profile["name"]), detected_lang)
+            reply = self._format_greeting(user_name, bool(profile["personal"]["name"]), detected_lang)
+
+        elif intent == "START_BUSINESS":
+            reply = self._format_start_business(user_name, detected_lang)
+            action_type = "DISCOVER_BUSINESS"
+
+        elif intent == "PROFILE_UPDATE":
+            reply, action_type = self._format_profile_update(profile, extracted, detected_lang)
+            if action_type == "SHOW_FINANCE":
+                cap = profile["financial"]["capital"] or 300000.0
+                financial_summary = self.finance_engine.structure_project(cap * 1.6, cap)
 
         elif intent == "BUSINESS_COMPARISON":
             reply, comparison_table = self._format_comparison(user_message, profile, detected_lang)
@@ -446,23 +871,14 @@ class UdyamSarthiAgent:
         elif intent == "BUSINESS_FEASIBILITY":
             reply, action_type, financial_summary = self._format_business_feasibility(profile, detected_lang)
 
-        # --- CASE G: COMPETITOR & MARKET GIS (Section 22, 23, 50) ---
         elif intent == "NEARBY_BUSINESS_SEARCH":
             reply, map_action, sources = self._format_nearby_business_search(user_message, profile, detected_lang)
             action_type = "OPEN_MAP"
             confidence_score = 95
+
         elif intent in ["COMPETITOR_ANALYSIS", "MARKET_ANALYSIS"]:
             reply, sources, confidence_score = self._format_market_analysis(profile, detected_lang)
             action_type = "SHOW_MAP"
-
-        elif intent == "FORM_FILLING":
-            reply, action_type = self._format_form_filling(profile, detected_lang)
-            if action_type == "SHOW_RECOMMENDATIONS":
-                recommendation_score = 88
-                confidence_score = 90
-
-        elif intent == "BUSINESS_INTEREST":
-            reply, action_type = self._format_business_interest(user_message, profile, detected_lang)
 
         elif intent == "RISK_ANALYSIS":
             reply, sources = self._format_risk_analysis(profile, detected_lang)
@@ -473,30 +889,52 @@ class UdyamSarthiAgent:
             action_type = "SHOW_FINANCE"
 
         elif intent in ["BUSINESS_RECOMMENDATION", "BUSINESS_DISCOVERY"]:
-            reply, rec_res, sources = self._format_full_recommendation(profile, detected_lang)
-            action_type = "SHOW_RECOMMENDATIONS"
-            recommendation_score = rec_res.get("top_recommendation", {}).get("overall_suitability_score", 88.5)
-            confidence_score = 88 if profile["location"]["village"] else 75
+            cap = profile["financial"]["capital"]
+            loc = profile["location"]["village"]
+            if cap is None:
+                reply = f"आपके लिए उपयुक्त व्यवसाय सुझाने के लिए, कृपया बताएं कि आपके पास लगभग कितनी पूँजी (Investment Capital) उपलब्ध है?" if detected_lang == "HINDI" else f"To recommend the best business, how much investment capital do you have available?"
+                action_type = "ASK_CAPITAL"
+            elif not loc or loc == "Pimpalgaon Baswant":
+                reply = f"आपके ₹{cap:,.0f} बजट के आधार पर उपयुक्त अवसर तलाशने के लिए, कृपया अपना गांव या कस्बा (Location) बताएं।" if detected_lang == "HINDI" else f"Based on your ₹{cap:,.0f} capital, please share your target village or town location."
+                action_type = "ASK_LOCATION"
+            else:
+                reply, rec_res, sources = self._format_full_recommendation(profile, detected_lang)
+                action_type = "SHOW_RECOMMENDATIONS"
+                recommendation_score = rec_res.get("top_recommendation", {}).get("overall_suitability_score", 88.5)
+                confidence_score = 88
 
         elif intent == "PROFILE_QUERY":
             reply = self._format_profile_query(profile, comp_score, missing_req, detected_lang)
             action_type = "SHOW_PROFILE"
 
         else:
-            if profile["financial"]["capital"] is None:
-                reply = self._format_ask_capital(user_name, detected_lang)
-                action_type = "ASK_CAPITAL"
-            elif not profile["resources"]["land"] and not profile["resources"]["shop"] and "land_or_shop" in missing_opt and len(profile["experience"]["skills"]) == 0:
-                reply = self._format_ask_resources(user_name, profile["financial"]["capital"], detected_lang)
-                action_type = "ASK_RESOURCES"
-            elif not profile.get("business", {}).get("interest"):
-                reply = self._format_ask_business_interest(user_name, profile["financial"]["capital"], profile["resources"].get("land_acres"), detected_lang)
-                action_type = "ASK_BUSINESS_INTEREST"
-            else:
-                reply, rec_res, sources = self._format_full_recommendation(profile, detected_lang)
-                action_type = "SHOW_RECOMMENDATIONS"
-                recommendation_score = rec_res.get("top_recommendation", {}).get("overall_suitability_score", 85)
-                confidence_score = 88 if profile["location"]["village"] else 70
+            reply, action_type = self._format_profile_update(profile, extracted, detected_lang)
+
+        # Server-Side Debug Logging per Section 32
+        try:
+            print("==================================================")
+            print(f"UDYAMSARTHI AGENT TURN")
+            print(f"USER MESSAGE: {user_message}")
+            print(f"DETECTED INTENT: {intent}")
+            print(f"EXTRACTED ENTITIES: {extracted}")
+            print(f"COMPLETED FIELDS: {completed_fields}")
+            print(f"MISSING REQUIRED: {missing_req}")
+            print(f"ACTION TYPE: {action_type}")
+            print(f"NEXT QUESTION: {reply[:100]}...")
+            print("==================================================")
+        except Exception:
+            try:
+                safe_reply = reply[:100].encode('ascii', 'replace').decode('ascii')
+                safe_msg = user_message.encode('ascii', 'replace').decode('ascii')
+                print("==================================================")
+                print(f"UDYAMSARTHI AGENT TURN")
+                print(f"USER MESSAGE: {safe_msg}")
+                print(f"DETECTED INTENT: {intent}")
+                print(f"ACTION TYPE: {action_type}")
+                print(f"NEXT QUESTION: {safe_reply}...")
+                print("==================================================")
+            except Exception:
+                pass
 
         payload_dict = None
         if map_action:
@@ -524,7 +962,7 @@ class UdyamSarthiAgent:
             "profile_completeness": {
                 "score": comp_score,
                 "missing_required": missing_req,
-                "missing_optional": missing_opt
+                "missing_optional": []
             },
             "recommendation_score": recommendation_score,
             "confidence_score": confidence_score,
@@ -534,45 +972,66 @@ class UdyamSarthiAgent:
             "action_payload": payload_dict,
             "sources": sources
         }
-
     def _format_out_of_domain(self, lang: str) -> str:
         if lang == "HINDI":
-            return "मैं **UdyamSarthi** हूँ और मेरा ध्यान केवल ग्रामीण एवं छोटे कस्बों के व्यापार, स्थानीय बाजार विश्लेषण, वित्तीय योजना, जोखिम और सरकारी योजनाओं पर केंद्रित है। इस विषय पर मैं सटीक व्यावसायिक सलाह देने में असमर्थ हूँ। क्या आप किसी व्यवसाय योजना पर चर्चा करना चाहेंगे?"
+            return (
+                "मैं उद्यमसारथी हूँ — आपका समर्पित ग्रामीण एवं सूक्ष्म व्यवसाय सलाहकार। 🙏\n\n"
+                "मैं ग्रामीण उद्यमियों, किसानों और छोटे व्यापारियों को सही व्यवसाय चुनने, "
+                "बैंक ऋण संरचना (MUDRA / PMEGP / KCC), स्थानीय बाजार विश्लेषण और सरकारी सब्सिडी योजनाएं प्राप्त करने में मदद करता हूँ।\n\n"
+                "कृपया बताएं कि आप कौन सा व्यवसाय शुरू या बढ़ाना चाहते हैं, या अपनी उपलब्ध पूँजी साझा करें।"
+            )
         elif lang == "TELUGU":
-            return "నేను **ఉద్యమ్ సారథి (UdyamSarthi)**. నా ముఖ్య ఉద్దేశం గ్రామీణ మరియు పట్టణ వ్యాపార సలహాలు, మార్కెట్ విశ్లేషణ, ఆర్థిక ప్రణాళిక మరియు ప్రభుత్వ పథకాలపై ఖచ్చితమైన మార్గదర్శకత్వం ఇవ్వడమే. ఈ ప్రశ్నకు వ్యాపార పరిధిలో సమాధానం ఇవ్వలేను. దయచేసి వ్యాపార సంబంధిత వివరాలు అడగండి."
+            return (
+                "నేను ఉద్యమ్‌సారథిని — మీ గ్రామీణ మరియు సూక్ష్మ వ్యాపార సలహాదారుని. 🙏\n\n"
+                "నేను రైతులకు, గ్రామీణ పారిశ్రామికవేత్తలకు సరైన వ్యాపార ఎంపిక, బ్యాంక్ రుణాలు (MUDRA / PMEGP), "
+                "స్థానిక మార్కెట్ విశ్లేషణ మరియు ప్రభుత్వ రాయితీలు అందించడంలో సహాయపడతాను.\n\n"
+                "మీ వ్యాపార ఆలోచన లేదా పెట్టుబడి బడ్జెట్ గురించి తెలియజేయండి."
+            )
         else:
-            return "I am **UdyamSarthi**, an AI business advisory specialist dedicated strictly to rural and small-town entrepreneurship, local market intelligence, financial structuring, and government schemes. I cannot answer queries outside this domain. Would you like to explore business opportunities?"
+            return (
+                "I am UdyamSarthi — your hyper-local rural business and enterprise advisor. 🙏\n\n"
+                "I specialize in assisting rural entrepreneurs and farmers with enterprise selection, "
+                "bank loan structuring (MUDRA, PMEGP, NABARD), catchment market analysis, and verified government subsidies.\n\n"
+                "Please let me know what business you are planning, or share your available investment budget."
+            )
 
     def _format_greeting(self, user_name: str, has_name: bool, lang: str) -> str:
         if lang == "HINDI":
             if has_name:
-                return f"नमस्ते {user_name} जी! 😊\n\nबताइए, आज मैं आपके व्यावसायिक निर्णय या वित्तीय योजना में क्या मदद कर सकता हूँ?"
-            return "नमस्ते! 🙏 मैं **उद्यमसारथी** हूँ — ग्रामीण और छोटे कस्बों के उद्यमियों का एआई सलाहकार।\n\nशुरू करने से पहले, क्या मैं आपका **शुभ नाम** जान सकता हूँ?"
+                return (
+                    f"नमस्ते {user_name} जी! 🙏 उद्यमसारथी में आपका स्वागत है।\n\n"
+                    f"आज हम आपके किस व्यवसाय या कृषि उद्यम की योजना पर काम करें? आप अपनी पूँजी, उपलब्ध ज़मीन या किसी नए विचार के बारे में बता सकते हैं।"
+                )
+            else:
+                return (
+                    "नमस्ते! 🙏 मैं उद्यमसारथी हूँ, आपका ग्रामीण व सूक्ष्म व्यवसाय सलाहकार।\n\n"
+                    "मैं आपको सही व्यवसाय चुनने, बैंक ऋण (MUDRA/PMEGP) और सरकारी सब्सिडी प्राप्त करने में मदद कर सकता हूँ।\n\n"
+                    "शुरू करने के लिए, आपका नाम क्या है और आपके मन में कौन सा व्यवसाय शुरू करने का विचार है?"
+                )
         elif lang == "TELUGU":
             if has_name:
-                return f"నమస్కారం {user_name} గారు! 😊\n\nచెప్పండి, ఈరోజు మీ వ్యాపార నిర్ణయం లేదా ఆర్థిక ప్రణాళికలో నేను ఎలా సహాయపడగలను?"
-            return "నమస్కారం! 🙏 నేను **ఉద్యమ్ సారథి**ని — గ్రామీణ మరియు చిన్న పట్టణ పారిశ్రామికవేత్తల డిజిటల్ వ్యాపార సలహాదారుని.\n\nముందుగా, మీ **పూర్తి పేరు** తెలుసుకోవచ్చా?"
+                return (
+                    f"నమస్కారం {user_name} గారు! 🙏 ఉద్యమ్‌సారథికి స్వాగతం.\n\n"
+                    f"ఈరోజు మీ వ్యాపార ప్రణాళికలో నేను ఎలా సహాయపడగలను? మీ ఆలోచనలు లేదా బడ్జెట్ తెలపండి."
+                )
+            else:
+                return (
+                    "నమస్కారం! 🙏 నేను ఉద్యమ్‌సారథిని, మీ గ్రామీణ వ్యాపార సలహాదారుని.\n\n"
+                    "సరైన వ్యాపారం ఎంపిక, బ్యాంక్ రుణాలు మరియు ప్రభుత్వ రాయితీలు పొందడంలో నేను సహాయపడతాను.\n\n"
+                    "ప్రారంభించడానికి, మీ పేరు ఏమిటి మరియు మీకు ఏ వ్యాపారం ప్రారంభించాలనుంది?"
+                )
         else:
             if has_name:
-                return f"Hello {user_name}! 😊\n\nHow can I assist your business planning or financial structuring today?"
-            return "Namaste and welcome! 🙏 I am **UdyamSarthi**, your dedicated rural and small-town business advisory companion.\n\nMay I know your **name** to begin?"
-
-    def _format_ask_capital(self, user_name: str, lang: str) -> str:
-        if lang == "HINDI":
-            return f"बहुत अच्छी बात है {user_name} जी! मैं आपके कौशल, संसाधनों और स्थानीय बाज़ार के अनुसार सबसे उपयुक्त व्यवसाय सुझा सकता हूँ।\n\nसटीक योजना बनाने के लिए सबसे पहले यह जानना आवश्यक है:\n**आप इस व्यवसाय में लगभग कितना पूँजी (Investment Capital) लगा सकते हैं?**"
-        elif lang == "TELUGU":
-            return f"చాలా మంచి ఆలోచన {user_name} గారు! మీ నైపుణ్యాలు, వనరులు మరియు స్థానిక మార్కెట్ ఆధారంగా సరైన వ్యాపారాన్ని గుర్తించడంలో నేను సహాయపడతాను.\n\nఖచ్చితమైన విశ్లేషణ కోసం మొదట:\n**ఈ వ్యాపారంలో మీరు సుమారు ఎంత పెట్టుబడి (Investment Capital) పెట్టగలరు?**"
-        else:
-            return f"That is a great initiative, {user_name}! I can help you evaluate high-potential enterprises based on your skills, resources, and local market.\n\nTo begin accurately:\n**What is your approximate investment budget or available capital?**"
-
-    def _format_ask_resources(self, user_name: str, capital: float, lang: str) -> str:
-        cap_fmt = f"₹{capital:,.0f}"
-        if lang == "HINDI":
-            return f"धन्यवाद {user_name} जी, आपका बजट लगभग **{cap_fmt}** दर्ज हो गया है। 👍\n\nअब कृपया बताएं:\n**क्या आपके पास कोई जमीन (खेती/प्लॉट), दुकान, शेड, वाहन या बोरवेल/पानी की सुविधा उपलब्ध है?**"
-        elif lang == "TELUGU":
-            return f"ధన్యవాదాలు {user_name} గారు, మీ పెట్టుబడి బడ్జెట్ **{cap_fmt}** నమోదైంది. 👍\n\nఇప్పుడు చెప్పండి:\n**మీ దగ్గర వ్యవసాయ భూమి, దుకాణం, షెడ్, వాహనం లేదా నీటి వసతి (బోర్/బావి) అందుబాటులో ఉన్నాయా?**"
-        else:
-            return f"Thank you {user_name}, your capital of **{cap_fmt}** is noted. 👍\n\nNext, please share:\n**Do you have land (acres), a shop/shed, vehicle, or reliable water/electricity available?**"
+                return (
+                    f"Hello {user_name}! 🙏 Welcome to UdyamSarthi.\n\n"
+                    f"How can I assist your enterprise journey today? You can share a business idea, available capital, or land resources to explore viable opportunities."
+                )
+            else:
+                return (
+                    "Hello! 🙏 I am UdyamSarthi, your hyper-local rural enterprise advisor.\n\n"
+                    "I help entrepreneurs and farmers identify viable businesses, structure bank loans (MUDRA/PMEGP/NABARD), and secure government subsidies.\n\n"
+                    "To begin, may I know your name and what business opportunity you would like to explore?"
+                )
 
     def _format_ask_business_interest(self, user_name: str, capital: Optional[float], land_acres: Optional[float], lang: str) -> str:
         cap_str = f"₹{capital:,.0f}" if capital else "उपलब्ध बजट"

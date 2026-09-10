@@ -30,19 +30,24 @@ exports.handleChat = async (req, res) => {
     }
 
     // Assemble unified entrepreneur profile
+    const baseProfile = session_state?.master_profile || profile || {};
     const currentProfile = {
-      ...(profile || {}),
-      name: session_state?.name || profile?.name || null,
-      district: session_state?.district || profile?.district || null,
+      ...baseProfile,
+      name: session_state?.name || baseProfile?.name || null,
+      district: session_state?.district || baseProfile?.location?.village || baseProfile?.district || null,
       available_capital: session_state?.budget !== undefined && session_state?.budget !== null 
         ? session_state.budget 
-        : (profile?.available_capital || profile?.capital || null),
+        : (baseProfile?.financial?.capital ?? baseProfile?.available_capital ?? baseProfile?.capital ?? null),
       capital: session_state?.budget !== undefined && session_state?.budget !== null 
         ? session_state.budget 
-        : (profile?.available_capital || profile?.capital || null),
-      business_interest: session_state?.business || session_state?.businessIdea || profile?.business_interest || null,
-      land_acres: session_state?.landAvailable || profile?.land_acres || null,
-      experience_years: session_state?.experience || profile?.experience_years || null,
+        : (baseProfile?.financial?.capital ?? baseProfile?.available_capital ?? baseProfile?.capital ?? null),
+      business_interest: session_state?.business || session_state?.businessIdea || baseProfile?.business?.interest || baseProfile?.business_interest || null,
+      land_acres: session_state?.landAvailable !== undefined ? session_state.landAvailable : (baseProfile?.resources?.land_acres ?? baseProfile?.land_acres ?? null),
+      experience_years: session_state?.experience !== undefined ? session_state.experience : (baseProfile?.experience?.experience_years ?? baseProfile?.experience_years ?? null),
+      shed: session_state?.shed !== undefined ? session_state.shed : (baseProfile?.resources?.shed ?? null),
+      water: session_state?.water !== undefined ? session_state.water : (baseProfile?.resources?.water ?? null),
+      cattle_count: session_state?.cattle_count !== undefined ? session_state.cattle_count : (baseProfile?.resources?.cattle_count ?? null),
+      cattle: session_state?.cattle || (baseProfile?.resources?.cattle ?? null),
       preferred_language: lang
     };
 
@@ -68,20 +73,25 @@ exports.handleChat = async (req, res) => {
 
       const updatedSessionState = {
         ...(session_state || {}),
+        master_profile: up,
         name: up.name || session_state?.name || null,
         district: loc.village || loc.district || session_state?.district || null,
         state: loc.state || session_state?.state || null,
-        business: biz.interest || session_state?.business || null,
-        businessIdea: biz.interest || session_state?.businessIdea || null,
+        business: biz.interest || biz.business_idea || session_state?.business || null,
+        businessIdea: biz.interest || biz.business_idea || session_state?.businessIdea || null,
         budget: fin.capital !== undefined && fin.capital !== null ? fin.capital : session_state?.budget,
         landAvailable: resrc.land_acres !== undefined && resrc.land_acres !== null ? resrc.land_acres : session_state?.landAvailable,
         experience: exp.experience_years !== undefined && exp.experience_years !== null ? exp.experience_years : session_state?.experience,
+        shed: resrc.shed !== undefined ? resrc.shed : session_state?.shed,
+        water: resrc.water !== undefined ? resrc.water : session_state?.water,
+        cattle_count: resrc.cattle_count !== undefined ? resrc.cattle_count : session_state?.cattle_count,
+        cattle: resrc.cattle || session_state?.cattle,
         lang: agentResult.detected_language === 'TELUGU' ? 'te' : (agentResult.detected_language === 'ENGLISH' ? 'en' : 'hi'),
         lastIntent: agentResult.intent
       };
 
       const updatedProfileResponse = {
-        ...(profile || {}),
+        ...up,
         name: up.name || profile?.name || null,
         district: loc.village || loc.district || profile?.district || null,
         available_capital: fin.capital !== undefined && fin.capital !== null ? fin.capital : profile?.available_capital,
