@@ -24,6 +24,8 @@ import { detectAccurateLocation } from '../utils/geolocation';
 import { cleanSpeechText, configureFemaleUtterance } from '../utils/speechVoice';
 import { useSaarthi } from '../context/SaarthiContext';
 import { extractBusinessIntent } from '../utils/businessPlanEngine';
+import { translations } from '../locales/translations';
+import { getTranslatedQuestion } from '../utils/interviewQuestions';
 
 export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, setActiveTab }) {
   const t = translations[lang] || translations.en;
@@ -40,14 +42,16 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
+      questionId: 'ask_name',
       text: lang === 'hi' 
-        ? "नमस्ते! मैं आपकी उद्यमसारथी एआई बिजनेस एडवाइजर हूँ। आप बोलकर या लिखकर बात कर सकते हैं — जैसे 'मेरा नाम राजू है', 'गुंटूर में डेयरी फार्मिंग शुरू करनी है', या 'अचार का बिजनेस कैसे करें?'।"
+        ? "Namaste! Main UdyamSarthi hoon. Main aapko aapke liye suitable business choose aur plan karne mein help karungi.\n\nSabse pehle, aapka naam kya hai?"
         : lang === 'te'
-        ? "నమస్కారం! నేను మీ ఉద్యమ్‌సారథి ఏఐ సలహాదారుని. మాట్లాడండి — మీ వ్యాపార ప్రశ్నలకు తక్షణ సమాధానం మరియు మార్గదర్శకత్వం లభిస్తుంది."
-        : "Namaste! I am UdyamSarthi, your AI Business Advisor. Speak or type naturally — ask about starting a dairy farm, poultry, goat farming, or food processing.",
+        ? "నమస్కారం! నేను ఉద్యమ్‌సారథిని. మీకు తగిన వ్యాపారాన్ని ఎంచుకోవడంలో మరియు ప్రణాళిక రూపొందించడంలో నేను సహాయం చేస్తాను.\n\nముందుగా, మీ పేరు ఏమిటి?"
+        : "Namaste! I am UdyamSarthi. I will help you choose and plan a suitable business for you.\n\nFirst, what is your name?",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       entities: null,
       topRec: null,
+      quickReplies: []
     }
   ]);
 
@@ -85,6 +89,43 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
   const maxSessionTimeoutRef = useRef(null);
   const langRef = useRef(lang);
   const handleSendRef = useRef(null);
+  const isProcessingAnswerRef = useRef(false);
+  const activeUtteranceRef = useRef(null);
+
+  // Sync language changes dynamically during conversation
+  useEffect(() => {
+    langRef.current = lang;
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
+    }
+
+    setMessages((prev) => {
+      if (!prev || prev.length === 0) return prev;
+      const lastIdx = prev.length - 1;
+      const lastMsg = prev[lastIdx];
+
+      if (lastMsg && lastMsg.sender === 'ai') {
+        const qId = lastMsg.questionId || (prev.length === 1 ? 'ask_name' : null);
+        if (qId) {
+          const translated = getTranslatedQuestion(qId, lang, sessionState);
+          if (translated) {
+            const updated = [...prev];
+            updated[lastIdx] = {
+              ...lastMsg,
+              text: translated.message,
+              quickReplies: translated.quickReplies,
+              questionId: qId,
+              language: lang
+            };
+            return updated;
+          }
+        }
+      }
+      return prev;
+    });
+
+    setSessionState((prev) => ({ ...prev, lang }));
+  }, [lang]);
 
   // Trigger full dynamic business analysis and creation
   const handleConfirmAndAnalyze = (intentData) => {
@@ -136,6 +177,22 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
     }
   };
 
+  const submitSpokenAnswer = () => {
+    isListeningRef.current = false;
+    setIsListening(false);
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    if (maxSessionTimeoutRef.current) clearTimeout(maxSessionTimeoutRef.current);
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+    }
+    const finalTranscript = accumulatedTranscriptRef.current.trim() || inputText.trim();
+    if (finalTranscript) {
+      accumulatedTranscriptRef.current = '';
+      setInputText('');
+      handleUserAnswer(finalTranscript);
+    }
+  };
+
   // Initialize Web Speech API Recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -151,10 +208,19 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
       };
 
       recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        accumulatedTranscriptRef.current = transcript;
         setInputText(transcript);
-        setIsListening(false);
-        handleSend(transcript);
+
+        if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = setTimeout(() => {
+          if (isListeningRef.current) {
+            submitSpokenAnswer();
+          }
+        }, 1500);
       };
 
       recognition.onerror = (event) => {
@@ -254,26 +320,83 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
     if ('speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
         const clean = cleanSpeechText(text);
         if (!clean) return;
         const utterance = new SpeechSynthesisUtterance(clean);
+        activeUtteranceRef.current = utterance;
         const langCode = lang === 'hi' ? 'hi-IN' : (lang === 'te' ? 'te-IN' : 'en-IN');
         utterance.lang = langCode;
         configureFemaleUtterance(utterance, window.speechSynthesis, langCode);
+        utterance.onend = () => {
+          activeUtteranceRef.current = null;
+        };
+        utterance.onerror = () => {
+          activeUtteranceRef.current = null;
+        };
         window.speechSynthesis.speak(utterance);
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
       } catch (err) {
         console.warn("TTS speak error:", err);
       }
     }
   };
 
+  // Unified Answer Handler: Buttons and microphone execute the exact same logic
+  const handleUserAnswer = async (answer) => {
+    if (!answer) return;
+    if (isProcessingAnswerRef.current || isLoading) {
+      console.log("Answer guard active - ignoring duplicate answer submission:", answer);
+      return;
+    }
+    isProcessingAnswerRef.current = true;
+
+    let textToSend = '';
+    if (typeof answer === 'object' && answer !== null) {
+      textToSend = answer.value || answer.label || '';
+    } else {
+      textToSend = String(answer);
+    }
+    textToSend = textToSend.trim();
+
+    if (!textToSend) {
+      isProcessingAnswerRef.current = false;
+      return;
+    }
+
+    if (isListeningRef.current || isListening) {
+      isListeningRef.current = false;
+      setIsListening(false);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch (e) {}
+      }
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      activeUtteranceRef.current = null;
+    }
+
+    try {
+      await handleSend(textToSend);
+    } finally {
+      isProcessingAnswerRef.current = false;
+    }
+  };
+
   const handleSend = async (textToSend = null) => {
-    const query = textToSend || inputText;
-    if (!query || !query.trim()) return;
+    const rawVal = typeof textToSend === 'object' && textToSend !== null ? (textToSend.value || textToSend.label) : textToSend;
+    const rawLabel = typeof textToSend === 'object' && textToSend !== null ? textToSend.label : textToSend;
+    const query = rawVal || inputText;
+    const displayQuery = rawLabel || inputText;
+    if (!query || !String(query).trim()) return;
 
     const userMsg = {
       sender: 'user',
-      text: query,
+      text: displayQuery,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -281,80 +404,20 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
     setInputText('');
     setIsLoading(true);
 
-    const extractedIntent = extractBusinessIntent(query, profile);
-
-    const hasIntent = query.toLowerCase().includes('want') || 
-                      query.toLowerCase().includes('start') || 
-                      query.toLowerCase().includes('open') || 
-                      query.toLowerCase().includes('business') || 
-                      query.toLowerCase().includes('farm') || 
-                      query.toLowerCase().includes('poultry') || 
-                      query.toLowerCase().includes('dairy') ||
-                      query.toLowerCase().includes('mushroom') ||
-                      query.toLowerCase().includes('processing') ||
-                      query.toLowerCase().includes('chahata') ||
-                      query.toLowerCase().includes('shuru') ||
-                      query.toLowerCase().includes('karna');
-
-    if (hasIntent && extractedIntent.businessIdea && extractedIntent.businessIdea !== 'Rural Micro-Enterprise') {
-      setPendingBusinessIdea(extractedIntent);
-
-      const existingPlan = personalPlans.find(p => 
-        p.businessName.toLowerCase().includes(extractedIntent.businessIdea.toLowerCase()) ||
-        extractedIntent.businessIdea.toLowerCase().includes(p.businessName.toLowerCase())
-      );
-
-      if (existingPlan) {
-        setIsLoading(false);
-        const dupMessage = {
-          sender: 'ai',
-          text: lang === 'hi'
-            ? `आपकी प्रोफ़ाइल में पहले से ही **${existingPlan.businessName}** की योजना सुरक्षित है। क्या आप इसे नए विवरणों के साथ अपडेट करना चाहते हैं या नई अलग योजना बनाना चाहते हैं?`
-            : (lang === 'te'
-              ? `మీ వద్ద ఇప్పటికే **${existingPlan.businessName}** ప్రణాళిక భద్రపరచబడి ఉంది. దాన్ని నవీకరించాలా లేదా కొత్త ప్రణాళికను సృష్టించాలా?`
-              : `You already have a **${existingPlan.businessName}** plan. Would you like to update it or create a new separate plan?`),
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          actionType: 'UPDATE_OR_CREATE_PLAN',
-          existingPlanId: existingPlan.id,
-          existingPlanName: existingPlan.businessName,
-          intentData: extractedIntent
-        };
-        setMessages(prev => [...prev, dupMessage]);
-        if (autoSpeak) speakText(dupMessage.text);
-        return;
-      }
-
-      setIsLoading(false);
-      const confirmMessage = {
-        sender: 'ai',
-        text: lang === 'hi'
-          ? `मैंने आपके विचार से यह विवरण समझा:\n• व्यवसाय: **${extractedIntent.businessIdea}**\n• स्थान: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• उपलब्ध पूँजी: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nक्या मैं इस व्यावसायिक अवसर का विश्लेषण करूँ?`
-          : (lang === 'te'
-            ? `మీ ఆలోచన నుండి నేను గ్రహించిన వివరాలు:\n• వ్యాపారం: **${extractedIntent.businessIdea}**\n• ప్రాంతం: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• అందుబాటులో ఉన్న పెట్టుబడి: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nనేను ఈ అవకాశాన్ని విశ్లేషించమంటారా?`
-            : `Here's what I understood about your business idea:\n• Business: **${extractedIntent.businessIdea}**\n• Location: **${extractedIntent.location.village}, ${extractedIntent.location.district}**\n• Available Capital: **₹${extractedIntent.capital.toLocaleString('en-IN')}**\n\nShould I analyze this business opportunity now?`),
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        actionType: 'CONFIRM_BUSINESS_PLAN',
-        intentData: extractedIntent
-      };
-      setMessages(prev => [...prev, confirmMessage]);
-      if (autoSpeak) speakText(confirmMessage.text);
-      return;
-    }
-
     try {
       const response = await axios.post('/api/chat', {
-        message: queryText || query,
+        message: query,
         profile: profile,
         lang: lang,
-        session_state: sessionState,
+        session_state: { ...sessionState, lang },
         history: [...messages, userMsg].slice(-6).map(m => ({ sender: m.sender, text: m.text }))
       });
 
-      const responseText = response.data?.reply || response.data?.response || "I have received your request and updated your business context.";
-      const { updated_profile, top_recommendation, session_state } = response.data;
+      const responseText = response.data?.reply || response.data?.response || response.data?.message || "I have received your request and updated your business context.";
+      const { updated_profile, top_recommendation, session_state: updatedSessionState, questionId, question_id, language: respLang } = response.data;
 
-      if (session_state) {
-        setSessionState(session_state);
+      if (updatedSessionState) {
+        setSessionState(updatedSessionState);
       }
 
       const aiMsg = {
@@ -363,7 +426,10 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         entities: response.data?.entities,
         topRec: top_recommendation || response.data?.top_recommendation,
-        actionType: response.data?.action_type
+        actionType: response.data?.action_type,
+        quickReplies: response.data?.quickReplies || [],
+        questionId: questionId || question_id,
+        language: respLang || lang
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -453,11 +519,30 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
 
               <p className="whitespace-pre-line font-medium">{msg.text}</p>
 
+              {msg.quickReplies && msg.quickReplies.length > 0 && idx === messages.length - 1 && (
+                <div className="mt-3 pt-2 border-t border-stone-200/60 flex flex-wrap gap-1.5">
+                  {msg.quickReplies.map((opt, oIdx) => {
+                    const label = typeof opt === 'object' ? opt.label : opt;
+                    const val = typeof opt === 'object' ? (opt.value || opt.label) : opt;
+                    return (
+                      <button
+                        key={oIdx}
+                        onClick={() => handleUserAnswer(opt)}
+                        disabled={isLoading}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-[#0F3D2E] text-[#0F3D2E] hover:text-white border border-emerald-300 font-semibold text-xs transition shadow-2xs cursor-pointer active:scale-95"
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {msg.sender === 'ai' && (
                 <div className="mt-2 pt-1 border-t border-stone-200/60 flex items-center justify-end">
                   <button
                     onClick={() => speakText(msg.text)}
-                    className="flex items-center space-x-1 text-stone-500 hover:text-[#0F3D2E] text-xs font-semibold"
+                    className="flex items-center space-x-1 text-stone-500 hover:text-[#0F3D2E] text-xs font-semibold cursor-pointer"
                   >
                     <Volume2 className="w-3.5 h-3.5" />
                     <span>{t.playAudio || "Listen to Audio Advisory"}</span>
@@ -499,13 +584,13 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          onKeyDown={(e) => e.key === 'Enter' && handleUserAnswer(inputText)}
           placeholder={isListening ? t.listeningState : (t.typeMessagePlaceholder || "Type or speak your message...")}
           className="flex-1 bg-transparent px-3 py-2 text-sm text-stone-900 focus:outline-none placeholder:text-stone-400 font-medium"
         />
 
         <button
-          onClick={() => handleSend()}
+          onClick={() => handleUserAnswer(inputText)}
           disabled={!inputText.trim() || isLoading}
           className="bg-[#0F3D2E] hover:bg-[#165440] disabled:opacity-40 text-amber-300 px-5 py-3 rounded-xl font-bold text-xs transition flex items-center space-x-1"
         >
@@ -538,7 +623,7 @@ export default function ChatAssistant({ lang = 'en', profile, onProfileUpdate, s
           ].map((idea, idx) => (
             <button
               key={idx}
-              onClick={() => handleSend(idea.query)}
+              onClick={() => handleUserAnswer(idea.query)}
               className="p-3.5 rounded-2xl bg-white hover:bg-[#0F3D2E] text-stone-800 hover:text-white border border-stone-200 hover:border-[#0F3D2E] transition-all duration-200 text-left flex flex-col justify-between h-24 group shadow-2xs"
             >
               <Sparkles className="w-4 h-4 text-[#C28A17] group-hover:text-amber-300 transition" />

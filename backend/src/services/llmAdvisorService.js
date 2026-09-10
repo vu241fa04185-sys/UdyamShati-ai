@@ -1,26 +1,19 @@
 /**
- * UdyamSarthi True AI Business Advisor Agent Service
+ * UDYAMSARTHI — MULTI-LANGUAGE CONVERSATIONAL INTERVIEW SYSTEM
  * 
- * Female AI Business Advisor with domain-specific knowledge for:
- * 1. Dairy Farming (Cows/Buffaloes, Shed, Land, Green Fodder, Milk Centers, Subsidies)
- * 2. Poultry Farming (Broiler vs Layer, Bird count, Shed, Electricity/Water, Market, Contract)
- * 3. Goat Farming (Meat vs Breeding, Unit size 10+1, Grazing/Stall-fed, Shed, Breed, NLM Subsidy)
- * 4. Food Processing / Small Food Business (Pickles, Spices, Flour, Snacks, Raw Materials, PMFME, FSSAI)
+ * Languages supported:
+ * - English ('en')
+ * - Hindi ('hi' / Hinglish)
+ * - Telugu ('te')
  * 
- * Core Architectural Guarantees:
- * - Natural Female Advisor Persona ("jaan sakti hoon", "help karungi", "samajh gayi")
- * - Dynamic Business Detection (auto-infers business from "10 buffaloes", "mango pickle", "broiler", etc.)
- * - Zero Dummy Defaults (all user data starts null/empty)
- * - Zero Repetition (never asks for known entities)
- * - Dynamic Contextual Questioning (each question reacts to prior answers)
- * - Multilingual Support (Hindi Devanagari, Hinglish Latin, Telugu, English)
- * - Informational Query Handling (answers subsidy, loan/EMI, profit questions mid-conversation)
+ * Core Features:
+ * - Strictly respects the user's selected language as the Source of Truth
+ * - ONE unified internal question database and IDs
+ * - Returns contextual quick-reply buttons with { label, value } for each language
+ * - Supports mid-conversation language switching without losing user data or step
+ * - Multilingual natural entity extraction
+ * - Comprehensive 10-point business analysis in English, Hindi, and Telugu
  */
-
-function formatINR(val) {
-  if (val === null || val === undefined || isNaN(val)) return '₹0';
-  return '₹' + Number(val).toLocaleString('en-IN');
-}
 
 function cleanForSpeech(text) {
   if (!text) return '';
@@ -37,1488 +30,1963 @@ function cleanForSpeech(text) {
 }
 
 /**
- * Detect Language mode:
- * - 'hi_deva': Hindi in Devanagari script
- * - 'te': Telugu script or words
- * - 'hi_latin': Hinglish / Hindi in Latin script
- * - 'en': English
+ * Standardize and map business keywords to canonical business keys
  */
-function detectLanguageMode(text, currentLang = 'hi') {
-  if (!text) return currentLang || 'hi_latin';
-  const t = text.trim();
-  const lower = t.toLowerCase();
+function normalizeBusiness(text) {
+  if (!text) return null;
+  const t = text.toLowerCase().trim();
 
-  // Explicit switches
-  if (/\b(in english|switch to english|english lo|speak in english)\b/i.test(lower)) return 'en';
-  if (/\b(hindi mein|in hindi|hindi lo)\b/i.test(lower)) return 'hi_latin';
-  if (/\b(telugu mein|in telugu|telugu lo)\b/i.test(lower)) return 'te';
-
-  // Telugu script or distinct words
-  if (/[\u0C00-\u0C7F]/.test(t) || /\b(naaku|na peru|vyaaparam|peddaga|pettubadi|daggara|cheyyali|unnayi|ledu|avunu|kadu|లక్ష|రూపాయలు|మేకలు|కోళ్లు|ఆవులు|గేదెలు)\b/i.test(lower)) {
-    return 'te';
+  // Dairy variations (English, Hindi, Telugu, spoken phrases)
+  if (/\b(dairy|milk|cows?|buffalo(?:es)?|bhains|doodh|cattle|dairy farming)\b/i.test(t) ||
+      /(गाय|भैंस|दूध|डेयरी|पशुपालन|పాడి|డెయిరీ|పాల)/i.test(t)) {
+    return 'DAIRY';
+  }
+  // Agriculture variations
+  if (/\b(agri|agriculture|farming|farmer|kheti|crops?|vegetables?|organic)\b/i.test(t) ||
+      /(कृषि|खेती|फसल|सब्जी|సాగు|వ్యవసాయం|పంట)/i.test(t)) {
+    return 'AGRICULTURE';
+  }
+  // Food business variations
+  if (/\b(food|restaurant|snacks?|tiffin|bakery|packaged food|street food|catering)\b/i.test(t) ||
+      /(ढाबा|होटल|नाश्ता|खाद्य|भोजन|ఆహార|ఆహారం|హోటల్)/i.test(t)) {
+    return 'FOOD';
+  }
+  // Retail business variations
+  if (/\b(retail|grocery|clothing|electronics?|mobile|cosmetics?|general store|shop|kirana|store)\b/i.test(t) ||
+      /(दुकान|किराना|रिटेल|व्यापार|కిరాణా|రిటైల్|దుకాణం)/i.test(t)) {
+    return 'RETAIL';
+  }
+  // Manufacturing variations
+  if (/\b(manufacturing|furniture|paper|construction|production|factory|making|unit)\b/i.test(t) ||
+      /(मैन्युफैक्चरिंग|निर्माण|फैक्ट्री|उत्पादन|తయారీ)/i.test(t)) {
+    return 'MANUFACTURING';
+  }
+  // Service variations
+  if (/\b(service|repair|salon|beauty|transport|education|tuition|cleaning)\b/i.test(t) ||
+      /(सर्विस|सेवा|मरम्मत|సర్వీస్|సేవలు)/i.test(t)) {
+    return 'SERVICE';
+  }
+  // Handicraft variations
+  if (/\b(handicraft|lippan|pottery|bamboo|wooden|handmade|textile|artisan|craft)\b/i.test(t) ||
+      /(हस्तशिल्प|शिल्पकारी|ਕਾਰੀगरी|హస్తకళలు)/i.test(t)) {
+    return 'HANDICRAFT';
+  }
+  // Digital / Online variations
+  if (/\b(digital|online|freelancing|content|marketing|teaching|youtube|social media)\b/i.test(t) ||
+      /(ऑनलाइन|डिजिटल|ఆన్‌లైన్|డిజిటల్)/i.test(t)) {
+    return 'DIGITAL';
   }
 
-  // Devanagari script
-  if (/[\u0900-\u097F]/.test(t)) {
-    return 'hi_deva';
-  }
-
-  // Pure English grammatical structures
-  if (/\b(my name is|i live in|i want to start|i want to do|how much|what is the|suggest a|business in|start dairy|start poultry|do you have|what budget|buffaloes|cows|chickens|pickle|spices|food processing)\b/i.test(lower)) {
-    return 'en';
-  }
-
-  // Hinglish keywords
-  if (/\b(namaste|mera|meri|mujhe|karna|hai|paas|hazar|kheti|batao|kaunsa|hogi|bhai|ji|kisan|shehar|gaon|shuru|paisa|chahiye|milti|kya|kaise|rehta|hoon|raha|sakta|sakti)\b/i.test(lower)) {
-    return 'hi_latin';
-  }
-
-  if (currentLang === 'hi_deva' || currentLang === 'hi') return 'hi_deva';
-  if (currentLang === 'te') return 'te';
-  if (currentLang === 'en') return 'en';
-  return 'hi_latin';
+  return null;
 }
 
 /**
- * Deep Entity Extractor supporting 4 Rural Business Domains
+ * Natural speech normalizer for Animal Counts (e.g. "around 5", "5 cows", "2-5", "paanch")
  */
-function extractEntities(text, existingState = {}) {
+function parseAnimalCount(text) {
+  if (!text) return null;
+  const t = text.toLowerCase().trim();
+  if (/\b(20\+|above 20|more than 20|20 se zyada|20 se jyada|20 కంటే ఎక్కువ)\b/i.test(t)) {
+    return '20+ animals';
+  }
+  if (/\b(1[1-9]|20)\b/i.test(t) || /\b(11–20|11-20|11 to 20)\b/i.test(t)) {
+    return '11–20 animals';
+  }
+  if (/\b([6-9]|10)\b/i.test(t) || /\b(6–10|6-10|6 to 10|around\s*(?:[6-9]|10)|lagbhag\s*(?:[6-9]|10))\b/i.test(t)) {
+    return '6–10 animals';
+  }
+  if (/\b([2-5])\b/i.test(t) || /\b(around\s*(?:[2-5])|lagbhag\s*(?:[2-5])|2–5|2-5|2 to 5)\b/i.test(t) ||
+      /\b(two|three|four|five|do|teen|chaar|paanch|दो|तीन|चार|पाँच|రెండు|మూడు|నాలుగు|ఐదు)\b/i.test(t)) {
+    return '2–5 animals';
+  }
+  return null;
+}
+
+/**
+ * Returns the first question in the flow whose answer is not yet collected.
+ */
+function getNextUnansweredQuestion(questions, answers = {}) {
+  if (!Array.isArray(questions)) return null;
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const key = q.key;
+    const isAnswered = Boolean(
+      answers[key] !== undefined ||
+      answers[q.questionId] !== undefined ||
+      (key === 'dairy_animals' && (answers.animals !== undefined || answers.dairy_animals !== undefined)) ||
+      (key === 'dairy_space' && (answers.space !== undefined || answers.dairy_space !== undefined)) ||
+      (key === 'dairy_land' && (answers.land !== undefined || answers.dairy_land !== undefined)) ||
+      (key === 'budget' && (answers.budget !== undefined || answers.dairy_budget !== undefined)) ||
+      (key === 'dairy_budget' && (answers.budget !== undefined || answers.dairy_budget !== undefined)) ||
+      (key === 'feed_and_vet' && (answers.feed_and_vet !== undefined || answers.dairy_feed_vet !== undefined)) ||
+      (key === 'agri_land' && (answers.land !== undefined || answers.agri_land !== undefined)) ||
+      (key.startsWith('dairy_') && answers[key.replace('dairy_', '')] !== undefined) ||
+      (key.startsWith('agri_') && answers[key.replace('agri_', '')] !== undefined) ||
+      (!key.startsWith('dairy_') && answers[`dairy_${key}`] !== undefined) ||
+      (!key.startsWith('agri_') && answers[`agri_${key}`] !== undefined)
+    );
+    if (!isAnswered) {
+      return { question: q, index: i };
+    }
+  }
+  return null;
+}
+
+/**
+ * Standardize language code ('en', 'hi', 'te')
+ */
+function normalizeLang(lang) {
+  if (!lang) return 'en';
+  const l = String(lang).toLowerCase();
+  if (l.startsWith('hi')) return 'hi';
+  if (l.startsWith('te')) return 'te';
+  return 'en';
+}
+
+/**
+ * INITIAL FLOW QUESTIONS DATABASE (Multilingual)
+ */
+const INITIAL_QUESTIONS = {
+  ask_name: {
+    questionId: 'ask_name',
+    message: {
+      en: "Hello! I am UdyamSarthi. I will help you choose and plan a suitable business for you.\n\nFirst, what is your name?",
+      hi: "Namaste! Main UdyamSarthi hoon. Main aapko aapke liye suitable business choose aur plan karne mein help karungi.\n\nSabse pehle, aapka naam kya hai?",
+      te: "నమస్కారం! నేను ఉద్యమ్‌సారథిని. మీకు తగిన వ్యాపారాన్ని ఎంచుకోవడంలో మరియు ప్రణాళిక రూపొందించడంలో నేను సహాయం చేస్తాను.\n\nముందుగా, మీ పేరు ఏమిటి?"
+    },
+    quickReplies: {
+      en: [],
+      hi: [],
+      te: []
+    }
+  },
+
+  ask_state: {
+    questionId: 'ask_state',
+    message: {
+      en: (name) => `Nice to meet you, ${name}. Which state are you from?`,
+      hi: (name) => `Nice to meet you, ${name}. Aap kis state se hain?`,
+      te: (name) => `మిమ్మల్ని కలవడం సంతోషంగా ఉంది, ${name}. మీరు ఏ రాష్ట్రానికి చెందినవారు?`
+    },
+    quickReplies: {
+      en: [
+        { label: "Bihar", value: "Bihar" },
+        { label: "Uttar Pradesh", value: "Uttar Pradesh" },
+        { label: "Madhya Pradesh", value: "Madhya Pradesh" },
+        { label: "Rajasthan", value: "Rajasthan" },
+        { label: "Maharashtra", value: "Maharashtra" },
+        { label: "Andhra Pradesh", value: "Andhra Pradesh" },
+        { label: "Telangana", value: "Telangana" },
+        { label: "Other", value: "Other" }
+      ],
+      hi: [
+        { label: "बिहार", value: "Bihar" },
+        { label: "उत्तर प्रदेश", value: "Uttar Pradesh" },
+        { label: "मध्य प्रदेश", value: "Madhya Pradesh" },
+        { label: "राजस्थान", value: "Rajasthan" },
+        { label: "महाराष्ट्र", value: "Maharashtra" },
+        { label: "आंध्र प्रदेश", value: "Andhra Pradesh" },
+        { label: "तेलंगाना", value: "Telangana" },
+        { label: "अन्य राज्य", value: "Other" }
+      ],
+      te: [
+        { label: "ఆంధ్రప్రదేశ్", value: "Andhra Pradesh" },
+        { label: "తెలంగాణ", value: "Telangana" },
+        { label: "బీహార్", value: "Bihar" },
+        { label: "ఉత్తర ప్రదేశ్", value: "Uttar Pradesh" },
+        { label: "మధ్యప్రదేశ్", value: "Madhya Pradesh" },
+        { label: "మహారాష్ట్ర", value: "Maharashtra" },
+        { label: "ఇతర రాష్ట్రం", value: "Other" }
+      ]
+    }
+  },
+
+  ask_district: {
+    questionId: 'ask_district',
+    message: {
+      en: "Which district are you from?",
+      hi: "Aap kis district se hain?",
+      te: "మీరు ఏ జిల్లాకు చెందినవారు?"
+    },
+    quickReplies: {
+      en: [],
+      hi: [],
+      te: []
+    }
+  },
+
+  idea_check: {
+    questionId: 'idea_check',
+    message: {
+      en: "Do you already have a business idea, or would you like me to suggest one?",
+      hi: "Aapke paas koi business idea hai ya main aapko business ideas suggest karun?",
+      te: "మీ దగ్గర ఇప్పటికే వ్యాపార ఆలోచన ఉందా లేదా నేను సూచించనా?"
+    },
+    quickReplies: {
+      en: [
+        { label: "I have an idea", value: "own_idea" },
+        { label: "Suggest a business", value: "suggest" }
+      ],
+      hi: [
+        { label: "मेरे पास आइडिया है", value: "own_idea" },
+        { label: "आप सुझाव दें", value: "suggest" }
+      ],
+      te: [
+        { label: "నా దగ్గర ఆలోచన ఉంది", value: "own_idea" },
+        { label: "మీరు సూచించండి", value: "suggest" }
+      ]
+    }
+  },
+
+  choose_business_own: {
+    questionId: 'choose_business_own',
+    message: {
+      en: "Great! Which business would you like to start?",
+      hi: "Bahut achha! Aap kaunsa business start karna chahte hain?",
+      te: "చాలా మంచిది! మీరు ఏ వ్యాపారాన్ని ప్రారంభించాలనుకుంటున్నారు?"
+    },
+    quickReplies: {
+      en: [
+        { label: "Dairy Farming", value: "DAIRY" },
+        { label: "Agriculture", value: "AGRICULTURE" },
+        { label: "Food Business", value: "FOOD" },
+        { label: "Retail Business", value: "RETAIL" },
+        { label: "Manufacturing", value: "MANUFACTURING" },
+        { label: "Service Business", value: "SERVICE" },
+        { label: "Handicraft", value: "HANDICRAFT" },
+        { label: "Digital/Online Business", value: "DIGITAL" },
+        { label: "Other", value: "OTHER" }
+      ],
+      hi: [
+        { label: "डेयरी फार्मिंग", value: "DAIRY" },
+        { label: "कृषि / खेती", value: "AGRICULTURE" },
+        { label: "खाद्य व्यवसाय", value: "FOOD" },
+        { label: "रिटेल व्यापार", value: "RETAIL" },
+        { label: "मैन्युफैक्चरिंग", value: "MANUFACTURING" },
+        { label: "सर्विस व्यवसाय", value: "SERVICE" },
+        { label: "हस्तशिल्प", value: "HANDICRAFT" },
+        { label: "डिजिटल / ऑनलाइन", value: "DIGITAL" },
+        { label: "अन्य", value: "OTHER" }
+      ],
+      te: [
+        { label: "డెయిరీ ఫార్మింగ్", value: "DAIRY" },
+        { label: "వ్యవసాయం", value: "AGRICULTURE" },
+        { label: "ఆహార వ్యాపారం", value: "FOOD" },
+        { label: "రిటైల్ వ్యాపారం", value: "RETAIL" },
+        { label: "తయారీ రంగం", value: "MANUFACTURING" },
+        { label: "సేవా వ్యాపారం", value: "SERVICE" },
+        { label: "హస్తకళలు", value: "HANDICRAFT" },
+        { label: "డిజిటల్ / ఆన్‌లైన్", value: "DIGITAL" },
+        { label: "ఇతర", value: "OTHER" }
+      ]
+    }
+  },
+
+  choose_business_suggest: {
+    questionId: 'choose_business_suggest',
+    message: {
+      en: "What type of business are you interested in?",
+      hi: "Aap kis type ke business mein interested hain?",
+      te: "మీరు ఏ రకమైన వ్యాపారంలో ఆసక్తి కలిగి ఉన్నారు?"
+    },
+    quickReplies: {
+      en: [
+        { label: "Agriculture", value: "AGRICULTURE" },
+        { label: "Dairy", value: "DAIRY" },
+        { label: "Food", value: "FOOD" },
+        { label: "Retail", value: "RETAIL" },
+        { label: "Manufacturing", value: "MANUFACTURING" },
+        { label: "Service", value: "SERVICE" },
+        { label: "Handicraft", value: "HANDICRAFT" },
+        { label: "Digital/Online", value: "DIGITAL" }
+      ],
+      hi: [
+        { label: "कृषि", value: "AGRICULTURE" },
+        { label: "डेयरी", value: "DAIRY" },
+        { label: "खाद्य", value: "FOOD" },
+        { label: "रिटेल", value: "RETAIL" },
+        { label: "मैन्युफैक्चरिंग", value: "MANUFACTURING" },
+        { label: "सर्विस", value: "SERVICE" },
+        { label: "हस्तशिल्प", value: "HANDICRAFT" },
+        { label: "डिजिटल / ऑनलाइन", value: "DIGITAL" }
+      ],
+      te: [
+        { label: "వ్యవసాయం", value: "AGRICULTURE" },
+        { label: "డెయిరీ", value: "DAIRY" },
+        { label: "ఆహారం", value: "FOOD" },
+        { label: "రిటైల్", value: "RETAIL" },
+        { label: "తయారీ", value: "MANUFACTURING" },
+        { label: "సేవలు", value: "SERVICE" },
+        { label: "హస్తకళలు", value: "HANDICRAFT" },
+        { label: "డిజిటల్ / ఆన్‌లైన్", value: "DIGITAL" }
+      ]
+    }
+  }
+};
+
+/**
+ * 8 PREDEFINED BUSINESS FLOWS (Multilingual)
+ */
+const BUSINESS_FLOWS_I18N = {
+  DAIRY: [
+    {
+      questionId: 'dairy_q1',
+      key: 'dairy_animals',
+      message: {
+        en: "First, how many animals would you like to start dairy farming with?",
+        hi: "Sabse pehle, aap dairy farming kitne animals se start karna chahte hain?",
+        te: "ముందుగా, మీరు ఎన్ని పశువులతో డెయిరీ ఫార్మింగ్ ప్రారంభించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "2–5 animals", value: "2–5 animals" }, { label: "6–10 animals", value: "6–10 animals" }, { label: "11–20 animals", value: "11–20 animals" }, { label: "20+ animals", value: "20+ animals" }],
+        hi: [{ label: "2–5 पशु", value: "2–5 animals" }, { label: "6–10 पशु", value: "6–10 animals" }, { label: "11–20 पशु", value: "11–20 animals" }, { label: "20+ पशु", value: "20+ animals" }],
+        te: [{ label: "2–5 పశువులు", value: "2–5 animals" }, { label: "6–10 పశువులు", value: "6–10 animals" }, { label: "11–20 పశువులు", value: "11–20 animals" }, { label: "20+ పశువులు", value: "20+ animals" }]
+      }
+    },
+    {
+      questionId: 'dairy_q2',
+      key: 'dairy_space',
+      message: {
+        en: "Do you have space available to keep the animals?",
+        hi: "Aapke paas animals rakhne ke liye space available hai?",
+        te: "పశువులను ఉంచడానికి మీ వద్ద తగిన స్థలం అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Limited space", value: "Limited space" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "सीमित जगह", value: "Limited space" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "పరిమిత స్థలం", value: "Limited space" }]
+      }
+    },
+    {
+      questionId: 'dairy_q3',
+      key: 'dairy_land',
+      message: {
+        en: "Do you have your own land available?",
+        hi: "Aapke paas apni land available hai?",
+        te: "మీ వద్ద సొంత భూమి అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Family land", value: "Family land" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "पारिवारिक जमीन", value: "Family land" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "కుటుంబ భూమి", value: "Family land" }]
+      }
+    },
+    {
+      questionId: 'dairy_q4',
+      key: 'budget',
+      message: {
+        en: "What is your approximate budget?",
+        hi: "Aapka approximate budget kitna hai?",
+        te: "మీ సుమారు బడ్జెట్ ఎంత?"
+      },
+      quickReplies: {
+        en: [{ label: "Below ₹1 Lakh", value: "Below ₹1 Lakh" }, { label: "₹1–3 Lakh", value: "₹1–3 Lakh" }, { label: "₹3–5 Lakh", value: "₹3–5 Lakh" }, { label: "₹5–10 Lakh", value: "₹5–10 Lakh" }, { label: "Above ₹10 Lakh", value: "Above ₹10 Lakh" }],
+        hi: [{ label: "₹1 लाख से कम", value: "Below ₹1 Lakh" }, { label: "₹1–3 लाख", value: "₹1–3 Lakh" }, { label: "₹3–5 लाख", value: "₹3–5 Lakh" }, { label: "₹5–10 लाख", value: "₹5–10 Lakh" }, { label: "₹10 लाख से अधिक", value: "Above ₹10 Lakh" }],
+        te: [{ label: "₹1 లక్ష కంటే తక్కువ", value: "Below ₹1 Lakh" }, { label: "₹1–3 లక్షలు", value: "₹1–3 Lakh" }, { label: "₹3–5 లక్షలు", value: "₹3–5 Lakh" }, { label: "₹5–10 లక్షలు", value: "₹5–10 Lakh" }, { label: "₹10 లక్షల కంటే ఎక్కువ", value: "Above ₹10 Lakh" }]
+      }
+    },
+    {
+      questionId: 'dairy_q5',
+      key: 'experience',
+      message: {
+        en: "Do you have prior experience in dairy farming?",
+        hi: "Kya aapko dairy farming ka pehle se experience hai?",
+        te: "మీకు డెయిరీ ఫార్మింగ్‌లో మునుపటి అనుభవం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Little experience", value: "Little experience" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "थोड़ा अनुभव", value: "Little experience" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "కొద్దిగా అనుభవం", value: "Little experience" }]
+      }
+    },
+    {
+      questionId: 'dairy_q6',
+      key: 'market',
+      message: {
+        en: "Which market would you like to sell the milk to?",
+        hi: "Aap milk kis market mein sell karna chahenge?",
+        te: "మీరు పాలను ఏ మార్కెట్‌లో విక్రయించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Local customers", value: "Local customers" }, { label: "Dairy collection center", value: "Dairy collection center" }, { label: "Shops", value: "Shops" }, { label: "Hotels/Restaurants", value: "Hotels/Restaurants" }, { label: "Not decided", value: "Not decided" }],
+        hi: [{ label: "स्थानीय ग्राहक", value: "Local customers" }, { label: "डेयरी कलेक्शन सेंटर", value: "Dairy collection center" }, { label: "दुकानें", value: "Shops" }, { label: "होटल / रेस्टोरेंट", value: "Hotels/Restaurants" }, { label: "तय नहीं किया", value: "Not decided" }],
+        te: [{ label: "స్థానిక కస్టమర్లు", value: "Local customers" }, { label: "డెయిరీ కలెక్షన్ సెంటర్", value: "Dairy collection center" }, { label: "దుకాణాలు", value: "Shops" }, { label: "హోటళ్ళు / రెస్టారెంట్లు", value: "Hotels/Restaurants" }, { label: "ఇంకా నిర్ణయించలేదు", value: "Not decided" }]
+      }
+    },
+    {
+      questionId: 'dairy_q7',
+      key: 'feed_and_vet',
+      message: {
+        en: "Are cattle feed and veterinary facilities available in your area?",
+        hi: "Kya aapke area mein cattle feed aur veterinary facility available hai?",
+        te: "మీ ప్రాంతంలో పశుగ్రాసం మరియు పశువైద్య సదుపాయాలు అందుబాటులో ఉన్నాయా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Not sure", value: "Not sure" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "पक्का नहीं पता", value: "Not sure" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "ఖచ్చితంగా తెలియదు", value: "Not sure" }]
+      }
+    },
+    {
+      questionId: 'dairy_q8',
+      key: 'goal',
+      message: {
+        en: "What is your main goal?",
+        hi: "Aapka main goal kya hai?",
+        te: "మీ ముఖ్య లక్ష్యం ఏమిటి?"
+      },
+      quickReplies: {
+        en: [{ label: "Monthly income", value: "Monthly income" }, { label: "Full-time business", value: "Full-time business" }, { label: "Family business", value: "Family business" }, { label: "Business expansion", value: "Business expansion" }],
+        hi: [{ label: "मासिक आय", value: "Monthly income" }, { label: "पूर्णकालिक व्यवसाय", value: "Full-time business" }, { label: "पारिवारिक व्यवसाय", value: "Family business" }, { label: "व्यापार विस्तार", value: "Business expansion" }],
+        te: [{ label: "నెలవారీ ఆదాయం", value: "Monthly income" }, { label: "పూర్తి సమయ వ్యాపారం", value: "Full-time business" }, { label: "కుటుంబ వ్యాపారం", value: "Family business" }, { label: "వ్యాపార విస్తరణ", value: "Business expansion" }]
+      }
+    }
+  ],
+
+  AGRICULTURE: [
+    {
+      questionId: 'agri_q1',
+      key: 'land',
+      message: {
+        en: "How much land do you have available for agriculture?",
+        hi: "Aapke paas agriculture ke liye kitni land available hai?",
+        te: "వ్యవసాయం కోసం మీ వద్ద ఎంత భూమి అందుబాటులో ఉంది?"
+      },
+      quickReplies: {
+        en: [{ label: "No land", value: "No land" }, { label: "Less than 1 Acre", value: "Less than 1 Acre" }, { label: "1–2 Acres", value: "1–2 Acres" }, { label: "2–5 Acres", value: "2–5 Acres" }, { label: "More than 5 Acres", value: "More than 5 Acres" }],
+        hi: [{ label: "कोई जमीन नहीं", value: "No land" }, { label: "1 एकड़ से कम", value: "Less than 1 Acre" }, { label: "1–2 एकड़", value: "1–2 Acres" }, { label: "2–5 एकड़", value: "2–5 Acres" }, { label: "5 एकड़ से अधिक", value: "More than 5 Acres" }],
+        te: [{ label: "భూమి లేదు", value: "No land" }, { label: "1 ఎకరం కంటే తక్కువ", value: "Less than 1 Acre" }, { label: "1–2 ఎకరాలు", value: "1–2 Acres" }, { label: "2–5 ఎకరాలు", value: "2–5 Acres" }, { label: "5 ఎకరాల కంటే ఎక్కువ", value: "More than 5 Acres" }]
+      }
+    },
+    {
+      questionId: 'agri_q2',
+      key: 'irrigation',
+      message: {
+        en: "Is your land irrigated or rain-dependent?",
+        hi: "Aapki land irrigated hai ya rain-dependent?",
+        te: "మీ భూమికి నీటిపారుదల సౌకర్యం ఉందా లేదా వర్షాధారితమా?"
+      },
+      quickReplies: {
+        en: [{ label: "Irrigated", value: "Irrigated" }, { label: "Rain-dependent", value: "Rain-dependent" }, { label: "Both", value: "Both" }, { label: "Not sure", value: "Not sure" }],
+        hi: [{ label: "सिंचित (Irrigated)", value: "Irrigated" }, { label: "वर्षा आधारित", value: "Rain-dependent" }, { label: "दोनों", value: "Both" }, { label: "पक्का नहीं पता", value: "Not sure" }],
+        te: [{ label: "నీటిపారుదల ఉంది", value: "Irrigated" }, { label: "వర్షాధారితం", value: "Rain-dependent" }, { label: "రెండూ", value: "Both" }, { label: "ఖచ్చితంగా తెలియదు", value: "Not sure" }]
+      }
+    },
+    {
+      questionId: 'agri_q3',
+      key: 'farming_type',
+      message: {
+        en: "What type of farming are you interested in?",
+        hi: "Aap kis type ki farming mein interested hain?",
+        te: "మీరు ఏ రకమైన వ్యవసాయం చేయాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Vegetables", value: "Vegetables" }, { label: "Fruits", value: "Fruits" }, { label: "Grains", value: "Grains" }, { label: "Organic farming", value: "Organic farming" }, { label: "Flowers", value: "Flowers" }, { label: "Not decided", value: "Not decided" }],
+        hi: [{ label: "सब्जियां", value: "Vegetables" }, { label: "फल", value: "Fruits" }, { label: "अनाज", value: "Grains" }, { label: "जैविक खेती", value: "Organic farming" }, { label: "फूल", value: "Flowers" }, { label: "तय नहीं किया", value: "Not decided" }],
+        te: [{ label: "కూరగాయలు", value: "Vegetables" }, { label: "పండ్లు", value: "Fruits" }, { label: "ధాన్యాలు", value: "Grains" }, { label: "సేంద్రీయ వ్యవసాయం", value: "Organic farming" }, { label: "పూలు", value: "Flowers" }, { label: "ఇంకా నిర్ణయించలేదు", value: "Not decided" }]
+      }
+    },
+    {
+      questionId: 'agri_q4',
+      key: 'budget',
+      message: {
+        en: "What is your approximate farming budget?",
+        hi: "Aapka approximate farming budget kitna hai?",
+        te: "మీ సుమారు వ్యవసాయ బడ్జెట్ ఎంత?"
+      },
+      quickReplies: {
+        en: [{ label: "Below ₹50K", value: "Below ₹50K" }, { label: "₹50K–₹1 Lakh", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 Lakh", value: "₹1–3 Lakh" }, { label: "₹3–5 Lakh", value: "₹3–5 Lakh" }, { label: "Above ₹5 Lakh", value: "Above ₹5 Lakh" }],
+        hi: [{ label: "₹50 हजार से कम", value: "Below ₹50K" }, { label: "₹50K–₹1 लाख", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 लाख", value: "₹1–3 Lakh" }, { label: "₹3–5 लाख", value: "₹3–5 Lakh" }, { label: "₹5 लाख से अधिक", value: "Above ₹5 Lakh" }],
+        te: [{ label: "₹50 వేల కంటే తక్కువ", value: "Below ₹50K" }, { label: "₹50 వేలు–₹1 లక్ష", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 లక్షలు", value: "₹1–3 Lakh" }, { label: "₹3–5 లక్షలు", value: "₹3–5 Lakh" }, { label: "₹5 లక్షల కంటే ఎక్కువ", value: "Above ₹5 Lakh" }]
+      }
+    },
+    {
+      questionId: 'agri_q5',
+      key: 'experience',
+      message: {
+        en: "Do you have prior farming experience?",
+        hi: "Kya aapko farming ka pehle se experience hai?",
+        te: "మీకు వ్యవసాయంలో మునుపటి అనుభవం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Some experience", value: "Some experience" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "कुछ अनुभव", value: "Some experience" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "కొంత అనుభవం", value: "Some experience" }]
+      }
+    },
+    {
+      questionId: 'agri_q6',
+      key: 'market',
+      message: {
+        en: "Where would you like to sell your produce?",
+        hi: "Aap apni produce kahan sell karna chahenge?",
+        te: "మీరు మీ పంటను ఎక్కడ విక్రయించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Local market", value: "Local market" }, { label: "Wholesale market", value: "Wholesale market" }, { label: "Direct customers", value: "Direct customers" }, { label: "Retail shops", value: "Retail shops" }, { label: "Not decided", value: "Not decided" }],
+        hi: [{ label: "स्थानीय बाजार", value: "Local market" }, { label: "थोक मंडी", value: "Wholesale market" }, { label: "सीधे ग्राहक", value: "Direct customers" }, { label: "खुदरा दुकानें", value: "Retail shops" }, { label: "तय नहीं किया", value: "Not decided" }],
+        te: [{ label: "స్థానిక మార్కెట్", value: "Local market" }, { label: "హోల్‌సేల్ మార్కెట్", value: "Wholesale market" }, { label: "నేరుగా కస్టమర్లకు", value: "Direct customers" }, { label: "రిటైల్ షాపులు", value: "Retail shops" }, { label: "ఇంకా నిర్ణయించలేదు", value: "Not decided" }]
+      }
+    },
+    {
+      questionId: 'agri_q7',
+      key: 'organic_interest',
+      message: {
+        en: "Are you interested in organic farming?",
+        hi: "Kya aap organic farming mein interested hain?",
+        te: "మీకు సేంద్రీయ వ్యవసాయంపై ఆసక్తి ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Maybe", value: "Maybe" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "शायद", value: "Maybe" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "బహుశా", value: "Maybe" }]
+      }
+    },
+    {
+      questionId: 'agri_q8',
+      key: 'goal',
+      message: {
+        en: "What is your main goal?",
+        hi: "Aapka main goal kya hai?",
+        te: "మీ ముఖ్య లక్ష్యం ఏమిటి?"
+      },
+      quickReplies: {
+        en: [{ label: "Monthly income", value: "Monthly income" }, { label: "Full-time farming", value: "Full-time farming" }, { label: "Family business", value: "Family business" }, { label: "Business growth", value: "Business growth" }],
+        hi: [{ label: "मासिक आय", value: "Monthly income" }, { label: "पूर्णकालिक खेती", value: "Full-time farming" }, { label: "पारिवारिक व्यवसाय", value: "Family business" }, { label: "व्यापार वृद्धि", value: "Business growth" }],
+        te: [{ label: "నెలవారీ ఆదాయం", value: "Monthly income" }, { label: "పూర్తి సమయ వ్యవసాయం", value: "Full-time farming" }, { label: "కుటుంబ వ్యాపారం", value: "Family business" }, { label: "వ్యాపార వృద్ధి", value: "Business growth" }]
+      }
+    }
+  ],
+
+  FOOD: [
+    {
+      questionId: 'food_q1',
+      key: 'food_type',
+      message: {
+        en: "What type of food business would you like to start?",
+        hi: "Aap food business mein kis type ka kaam karna chahte hain?",
+        te: "మీరు ఏ రకమైన ఆహార వ్యాపారాన్ని ప్రారంభించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Restaurant", value: "Restaurant" }, { label: "Snacks", value: "Snacks" }, { label: "Tiffin service", value: "Tiffin service" }, { label: "Bakery", value: "Bakery" }, { label: "Packaged food", value: "Packaged food" }, { label: "Street food", value: "Street food" }],
+        hi: [{ label: "रेस्टोरेंट / ढाबा", value: "Restaurant" }, { label: "स्नैक्स / नमकीन", value: "Snacks" }, { label: "टिफिन सर्विस", value: "Tiffin service" }, { label: "बेकरी", value: "Bakery" }, { label: "पैक्ड फूड", value: "Packaged food" }, { label: "स्ट्रीट फूड", value: "Street food" }],
+        te: [{ label: "రెస్టారెంట్", value: "Restaurant" }, { label: "స్నాక్స్", value: "Snacks" }, { label: "టిఫిన్ సర్వీస్", value: "Tiffin service" }, { label: "బేకరీ", value: "Bakery" }, { label: "ప్యాకేజ్డ్ ఫుడ్", value: "Packaged food" }, { label: "స్ట్రీట్ ఫుడ్", value: "Street food" }]
+      }
+    },
+    {
+      questionId: 'food_q2',
+      key: 'space',
+      message: {
+        en: "Do you have shop or kitchen space available?",
+        hi: "Aapke paas shop ya kitchen space available hai?",
+        te: "మీ వద్ద దుకాణం లేదా కిచెన్ స్థలం అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "I can arrange", value: "I can arrange" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "व्यवस्था कर सकता हूँ", value: "I can arrange" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "ఏర్పాటు చేయగలను", value: "I can arrange" }]
+      }
+    },
+    {
+      questionId: 'food_q3',
+      key: 'budget',
+      message: {
+        en: "What is your approximate budget?",
+        hi: "Aapka approximate budget kitna hai?",
+        te: "మీ సుమారు బడ్జెట్ ఎంత?"
+      },
+      quickReplies: {
+        en: [{ label: "Below ₹50K", value: "Below ₹50K" }, { label: "₹50K–₹1 Lakh", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 Lakh", value: "₹1–3 Lakh" }, { label: "₹3–5 Lakh", value: "₹3–5 Lakh" }, { label: "Above ₹5 Lakh", value: "Above ₹5 Lakh" }],
+        hi: [{ label: "₹50 हजार से कम", value: "Below ₹50K" }, { label: "₹50K–₹1 लाख", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 लाख", value: "₹1–3 Lakh" }, { label: "₹3–5 लाख", value: "₹3–5 Lakh" }, { label: "₹5 लाख से अधिक", value: "Above ₹5 Lakh" }],
+        te: [{ label: "₹50 వేల కంటే తక్కువ", value: "Below ₹50K" }, { label: "₹50 వేలు–₹1 లక్ష", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 లక్షలు", value: "₹1–3 Lakh" }, { label: "₹3–5 లక్షలు", value: "₹3–5 Lakh" }, { label: "₹5 లక్షల కంటే ఎక్కువ", value: "Above ₹5 Lakh" }]
+      }
+    },
+    {
+      questionId: 'food_q4',
+      key: 'experience',
+      message: {
+        en: "Do you have experience in the food business?",
+        hi: "Kya aapko food business ka experience hai?",
+        te: "మీకు ఆహార వ్యాపారంలో అనుభవం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Some experience", value: "Some experience" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "कुछ अनुभव", value: "Some experience" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "కొంత అనుభవం", value: "Some experience" }]
+      }
+    },
+    {
+      questionId: 'food_q5',
+      key: 'target_customers',
+      message: {
+        en: "Who will be your target customers?",
+        hi: "Aapka target customer kaun hoga?",
+        te: "మీ లక్ష్య కస్టమర్లు ఎవరు?"
+      },
+      quickReplies: {
+        en: [{ label: "Students", value: "Students" }, { label: "Office workers", value: "Office workers" }, { label: "Local families", value: "Local families" }, { label: "Tourists", value: "Tourists" }, { label: "General customers", value: "General customers" }],
+        hi: [{ label: "विद्यार्थी", value: "Students" }, { label: "ऑफिस कर्मचारी", value: "Office workers" }, { label: "स्थानीय परिवार", value: "Local families" }, { label: "पर्यटक", value: "Tourists" }, { label: "सामान्य ग्राहक", value: "General customers" }],
+        te: [{ label: "విద్యార్థులు", value: "Students" }, { label: "ఆఫీస్ ఉద్యోగులు", value: "Office workers" }, { label: "స్థానిక కుటుంబాలు", value: "Local families" }, { label: "పర్యాటకులు", value: "Tourists" }, { label: "సాధారణ ప్రజలు", value: "General customers" }]
+      }
+    },
+    {
+      questionId: 'food_q6',
+      key: 'operation_base',
+      message: {
+        en: "Would you like to start the food business from home or a shop?",
+        hi: "Aap food business ghar se start karna chahenge ya shop se?",
+        te: "మీరు ఆహార వ్యాపారాన్ని ఇంటి నుండి లేదా దుకాణం నుండి ప్రారంభించాలనుకుంటున్నారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Home-based", value: "Home-based" }, { label: "Shop", value: "Shop" }, { label: "Either", value: "Either" }],
+        hi: [{ label: "घर से", value: "Home-based" }, { label: "दुकान से", value: "Shop" }, { label: "कोई भी", value: "Either" }],
+        te: [{ label: "ఇంటి నుండి", value: "Home-based" }, { label: "దుకాణం నుండి", value: "Shop" }, { label: "ఏదైనా", value: "Either" }]
+      }
+    },
+    {
+      questionId: 'food_q7',
+      key: 'delivery',
+      message: {
+        en: "Would you also like to provide food delivery?",
+        hi: "Kya aap food delivery bhi provide karna chahenge?",
+        te: "మీరు ఫుడ్ డెలివరీ కూడా అందించాలనుకుంటున్నారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Maybe", value: "Maybe" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "शायद", value: "Maybe" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "బహుశా", value: "Maybe" }]
+      }
+    },
+    {
+      questionId: 'food_q8',
+      key: 'goal',
+      message: {
+        en: "What is your main goal?",
+        hi: "Aapka main goal kya hai?",
+        te: "మీ ముఖ్య లక్ష్యం ఏమిటి?"
+      },
+      quickReplies: {
+        en: [{ label: "Monthly income", value: "Monthly income" }, { label: "Full-time business", value: "Full-time business" }, { label: "Family business", value: "Family business" }, { label: "Business growth", value: "Business growth" }],
+        hi: [{ label: "मासिक आय", value: "Monthly income" }, { label: "पूर्णकालिक व्यवसाय", value: "Full-time business" }, { label: "पारिवारिक व्यवसाय", value: "Family business" }, { label: "व्यापार वृद्धि", value: "Business growth" }],
+        te: [{ label: "నెలవారీ ఆదాయం", value: "Monthly income" }, { label: "పూర్తి సమయ వ్యాపారం", value: "Full-time business" }, { label: "కుటుంబ వ్యాపారం", value: "Family business" }, { label: "వ్యాపార వృద్ధి", value: "Business growth" }]
+      }
+    }
+  ],
+
+  RETAIL: [
+    {
+      questionId: 'retail_q1',
+      key: 'retail_type',
+      message: {
+        en: "What type of retail business would you like to start?",
+        hi: "Aap kis type ka retail business start karna chahte hain?",
+        te: "మీరు ఏ రకమైన రిటైల్ వ్యాపారాన్ని ప్రారంభించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Grocery", value: "Grocery" }, { label: "Clothing", value: "Clothing" }, { label: "Electronics", value: "Electronics" }, { label: "Mobile accessories", value: "Mobile accessories" }, { label: "Cosmetics", value: "Cosmetics" }, { label: "General store", value: "General store" }],
+        hi: [{ label: "किराना / ग्रोसरी", value: "Grocery" }, { label: "कपड़े", value: "Clothing" }, { label: "इलेक्ट्रॉनिक्स", value: "Electronics" }, { label: "मोबाइल एक्सेसरीज", value: "Mobile accessories" }, { label: "कॉस्मेटिक्स", value: "Cosmetics" }, { label: "जनरल स्टोर", value: "General store" }],
+        te: [{ label: "కిరాణా", value: "Grocery" }, { label: "వస్త్రాలు", value: "Clothing" }, { label: "ఎలక్ట్రానిక్స్", value: "Electronics" }, { label: "మొబైల్ ఉపకరణాలు", value: "Mobile accessories" }, { label: "సౌందర్య సాధనాలు", value: "Cosmetics" }, { label: "జనరల్ స్టోర్", value: "General store" }]
+      }
+    },
+    {
+      questionId: 'retail_q2',
+      key: 'space',
+      message: {
+        en: "Do you have a shop available?",
+        hi: "Kya aapke paas shop available hai?",
+        te: "మీ వద్ద దుకాణం అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Own shop", value: "Own shop" }, { label: "Rented shop", value: "Rented shop" }, { label: "No shop", value: "No shop" }],
+        hi: [{ label: "अपनी दुकान", value: "Own shop" }, { label: "किराये की दुकान", value: "Rented shop" }, { label: "कोई दुकान नहीं", value: "No shop" }],
+        te: [{ label: "సొంత దుకాణం", value: "Own shop" }, { label: "అద్దె దుకాణం", value: "Rented shop" }, { label: "దుకాణం లేదు", value: "No shop" }]
+      }
+    },
+    {
+      questionId: 'retail_q3',
+      key: 'budget',
+      message: {
+        en: "What is your approximate budget?",
+        hi: "Aapka approximate budget kitna hai?",
+        te: "మీ సుమారు బడ్జెట్ ఎంత?"
+      },
+      quickReplies: {
+        en: [{ label: "Below ₹50K", value: "Below ₹50K" }, { label: "₹50K–₹1 Lakh", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 Lakh", value: "₹1–3 Lakh" }, { label: "₹3–5 Lakh", value: "₹3–5 Lakh" }, { label: "Above ₹5 Lakh", value: "Above ₹5 Lakh" }],
+        hi: [{ label: "₹50 हजार से कम", value: "Below ₹50K" }, { label: "₹50K–₹1 लाख", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 लाख", value: "₹1–3 Lakh" }, { label: "₹3–5 लाख", value: "₹3–5 Lakh" }, { label: "₹5 लाख से अधिक", value: "Above ₹5 Lakh" }],
+        te: [{ label: "₹50 వేల కంటే తక్కువ", value: "Below ₹50K" }, { label: "₹50 వేలు–₹1 లక్ష", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 లక్షలు", value: "₹1–3 Lakh" }, { label: "₹3–5 లక్షలు", value: "₹3–5 Lakh" }, { label: "₹5 లక్షల కంటే ఎక్కువ", value: "Above ₹5 Lakh" }]
+      }
+    },
+    {
+      questionId: 'retail_q4',
+      key: 'shop_area',
+      message: {
+        en: "In what type of area will your shop be located?",
+        hi: "Aapki shop kis type ke area mein hogi?",
+        te: "మీ దుకాణం ఏ రకమైన ప్రాంతంలో ఉంటుంది?"
+      },
+      quickReplies: {
+        en: [{ label: "Village", value: "Village" }, { label: "Market area", value: "Market area" }, { label: "Main road", value: "Main road" }, { label: "Near school/college", value: "Near school/college" }, { label: "Residential area", value: "Residential area" }],
+        hi: [{ label: "गांव", value: "Village" }, { label: "बाजार क्षेत्र", value: "Market area" }, { label: "मेन रोड", value: "Main road" }, { label: "स्कूल/कॉलेज के पास", value: "Near school/college" }, { label: "आवासीय इलाका", value: "Residential area" }],
+        te: [{ label: "గ్రామం", value: "Village" }, { label: "మార్కెట్ ఏరియా", value: "Market area" }, { label: "ప్రధాన రహదారి", value: "Main road" }, { label: "పాఠశాల/కళాశాల దగ్గర", value: "Near school/college" }, { label: "నివాస ప్రాంతం", value: "Residential area" }]
+      }
+    },
+    {
+      questionId: 'retail_q5',
+      key: 'experience',
+      message: {
+        en: "Do you have experience in retail business?",
+        hi: "Kya aapko retail business ka experience hai?",
+        te: "మీకు రిటైల్ వ్యాపారంలో అనుభవం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Some experience", value: "Some experience" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "कुछ अनुभव", value: "Some experience" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "కొంత అనుభవం", value: "Some experience" }]
+      }
+    },
+    {
+      questionId: 'retail_q6',
+      key: 'market',
+      message: {
+        en: "Will you sell products to local customers?",
+        hi: "Aap business mein products local customers ko sell karenge?",
+        te: "మీరు స్థానిక కస్టమర్లకు ఉత్పత్తులను విక్రయిస్తారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Both local and online", value: "Both local and online" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "स्थानीय और ऑनलाइन दोनों", value: "Both local and online" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "స్థానికంగా మరియు ఆన్‌లైన్‌లో", value: "Both local and online" }]
+      }
+    },
+    {
+      questionId: 'retail_q7',
+      key: 'online_selling',
+      message: {
+        en: "Would you also like to sell online?",
+        hi: "Kya aap online selling bhi karna chahenge?",
+        te: "మీరు ఆన్‌లైన్ ద్వారా కూడా విక్రయించాలనుకుంటున్నారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Maybe", value: "Maybe" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "शायद", value: "Maybe" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "బహుశా", value: "Maybe" }]
+      }
+    },
+    {
+      questionId: 'retail_q8',
+      key: 'goal',
+      message: {
+        en: "What is your main goal?",
+        hi: "Aapka main goal kya hai?",
+        te: "మీ ముఖ్య లక్ష్యం ఏమిటి?"
+      },
+      quickReplies: {
+        en: [{ label: "Monthly income", value: "Monthly income" }, { label: "Full-time business", value: "Full-time business" }, { label: "Family business", value: "Family business" }, { label: "Business growth", value: "Business growth" }],
+        hi: [{ label: "मासिक आय", value: "Monthly income" }, { label: "पूर्णकालिक व्यवसाय", value: "Full-time business" }, { label: "पारिवारिक व्यवसाय", value: "Family business" }, { label: "व्यापार वृद्धि", value: "Business growth" }],
+        te: [{ label: "నెలవారీ ఆదాయం", value: "Monthly income" }, { label: "పూర్తి సమయ వ్యాపారం", value: "Full-time business" }, { label: "కుటుంబ వ్యాపారం", value: "Family business" }, { label: "వ్యాపార వృద్ధి", value: "Business growth" }]
+      }
+    }
+  ],
+
+  MANUFACTURING: [
+    {
+      questionId: 'mfg_q1',
+      key: 'mfg_type',
+      message: {
+        en: "What type of manufacturing business would you like to start?",
+        hi: "Aap kis type ka manufacturing business start karna chahte hain?",
+        te: "మీరు ఏ రకమైన తయారీ వ్యాపారాన్ని ప్రారంభించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Food products", value: "Food products" }, { label: "Furniture", value: "Furniture" }, { label: "Clothing", value: "Clothing" }, { label: "Paper products", value: "Paper products" }, { label: "Construction products", value: "Construction products" }, { label: "Other", value: "Other" }],
+        hi: [{ label: "खाद्य उत्पाद", value: "Food products" }, { label: "फर्नीचर", value: "Furniture" }, { label: "कपड़े", value: "Clothing" }, { label: "कागज उत्पाद", value: "Paper products" }, { label: "निर्माण सामग्री", value: "Construction products" }, { label: "अन्य", value: "Other" }],
+        te: [{ label: "ఆహార ఉత్పత్తులు", value: "Food products" }, { label: "ఫర్నిచర్", value: "Furniture" }, { label: "వస్త్రాలు", value: "Clothing" }, { label: "పేపర్ ఉత్పత్తులు", value: "Paper products" }, { label: "నిర్మాణ సామాగ్రి", value: "Construction products" }, { label: "ఇతర", value: "Other" }]
+      }
+    },
+    {
+      questionId: 'mfg_q2',
+      key: 'space',
+      message: {
+        en: "Do you have space available for manufacturing?",
+        hi: "Kya aapke paas manufacturing ke liye space available hai?",
+        te: "తయారీ కోసం మీ వద్ద తగిన స్థలం అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "I can arrange", value: "I can arrange" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "व्यवस्था कर सकता हूँ", value: "I can arrange" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "ఏర్పాటు చేయగలను", value: "I can arrange" }]
+      }
+    },
+    {
+      questionId: 'mfg_q3',
+      key: 'budget',
+      message: {
+        en: "What is your approximate budget?",
+        hi: "Aapka approximate budget kitna hai?",
+        te: "మీ సుమారు బడ్జెట్ ఎంత?"
+      },
+      quickReplies: {
+        en: [{ label: "Below ₹1 Lakh", value: "Below ₹1 Lakh" }, { label: "₹1–3 Lakh", value: "₹1–3 Lakh" }, { label: "₹3–5 Lakh", value: "₹3–5 Lakh" }, { label: "₹5–10 Lakh", value: "₹5–10 Lakh" }, { label: "Above ₹10 Lakh", value: "Above ₹10 Lakh" }],
+        hi: [{ label: "₹1 लाख से कम", value: "Below ₹1 Lakh" }, { label: "₹1–3 लाख", value: "₹1–3 Lakh" }, { label: "₹3–5 लाख", value: "₹3–5 Lakh" }, { label: "₹5–10 लाख", value: "₹5–10 Lakh" }, { label: "₹10 लाख से अधिक", value: "Above ₹10 Lakh" }],
+        te: [{ label: "₹1 లక్ష కంటే తక్కువ", value: "Below ₹1 Lakh" }, { label: "₹1–3 లక్షలు", value: "₹1–3 Lakh" }, { label: "₹3–5 లక్షలు", value: "₹3–5 Lakh" }, { label: "₹5–10 లక్షలు", value: "₹5–10 Lakh" }, { label: "₹10 లక్షల కంటే ఎక్కువ", value: "Above ₹10 Lakh" }]
+      }
+    },
+    {
+      questionId: 'mfg_q4',
+      key: 'experience',
+      message: {
+        en: "Do you have prior experience in manufacturing?",
+        hi: "Kya aapko manufacturing ka pehle se experience hai?",
+        te: "మీకు తయారీ రంగంలో మునుపటి అనుభవం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Some experience", value: "Some experience" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "कुछ अनुभव", value: "Some experience" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "కొంత అనుభవం", value: "Some experience" }]
+      }
+    },
+    {
+      questionId: 'mfg_q5',
+      key: 'raw_material',
+      message: {
+        en: "Is the required raw material easily available in your area?",
+        hi: "Kya aapke area mein required raw material easily available hai?",
+        te: "మీ ప్రాంతంలో అవసరమైన ముడి పదార్థాలు సులభంగా లభిస్తాయా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Not sure", value: "Not sure" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "पक्का नहीं पता", value: "Not sure" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "ఖచ్చితంగా తెలియదు", value: "Not sure" }]
+      }
+    },
+    {
+      questionId: 'mfg_q6',
+      key: 'electricity',
+      message: {
+        en: "Do you have reliable electricity supply available?",
+        hi: "Aapke paas electricity supply available hai?",
+        te: "మీ వద్ద సరైన విద్యుత్ సరఫరా అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Limited", value: "Limited" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "सीमित", value: "Limited" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "పరిమితం", value: "Limited" }]
+      }
+    },
+    {
+      questionId: 'mfg_q7',
+      key: 'market',
+      message: {
+        en: "Where would you like to sell the products?",
+        hi: "Aap products kahan sell karna chahenge?",
+        te: "మీరు ఉత్పత్తులను ఎక్కడ విక్రయించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Local market", value: "Local market" }, { label: "Wholesale", value: "Wholesale" }, { label: "Retail shops", value: "Retail shops" }, { label: "Online", value: "Online" }, { label: "Multiple markets", value: "Multiple markets" }],
+        hi: [{ label: "स्थानीय बाजार", value: "Local market" }, { label: "थोक में", value: "Wholesale" }, { label: "खुदरा दुकानों में", value: "Retail shops" }, { label: "ऑनलाइन", value: "Online" }, { label: "कई बाजारों में", value: "Multiple markets" }],
+        te: [{ label: "స్థానిక మార్కెట్", value: "Local market" }, { label: "హోల్‌సేల్", value: "Wholesale" }, { label: "రిటైల్ షాపులు", value: "Retail shops" }, { label: "ఆన్‌లైన్", value: "Online" }, { label: "వివిధ మార్కెట్లు", value: "Multiple markets" }]
+      }
+    },
+    {
+      questionId: 'mfg_q8',
+      key: 'goal',
+      message: {
+        en: "What is your main goal?",
+        hi: "Aapka main goal kya hai?",
+        te: "మీ ముఖ్య లక్ష్యం ఏమిటి?"
+      },
+      quickReplies: {
+        en: [{ label: "Monthly income", value: "Monthly income" }, { label: "Employment", value: "Employment" }, { label: "Family business", value: "Family business" }, { label: "Business growth", value: "Business growth" }],
+        hi: [{ label: "मासिक आय", value: "Monthly income" }, { label: "रोजगार सृजन", value: "Employment" }, { label: "पारिवारिक व्यवसाय", value: "Family business" }, { label: "व्यापार वृद्धि", value: "Business growth" }],
+        te: [{ label: "నెలవారీ ఆదాయం", value: "Monthly income" }, { label: "ఉపాధి కల్పన", value: "Employment" }, { label: "కుటుంబ వ్యాపారం", value: "Family business" }, { label: "వ్యాపార వృద్ధి", value: "Business growth" }]
+      }
+    }
+  ],
+
+  SERVICE: [
+    {
+      questionId: 'service_q1',
+      key: 'service_type',
+      message: {
+        en: "What type of service business would you like to start?",
+        hi: "Aap kis type ka service business start karna chahte hain?",
+        te: "మీరు ఏ రకమైన సేవా వ్యాపారాన్ని ప్రారంభించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Repair service", value: "Repair service" }, { label: "Salon/Beauty", value: "Salon/Beauty" }, { label: "Digital service", value: "Digital service" }, { label: "Transport", value: "Transport" }, { label: "Education/Tuition", value: "Education/Tuition" }, { label: "Other", value: "Other" }],
+        hi: [{ label: "रिपेयर सर्विस", value: "Repair service" }, { label: "सैलून / ब्यूटी पार्लर", value: "Salon/Beauty" }, { label: "डिजिटल सर्विस", value: "Digital service" }, { label: "ट्रांसपोर्ट", value: "Transport" }, { label: "ट्यूशन / कोचिंग", value: "Education/Tuition" }, { label: "अन्य", value: "Other" }],
+        te: [{ label: "రిపేర్ సర్వీస్", value: "Repair service" }, { label: "సెలూన్ / బ్యూటీ", value: "Salon/Beauty" }, { label: "డిజిటల్ సర్వీస్", value: "Digital service" }, { label: "రవాణా", value: "Transport" }, { label: "ట్యూషన్ / విద్య", value: "Education/Tuition" }, { label: "ఇతర", value: "Other" }]
+      }
+    },
+    {
+      questionId: 'service_q2',
+      key: 'experience',
+      message: {
+        en: "Do you have prior experience in this field?",
+        hi: "Kya aapke paas is field mein experience hai?",
+        te: "మీకు ఈ రంగంలో అనుభవం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Some experience", value: "Some experience" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "कुछ अनुभव", value: "Some experience" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "కొంత అనుభవం", value: "Some experience" }]
+      }
+    },
+    {
+      questionId: 'service_q3',
+      key: 'budget',
+      message: {
+        en: "What is your approximate budget?",
+        hi: "Aapka approximate budget kitna hai?",
+        te: "మీ సుమారు బడ్జెట్ ఎంత?"
+      },
+      quickReplies: {
+        en: [{ label: "Below ₹50K", value: "Below ₹50K" }, { label: "₹50K–₹1 Lakh", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 Lakh", value: "₹1–3 Lakh" }, { label: "₹3–5 Lakh", value: "₹3–5 Lakh" }, { label: "Above ₹5 Lakh", value: "Above ₹5 Lakh" }],
+        hi: [{ label: "₹50 हजार से कम", value: "Below ₹50K" }, { label: "₹50K–₹1 लाख", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 लाख", value: "₹1–3 Lakh" }, { label: "₹3–5 लाख", value: "₹3–5 Lakh" }, { label: "₹5 लाख से अधिक", value: "Above ₹5 Lakh" }],
+        te: [{ label: "₹50 వేల కంటే తక్కువ", value: "Below ₹50K" }, { label: "₹50 వేలు–₹1 లక్ష", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 లక్షలు", value: "₹1–3 Lakh" }, { label: "₹3–5 లక్షలు", value: "₹3–5 Lakh" }, { label: "₹5 లక్షల కంటే ఎక్కువ", value: "Above ₹5 Lakh" }]
+      }
+    },
+    {
+      questionId: 'service_q4',
+      key: 'space',
+      message: {
+        en: "Do you have a shop or workspace for the business?",
+        hi: "Kya aapke paas business ke liye shop ya workspace hai?",
+        te: "వ్యాపారం కోసం మీ వద్ద దుకాణం లేదా పని స్థలం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Home-based", value: "Home-based" }, { label: "I can arrange", value: "I can arrange" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "घर से", value: "Home-based" }, { label: "व्यवस्था कर सकता हूँ", value: "I can arrange" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "ఇంటి నుండి", value: "Home-based" }, { label: "ఏర్పాటు చేయగలను", value: "I can arrange" }]
+      }
+    },
+    {
+      questionId: 'service_q5',
+      key: 'target_customers',
+      message: {
+        en: "Who will be your target customers?",
+        hi: "Aapke target customers kaun honge?",
+        te: "మీ లక్ష్య కస్టమర్లు ఎవరు?"
+      },
+      quickReplies: {
+        en: [{ label: "Village customers", value: "Village customers" }, { label: "Students", value: "Students" }, { label: "Families", value: "Families" }, { label: "Businesses", value: "Businesses" }, { label: "General customers", value: "General customers" }],
+        hi: [{ label: "ग्रामीण ग्राहक", value: "Village customers" }, { label: "विद्यार्थी", value: "Students" }, { label: "परिवार", value: "Families" }, { label: "व्यापार / दुकानें", value: "Businesses" }, { label: "सामान्य ग्राहक", value: "General customers" }],
+        te: [{ label: "గ్రామస్థులు", value: "Village customers" }, { label: "విద్యార్థులు", value: "Students" }, { label: "కుటుంబాలు", value: "Families" }, { label: "వ్యాపారాలు", value: "Businesses" }, { label: "సాధారణ ప్రజలు", value: "General customers" }]
+      }
+    },
+    {
+      questionId: 'service_q6',
+      key: 'doorstep_service',
+      message: {
+        en: "Would you also like to provide doorstep service?",
+        hi: "Kya aap service ghar par bhi provide karna chahenge?",
+        te: "మీరు ఇంటి వద్దకే సేవలను అందించాలనుకుంటున్నారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Both", value: "Both" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "दोनों", value: "Both" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "రెండూ", value: "Both" }]
+      }
+    },
+    {
+      questionId: 'service_q7',
+      key: 'online_service',
+      message: {
+        en: "Would you also like to target online customers?",
+        hi: "Kya aap online customers bhi target karna chahenge?",
+        te: "మీరు ఆన్‌లైన్ కస్టమర్లను కూడా లక్ష్యంగా చేసుకోవాలనుకుంటున్నారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Maybe", value: "Maybe" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "शायद", value: "Maybe" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "బహుశా", value: "Maybe" }]
+      }
+    },
+    {
+      questionId: 'service_q8',
+      key: 'goal',
+      message: {
+        en: "What is your main goal?",
+        hi: "Aapka main goal kya hai?",
+        te: "మీ ముఖ్య లక్ష్యం ఏమిటి?"
+      },
+      quickReplies: {
+        en: [{ label: "Monthly income", value: "Monthly income" }, { label: "Full-time business", value: "Full-time business" }, { label: "Family business", value: "Family business" }, { label: "Business growth", value: "Business growth" }],
+        hi: [{ label: "मासिक आय", value: "Monthly income" }, { label: "पूर्णकालिक व्यवसाय", value: "Full-time business" }, { label: "पारिवारिक व्यवसाय", value: "Family business" }, { label: "व्यापार वृद्धि", value: "Business growth" }],
+        te: [{ label: "నెలవారీ ఆదాయం", value: "Monthly income" }, { label: "పూర్తి సమయ వ్యాపారం", value: "Full-time business" }, { label: "కుటుంబ వ్యాపారం", value: "Family business" }, { label: "వ్యాపార వృద్ధి", value: "Business growth" }]
+      }
+    }
+  ],
+
+  HANDICRAFT: [
+    {
+      questionId: 'craft_q1',
+      key: 'craft_type',
+      message: {
+        en: "What type of handicraft business would you like to do?",
+        hi: "Aap kis type ka handicraft business karna chahte hain?",
+        te: "మీరు ఏ రకమైన హస్తకళల వ్యాపారాన్ని చేయాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Lippan Art", value: "Lippan Art" }, { label: "Pottery", value: "Pottery" }, { label: "Bamboo Craft", value: "Bamboo Craft" }, { label: "Wooden Craft", value: "Wooden Craft" }, { label: "Handmade Decor", value: "Handmade Decor" }, { label: "Textile Craft", value: "Textile Craft" }, { label: "Other", value: "Other" }],
+        hi: [{ label: "लिप्पन आर्ट", value: "Lippan Art" }, { label: "मिट्टी के बर्तन / पॉटरी", value: "Pottery" }, { label: "बांस शिल्प", value: "Bamboo Craft" }, { label: "लकड़ी शिल्प", value: "Wooden Craft" }, { label: "हैंडमेड डेकोर", value: "Handmade Decor" }, { label: "वस्त्र शिल्प", value: "Textile Craft" }, { label: "अन्य", value: "Other" }],
+        te: [{ label: "లిప్పన్ ఆర్ట్", value: "Lippan Art" }, { label: "మట్టి పాత్రలు", value: "Pottery" }, { label: "వెదురు వస్తువులు", value: "Bamboo Craft" }, { label: "చెక్క కళాకృతులు", value: "Wooden Craft" }, { label: "చేతితో చేసిన అలంకరణలు", value: "Handmade Decor" }, { label: "చేనేత / వస్త్రాలు", value: "Textile Craft" }, { label: "ఇతర", value: "Other" }]
+      }
+    },
+    {
+      questionId: 'craft_q2',
+      key: 'experience',
+      message: {
+        en: "Do you have experience in making handicrafts?",
+        hi: "Kya aapko handicraft banane ka experience hai?",
+        te: "మీకు హస్తకళల తయారీలో అనుభవం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Learning", value: "Learning" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "सीख रहा हूँ", value: "Learning" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "నేర్చుకుంటున్నాను", value: "Learning" }]
+      }
+    },
+    {
+      questionId: 'craft_q3',
+      key: 'budget',
+      message: {
+        en: "What is your approximate starting budget?",
+        hi: "Aapka approximate starting budget kitna hai?",
+        te: "మీ సుమారు ప్రారంభ బడ్జెట్ ఎంత?"
+      },
+      quickReplies: {
+        en: [{ label: "Below ₹25K", value: "Below ₹25K" }, { label: "₹25K–₹50K", value: "₹25K–₹50K" }, { label: "₹50K–₹1 Lakh", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 Lakh", value: "₹1–3 Lakh" }, { label: "Above ₹3 Lakh", value: "Above ₹3 Lakh" }],
+        hi: [{ label: "₹25 हजार से कम", value: "Below ₹25K" }, { label: "₹25K–₹50 हजार", value: "₹25K–₹50K" }, { label: "₹50K–₹1 लाख", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 लाख", value: "₹1–3 Lakh" }, { label: "₹3 लाख से अधिक", value: "Above ₹3 Lakh" }],
+        te: [{ label: "₹25 వేల కంటే తక్కువ", value: "Below ₹25K" }, { label: "₹25–50 వేలు", value: "₹25K–₹50K" }, { label: "₹50 వేలు–₹1 లక్ష", value: "₹50K–₹1 Lakh" }, { label: "₹1–3 లక్షలు", value: "₹1–3 Lakh" }, { label: "₹3 లక్షల కంటే ఎక్కువ", value: "Above ₹3 Lakh" }]
+      }
+    },
+    {
+      questionId: 'craft_q4',
+      key: 'space',
+      message: {
+        en: "Do you have workspace available for working?",
+        hi: "Kya aapke paas kaam karne ke liye space available hai?",
+        te: "పని చేయడానికి మీ వద్ద తగిన స్థలం అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Home", value: "Home" }, { label: "Separate workspace", value: "Separate workspace" }, { label: "No", value: "No" }],
+        hi: [{ label: "घर पर", value: "Home" }, { label: "अलग वर्कस्पेस", value: "Separate workspace" }, { label: "नहीं", value: "No" }],
+        te: [{ label: "ఇంట్లో", value: "Home" }, { label: "ప్రత్యేక వర్క్‌స్పేస్", value: "Separate workspace" }, { label: "లేదు", value: "No" }]
+      }
+    },
+    {
+      questionId: 'craft_q5',
+      key: 'market',
+      message: {
+        en: "Where would you like to sell your products?",
+        hi: "Aap apne products kahan sell karna chahenge?",
+        te: "మీరు మీ ఉత్పత్తులను ఎక్కడ విక్రయించాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Local market", value: "Local market" }, { label: "Shops", value: "Shops" }, { label: "Exhibitions", value: "Exhibitions" }, { label: "Meesho/Marketplace", value: "Meesho/Marketplace" }, { label: "Instagram/Online", value: "Instagram/Online" }],
+        hi: [{ label: "स्थानीय बाजार", value: "Local market" }, { label: "दुकानें", value: "Shops" }, { label: "प्रदर्शनियां (Exhibitions)", value: "Exhibitions" }, { label: "मीशो / मार्केटप्लेस", value: "Meesho/Marketplace" }, { label: "इंस्टाग्राम / ऑनलाइन", value: "Instagram/Online" }],
+        te: [{ label: "స్థానిక మార్కెట్", value: "Local market" }, { label: "దుకాణాలు", value: "Shops" }, { label: "ఎగ్జిబిషన్లు", value: "Exhibitions" }, { label: "మీషో / మార్కెట్‌ప్లేస్", value: "Meesho/Marketplace" }, { label: "ఇన్‌స్టాగ్రామ్ / ఆన్‌లైన్", value: "Instagram/Online" }]
+      }
+    },
+    {
+      questionId: 'craft_q6',
+      key: 'online_selling',
+      message: {
+        en: "Would you like to sell products online?",
+        hi: "Kya aap products online sell karna chahenge?",
+        te: "మీరు ఉత్పత్తులను ఆన్‌లైన్‌లో విక్రయించాలనుకుంటున్నారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Maybe", value: "Maybe" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "शायद", value: "Maybe" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "బహుశా", value: "Maybe" }]
+      }
+    },
+    {
+      questionId: 'craft_q7',
+      key: 'custom_orders',
+      message: {
+        en: "Would you also like to accept custom personalized orders?",
+        hi: "Kya aap custom orders bhi lena chahenge?",
+        te: "మీరు కస్టమ్ / ప్రత్యేక ఆర్డర్‌లను కూడా తీసుకోవాలనుకుంటున్నారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Maybe", value: "Maybe" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "शायद", value: "Maybe" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "బహుశా", value: "Maybe" }]
+      }
+    },
+    {
+      questionId: 'craft_q8',
+      key: 'goal',
+      message: {
+        en: "What is your main goal?",
+        hi: "Aapka main goal kya hai?",
+        te: "మీ ముఖ్య లక్ష్యం ఏమిటి?"
+      },
+      quickReplies: {
+        en: [{ label: "Side income", value: "Side income" }, { label: "Full-time business", value: "Full-time business" }, { label: "Family business", value: "Family business" }, { label: "Business growth", value: "Business growth" }],
+        hi: [{ label: "अतिरिक्त आय", value: "Side income" }, { label: "पूर्णकालिक व्यवसाय", value: "Full-time business" }, { label: "पारिवारिक व्यवसाय", value: "Family business" }, { label: "व्यापार वृद्धि", value: "Business growth" }],
+        te: [{ label: "అదనపు ఆదాయం", value: "Side income" }, { label: "పూర్తి సమయ వ్యాపారం", value: "Full-time business" }, { label: "కుటుంబ వ్యాపారం", value: "Family business" }, { label: "వ్యాపార వృద్ధి", value: "Business growth" }]
+      }
+    }
+  ],
+
+  DIGITAL: [
+    {
+      questionId: 'digital_q1',
+      key: 'digital_type',
+      message: {
+        en: "What type of online business would you like to do?",
+        hi: "Aap kis type ka online business karna chahte hain?",
+        te: "మీరు ఏ రకమైన ఆన్‌లైన్ వ్యాపారాన్ని చేయాలనుకుంటున్నారు?"
+      },
+      quickReplies: {
+        en: [{ label: "Online selling", value: "Online selling" }, { label: "Freelancing", value: "Freelancing" }, { label: "Content creation", value: "Content creation" }, { label: "Digital marketing", value: "Digital marketing" }, { label: "Online teaching", value: "Online teaching" }, { label: "Other", value: "Other" }],
+        hi: [{ label: "ऑनलाइन सेलिंग", value: "Online selling" }, { label: "फ्रीलांसिंग", value: "Freelancing" }, { label: "कंटेंट क्रिएशन", value: "Content creation" }, { label: "डिजिटल मार्केटिंग", value: "Digital marketing" }, { label: "ऑनलाइन टीचिंग", value: "Online teaching" }, { label: "अन्य", value: "Other" }],
+        te: [{ label: "ఆన్‌లైన్ అమ్మకాలు", value: "Online selling" }, { label: "ఫ్రీలాన్సింగ్", value: "Freelancing" }, { label: "కంటెంట్ క్రియేషన్", value: "Content creation" }, { label: "డిజిటల్ మార్కెటింగ్", value: "Digital marketing" }, { label: "ఆన్‌లైన్ బోధన", value: "Online teaching" }, { label: "ఇతర", value: "Other" }]
+      }
+    },
+    {
+      questionId: 'digital_q2',
+      key: 'device',
+      message: {
+        en: "Do you have a smartphone or computer available?",
+        hi: "Aapke paas smartphone ya computer available hai?",
+        te: "మీ వద్ద స్మార్ట్‌ఫోన్ లేదా కంప్యూటర్ అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Smartphone", value: "Smartphone" }, { label: "Computer", value: "Computer" }, { label: "Both", value: "Both" }],
+        hi: [{ label: "स्मार्टफोन", value: "Smartphone" }, { label: "कंप्यूटर / लैपटॉप", value: "Computer" }, { label: "दोनों", value: "Both" }],
+        te: [{ label: "స్మార్ట్‌ఫోన్", value: "Smartphone" }, { label: "కంప్యూటర్", value: "Computer" }, { label: "రెండూ", value: "Both" }]
+      }
+    },
+    {
+      questionId: 'digital_q3',
+      key: 'internet',
+      message: {
+        en: "Do you have reliable internet access available?",
+        hi: "Aapke paas reliable internet available hai?",
+        te: "మీ వద్ద నమ్మకమైన ఇంటర్నెట్ సౌకర్యం అందుబాటులో ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Sometimes", value: "Sometimes" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "कभी-कभी", value: "Sometimes" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "అప్పుడప్పుడు", value: "Sometimes" }]
+      }
+    },
+    {
+      questionId: 'digital_q4',
+      key: 'budget',
+      message: {
+        en: "What is your approximate starting budget?",
+        hi: "Aapka approximate starting budget kitna hai?",
+        te: "మీ సుమారు ప్రారంభ బడ్జెట్ ఎంత?"
+      },
+      quickReplies: {
+        en: [{ label: "No investment", value: "No investment" }, { label: "Below ₹25K", value: "Below ₹25K" }, { label: "₹25K–₹50K", value: "₹25K–₹50K" }, { label: "₹50K–₹1 Lakh", value: "₹50K–₹1 Lakh" }, { label: "Above ₹1 Lakh", value: "Above ₹1 Lakh" }],
+        hi: [{ label: "बिना निवेश (शून्य)", value: "No investment" }, { label: "₹25 हजार से कम", value: "Below ₹25K" }, { label: "₹25K–₹50 हजार", value: "₹25K–₹50K" }, { label: "₹50K–₹1 लाख", value: "₹50K–₹1 Lakh" }, { label: "₹1 लाख से अधिक", value: "Above ₹1 Lakh" }],
+        te: [{ label: "పెట్టుబడి లేదు", value: "No investment" }, { label: "₹25 వేల కంటే తక్కువ", value: "Below ₹25K" }, { label: "₹25–50 వేలు", value: "₹25K–₹50K" }, { label: "₹50 వేలు–₹1 లక్ష", value: "₹50K–₹1 Lakh" }, { label: "₹1 లక్ష కంటే ఎక్కువ", value: "Above ₹1 Lakh" }]
+      }
+    },
+    {
+      questionId: 'digital_q5',
+      key: 'experience',
+      message: {
+        en: "Do you have prior experience in the digital field?",
+        hi: "Aapko digital field mein pehle se experience hai?",
+        te: "మీకు డిజిటల్ రంగంలో మునుపటి అనుభవం ఉందా?"
+      },
+      quickReplies: {
+        en: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }, { label: "Some experience", value: "Some experience" }],
+        hi: [{ label: "हाँ", value: "Yes" }, { label: "नहीं", value: "No" }, { label: "कुछ अनुभव", value: "Some experience" }],
+        te: [{ label: "అవును", value: "Yes" }, { label: "లేదు", value: "No" }, { label: "కొంత అనుభవం", value: "Some experience" }]
+      }
+    },
+    {
+      questionId: 'digital_q6',
+      key: 'commitment',
+      message: {
+        en: "Would you like to work full-time or part-time?",
+        hi: "Aap full-time ya part-time kaam karna chahenge?",
+        te: "మీరు పూర్తి సమయం లేదా పార్ట్-టైమ్ పని చేయాలనుకుంటున్నారా?"
+      },
+      quickReplies: {
+        en: [{ label: "Full-time", value: "Full-time" }, { label: "Part-time", value: "Part-time" }, { label: "Both", value: "Both" }],
+        hi: [{ label: "फुल-टाइम", value: "Full-time" }, { label: "पार्ट-टाइम", value: "Part-time" }, { label: "दोनों", value: "Both" }],
+        te: [{ label: "పూర్తి సమయం", value: "Full-time" }, { label: "పార్ట్-టైమ్", value: "Part-time" }, { label: "రెండూ", value: "Both" }]
+      }
+    },
+    {
+      questionId: 'digital_q7',
+      key: 'goal',
+      message: {
+        en: "What is your main goal?",
+        hi: "Aapka main goal kya hai?",
+        te: "మీ ముఖ్య లక్ష్యం ఏమిటి?"
+      },
+      quickReplies: {
+        en: [{ label: "Side income", value: "Side income" }, { label: "Monthly income", value: "Monthly income" }, { label: "Full-time career", value: "Full-time career" }, { label: "Business growth", value: "Business growth" }],
+        hi: [{ label: "साइड इनकम", value: "Side income" }, { label: "मासिक आय", value: "Monthly income" }, { label: "फुल-टाइम करियर", value: "Full-time career" }, { label: "व्यापार वृद्धि", value: "Business growth" }],
+        te: [{ label: "అదనపు ఆదాయం", value: "Side income" }, { label: "నెలవారీ ఆదాయం", value: "Monthly income" }, { label: "కెరీర్", value: "Full-time career" }, { label: "వ్యాపార వృద్ధి", value: "Business growth" }]
+      }
+    }
+  ]
+};
+
+const COMMON_STATES = [
+  "Bihar", "Uttar Pradesh", "Madhya Pradesh", "Rajasthan", "Maharashtra",
+  "Andhra Pradesh", "Telangana", "Gujarat", "Punjab", "Haryana",
+  "West Bengal", "Karnataka", "Tamil Nadu", "Odisha", "Jharkhand",
+  "Chhattisgarh", "Assam", "Uttarakhand", "Himachal Pradesh", "Kerala"
+];
+
+/**
+ * Multilingual Entity Extractor
+ */
+function extractCompoundEntities(text, existingState = {}) {
   if (!text) return {};
   const t = text.trim();
   const lower = t.toLowerCase();
   const extracted = {};
 
-  // --------------------------------------------------------------------------
-  // 1. BUDGET / CAPITAL EXTRACTION
-  // --------------------------------------------------------------------------
-  const lakhMatch = t.match(/(\d+(?:\.\d+)?)\s*(?:lakh|lac|लाख|లక్ష|लाख\s*रुपये|లక్షల|లక్షలు)/i);
-  if (lakhMatch) {
-    extracted.budget = parseFloat(lakhMatch[1]) * 100000;
+  // 1. Budget extraction (Supports digits & number words in en/hi/te: "2 lakh", "do lakh", "రెండు లక్షలు", "₹50,000", etc.)
+  const wordToNum = {
+    'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    'ek': 1, 'do': 2, 'teen': 3, 'chaar': 4, 'paanch': 5, 'chhah': 6, 'saat': 7, 'aath': 8, 'nau': 9, 'das': 10,
+    'एक': 1, 'दो': 2, 'तीन': 3, 'चार': 4, 'पाँच': 5, 'छह': 6, 'सात': 7, 'आठ': 8, 'नौ': 9, 'दस': 10,
+    'ఒకటి': 1, 'రెండు': 2, 'మూడు': 3, 'నాలుగు': 4, 'ఐదు': 5, 'ఆరు': 6, 'ఏడు': 7, 'ఎనిమిది': 8, 'తొమ్మిది': 9, 'పది': 10
+  };
+
+  const wordLakhMatch = t.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|chaar|paanch|chhah|saat|aath|nau|das|एक|दो|तीन|चार|पाँच|छह|सात|आठ|नौ|दस|ఒకటి|రెండు|మూడు|నాలుగు|ఐదు|ఆరు|ఏడు|ఎనిమిది|తొమ్మిది|పది)\s*(?:lakh|lac|लाख|లక్ష|లక్షలు)/i);
+  if (wordLakhMatch) {
+    const num = wordToNum[wordLakhMatch[1].toLowerCase()] || wordLakhMatch[1];
+    extracted.budget = `₹${num} Lakh`;
   } else {
-    const wordsToNum = {
-      'एक': 100000, 'दो': 200000, 'तीन': 300000, 'चार': 400000, 'पांच': 500000, 'दस': 1000000,
-      'ek': 100000, 'one': 100000, 'do': 200000, 'two': 200000,
-      'teen': 300000, 'three': 300000, 'chaar': 400000, 'four': 400000,
-      'panch': 500000, 'five': 500000, 'das': 1000000, 'ten': 1000000,
-      'ఒక': 100000, 'రెండు': 200000, 'మూడు': 300000, 'నాలుగు': 400000, 'ఐదు': 500000, 'పది': 1000000
-    };
-    for (const [w, val] of Object.entries(wordsToNum)) {
-      if (t.includes(w) && (t.includes('लाख') || t.includes('lakh') || t.includes('lac') || t.includes('లక్ష'))) {
-        extracted.budget = val;
+    const lakhMatch = t.match(/(\d+(?:\.\d+)?)\s*(?:lakh|lac|लाख|లక్ష|లక్షలు)/i);
+    if (lakhMatch) {
+      extracted.budget = `₹${lakhMatch[1]} Lakh`;
+    } else {
+      const kMatch = t.match(/(\d+)\s*(?:k|hazar|हजार|వేలు)/i);
+      if (kMatch) {
+        extracted.budget = `₹${kMatch[1]},000`;
+      } else {
+        const directNum = t.match(/(?:₹|rs\.?|inr)?\s*(\d{4,8})\b/i);
+        if (directNum && directNum[1].length !== 6) { // avoid pincodes
+          extracted.budget = `₹${Number(directNum[1]).toLocaleString('en-IN')}`;
+        }
+      }
+    }
+  }
+
+  // 2. Name extraction
+  const namePatterns = [
+    /(?:main|mera naam|my name is|i am|naam)\s*[:=]?\s*([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+)/i,
+    /(?:मेरा\s*नाम)\s*[:=]?\s*([^\s,।!?]+)/u,
+    /(?:నా\s*పేరు)\s*[:=]?\s*([^\s,।!?]+)/u
+  ];
+  for (const pat of namePatterns) {
+    const m = t.match(pat);
+    if (m && m[1]) {
+      let cand = m[1].replace(/[।!?.,]/g, '').trim();
+      cand = cand.replace(/\b(hoon|hu|hai|ji|from|se|lo|గారు|అండి)\b/gi, '').trim();
+      const forbidden = ['bihar', 'gaya', 'dairy', 'farming', 'food', 'retail', 'lakh', 'budget', 'name'];
+      if (cand.length >= 2 && !forbidden.includes(cand.toLowerCase())) {
+        extracted.name = cand.charAt(0).toUpperCase() + cand.slice(1);
         break;
       }
     }
+  }
 
-    if (!extracted.budget) {
-      const kMatch = t.match(/(\d+)\s*(?:k|hazar|हजार|వేలు)/i);
-      if (kMatch) {
-        extracted.budget = parseFloat(kMatch[1]) * 1000;
-      } else {
-        const directNum = t.replace(/,/g, '').match(/(?:₹|rs\.?|inr)?\s*(\d{5,8})\b/i);
-        if (directNum && directNum[1].length !== 6) {
-          extracted.budget = parseFloat(directNum[1]);
-        }
+  // 3. State extraction
+  for (const st of COMMON_STATES) {
+    const re = new RegExp(`\\b${st}\\b`, 'i');
+    if (re.test(t)) {
+      extracted.state = st;
+      break;
+    }
+  }
+  if (!extracted.state) {
+    if (/ఆంధ్రప్రదేశ్|ఆంధ్ర/i.test(t)) extracted.state = 'Andhra Pradesh';
+    else if (/తెలంగాణ/i.test(t)) extracted.state = 'Telangana';
+    else if (/బీహార్|बिहार/i.test(t)) extracted.state = 'Bihar';
+    else if (/उत्तर प्रदेश/i.test(t)) extracted.state = 'Uttar Pradesh';
+    else if (/महाराष्ट्र|మహారాష్ట్ర/i.test(t)) extracted.state = 'Maharashtra';
+  }
+
+  // 4. District extraction
+  const preDistMatch = t.match(/([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+)\s+(?:district|zila|jila|dist|జిల్లా)\b/i);
+  if (preDistMatch && preDistMatch[1]) {
+    const cand = preDistMatch[1].replace(/[।!?.,]/g, '').trim();
+    const forbidden = ['bihar', 'state', 'dairy', 'farming', 'food', 'retail', 'lakh', 'budget', 'mera', 'meri', 'se', 'hai'];
+    if (cand.length >= 2 && !forbidden.includes(cand.toLowerCase())) {
+      extracted.district = cand.charAt(0).toUpperCase() + cand.slice(1);
+    }
+  }
+
+  if (!extracted.district) {
+    const postDistMatch = t.match(/(?:district|zila|jila|dist|జిల్లా)\s*[:=]\s*([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+)/i);
+    if (postDistMatch && postDistMatch[1]) {
+      const cand = postDistMatch[1].replace(/[।!?.,]/g, '').trim();
+      const forbidden = ['bihar', 'state', 'dairy', 'farming', 'food', 'retail', 'lakh', 'se'];
+      if (cand.length >= 3 && !forbidden.includes(cand.toLowerCase())) {
+        extracted.district = cand.charAt(0).toUpperCase() + cand.slice(1);
       }
     }
   }
 
-  // --------------------------------------------------------------------------
-  // 2. NAME EXTRACTION
-  // --------------------------------------------------------------------------
-  if (existingState.name) {
-    extracted.name = existingState.name;
-  } else {
-    // Devanagari prefix
-    const devaNameMatch = t.match(/(?:मेरा\s*नाम\s*(?:है)?|नाम)\s*[:=]?\s*([^\s,।!?]+(?:\s+[^\s,।!?]+)?)/u);
-    if (devaNameMatch) {
-      let clean = devaNameMatch[1].replace(/[।!?.,]/g, '').trim();
-      clean = clean.replace(/\s*(?:है|हूँ|हूं|किसान|भाई|जी)$/u, '').trim();
-      const forbidden = ['डेयरी', 'पोल्ट्री', 'गुंटूर', 'व्यापार', 'बिजनेस', 'काम', 'करना', 'बकरी'];
-      if (clean.length >= 2 && !forbidden.includes(clean)) {
-        extracted.name = clean;
-      }
-    }
-
-    // Telugu prefix
-    if (!extracted.name) {
-      const teNameMatch = t.match(/(?:నా\s*పేరు|పేరు)\s*[:=]?\s*([^\s,।!?]+(?:\s+[^\s,।!?]+)?)/u);
-      if (teNameMatch) {
-        let clean = teNameMatch[1].replace(/[।!?.,]/g, '').trim();
-        clean = clean.replace(/\s*(?:గారు|ఉంటాను|చేయాలి|పాడి)$/u, '').trim();
-        const forbidden = ['పాడి', 'గుంటూరు', 'వ్యాపారం', 'చేయాలి'];
-        if (clean.length >= 2 && !forbidden.includes(clean)) {
-          extracted.name = clean;
-        }
-      }
-    }
-
-    // English / Latin prefix
-    if (!extracted.name) {
-      const engNameMatch = t.match(/(?:my name is|i am|mera naam|na peru|naam)\s*[:=]?\s*([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+(?:\s+[a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+)?)/i);
-      if (engNameMatch) {
-        let clean = engNameMatch[1].replace(/[।!?.,]/g, '').trim();
-        clean = clean.replace(/\b(hai|hoon|kisan|farmer|ji|and|aur|from|se|lo)\b/gi, '').trim();
-        if (clean.length >= 2 && !/^(dairy|poultry|farming|guntur|business|delhi)$/i.test(clean)) {
-          extracted.name = clean;
-        }
-      }
-    }
-
-    // 1-2 words raw name reply when name missing
-    if (!extracted.name && !existingState.district) {
-      const words = t.split(/\s+/).filter(w => w.trim().length > 0);
-      if (words.length <= 2) {
-        const candidate = t.replace(/[^\w\s\u0900-\u097F\u0C00-\u0C7F]/gi, '').trim();
-        const forbidden = [
-          'dairy', 'poultry', 'farming', 'guntur', 'lakh', 'rupees', 'hello', 'hi', 'namaste',
-          'डेयरी', 'गुंटूर', 'लाख', 'रुपये', 'नमस्ते', 'పాడి', 'గుంటూరు', 'లక్షలు', 'నమస్కారం'
-        ];
-        if (candidate.length >= 2 && !forbidden.includes(candidate.toLowerCase())) {
-          extracted.name = candidate;
-        }
-      }
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // 3. DISTRICT / LOCATION EXTRACTION
-  // --------------------------------------------------------------------------
-  if (existingState.district) {
-    extracted.district = existingState.district;
-  } else {
-    const locationMap = [
-      { canonical: 'Guntur', hi: 'गुंटूर', te: 'గుంటూరు', aliases: ['guntur', 'गुंटूर', 'గుంటూరు', 'గుంటూరులో', 'గుంటూరు జిల్లా'] },
-      { canonical: 'Krishna', hi: 'कृष्णा', te: 'కృష్ణా', aliases: ['krishna', 'कृष्णा', 'కృష్ణా'] },
-      { canonical: 'Prakasam', hi: 'प्रकाशम', te: 'ప్రకాశం', aliases: ['prakasam', 'प्रकाशम', 'ప్రకాశం'] },
-      { canonical: 'Vijayawada', hi: 'विजयवाड़ा', te: 'విజయవాడ', aliases: ['vijayawada', 'विजयवाड़ा', 'విజయవాడ'] },
-      { canonical: 'Visakhapatnam', hi: 'विशाखापट्टनम', te: 'విశాఖపట్నం', aliases: ['visakhapatnam', 'vizag', 'विशाखापट्टनम', 'విశాఖపట్నం'] },
-      { canonical: 'Chittoor', hi: 'चित्तूर', te: 'చిత్తూరు', aliases: ['chittoor', 'चित्तूर', 'చిత్తూరు'] },
-      { canonical: 'Kurnool', hi: 'कर्नूल', te: 'కర్నూలు', aliases: ['kurnool', 'कर्नूल', 'కర్నూలు'] },
-      { canonical: 'Nellore', hi: 'नेल्लोर', te: 'నెల్లూరు', aliases: ['nellore', 'नेल्लोर', 'నెల్లూరు'] },
-      { canonical: 'Nashik', hi: 'नासिक', te: 'నాసిక్', aliases: ['nashik', 'नासिक', 'నాసిక్'] },
-      { canonical: 'Pune', hi: 'पुणे', te: 'పూణే', aliases: ['pune', 'पुणे', 'పూణే'] },
-      { canonical: 'Nagpur', hi: 'नागपुर', te: 'నాగ్‌పూర్', aliases: ['nagpur', 'नागपुर', 'నాగ్‌పూర్'] },
-      { canonical: 'Varanasi', hi: 'वाराणसी', te: 'వారణాసి', aliases: ['varanasi', 'वाराणसी', 'बनारस'] },
-      { canonical: 'Patna', hi: 'पटना', te: 'పాట్నా', aliases: ['patna', 'पटना'] },
-      { canonical: 'Jaipur', hi: 'जयपुर', te: 'జైపూర్', aliases: ['jaipur', 'जयपुर'] },
-      { canonical: 'Hyderabad', hi: 'हैदराबाद', te: 'హైదరాబాద్', aliases: ['hyderabad', 'हैदराबाद', 'హైదరాబాద్'] },
-      { canonical: 'Chebrole', hi: 'चेबरोलु', te: 'చేబ్రోలు', aliases: ['chebrole', 'चेबरोलु', 'చేబ్రోలు'] },
-      { canonical: 'Vadlamudi', hi: 'वडलामूडी', te: 'వడ్లమూడి', aliases: ['vadlamudi', 'वडलामूडी', 'వడ్లమూడి'] },
-      { canonical: 'Tenali', hi: 'तेनाली', te: 'తెనాలి', aliases: ['tenali', 'तेनाली', 'తెనాలి'] }
+  if (!extracted.district) {
+    const knownDistricts = [
+      'Gaya', 'Patna', 'Guntur', 'Krishna', 'Varanasi', 'Lucknow', 'Jaipur',
+      'Pune', 'Nagpur', 'Nashik', 'Indore', 'Bhopal', 'Ranchi', 'Muzaffarpur',
+      'Bhagalpur', 'Kurnool', 'Nellore', 'Visakhapatnam', 'Chittoor', 'Prakasam'
     ];
-
-    for (const item of locationMap) {
-      for (const alias of item.aliases) {
-        if (t.toLowerCase().includes(alias.toLowerCase())) {
-          if (/[\u0900-\u097F]/.test(t)) {
-            extracted.district = item.hi;
-          } else if (/[\u0C00-\u0C7F]/.test(t)) {
-            extracted.district = item.te;
-          } else {
-            extracted.district = item.canonical;
-          }
-          break;
-        }
-      }
-      if (extracted.district) break;
-    }
-
-    if (!extracted.district) {
-      const locPhraseMatch = t.match(/(?:live in|from|district|location|shehar|gaon|mein|rehta hoon|रहता हूँ|रहता हूं|ఉంటాను|జిల్లా)\s*[:=]?\s*([a-zA-Z\u0900-\u097F\u0C00-\u0C7F]+)/iu);
-      if (locPhraseMatch) {
-        const cand = locPhraseMatch[1].replace(/[।!?.,]/g, '').trim();
-        if (cand.length >= 3 && !['dairy', 'poultry', 'business', 'farming', 'डेयरी', 'पाडी'].includes(cand.toLowerCase())) {
-          extracted.district = cand;
-        }
-      }
-    }
-
-    if (!extracted.district && existingState.name) {
-      const words = t.split(/\s+/).filter(w => w.trim().length > 0);
-      if (words.length <= 2) {
-        const cand = t.replace(/[।!?.,]/g, '').trim();
-        const forbidden = [
-          'dairy', 'poultry', 'farming', 'business', 'lakh', 'rupees', 'yes', 'no', 'haan', 'nahi',
-          'डेयरी', 'पोल्ट्री', 'खेती', 'व्यापार', 'लाख', 'रुपये', 'हाँ', 'नहीं', 'పాడి', 'పౌల్ట్రీ', 'లక్షలు'
-        ];
-        if (cand.length >= 2 && !forbidden.includes(cand.toLowerCase())) {
-          extracted.district = cand;
-        }
+    for (const d of knownDistricts) {
+      if (new RegExp(`\\b${d}\\b`, 'i').test(t)) {
+        extracted.district = d;
+        break;
       }
     }
   }
 
-  // --------------------------------------------------------------------------
-  // 4. BUSINESS CATEGORY DETECTION (4 Key Rural Categories)
-  // --------------------------------------------------------------------------
-  if (existingState.business) {
-    extracted.business = existingState.business;
-  } else {
-    // 1. Dairy Farming
-    if (/(dairy|milk|cow|cows|buffalo|buffaloes|bhains|doodh|डेयरी|दूध|गाय|भैंस|పాడి|పాల|డెయిరీ)/i.test(t)) {
-      extracted.business = 'Dairy Farming';
-    }
-    // 2. Poultry Farming
-    else if (/(poultry|broiler|layer|chicken|birds|murgi|पोल्ट्री|मुर्गी|पक्षी|పౌల్ట్రీ|కోళ్ల)/i.test(t)) {
-      extracted.business = 'Poultry Farming';
-    }
-    // 3. Goat Farming
-    else if (/(goat|goats|bakri|bakriyan|बकरी|बकरा|మేకల|మేకలు)/i.test(t)) {
-      extracted.business = 'Goat Farming';
-    }
-    // 4. Food Processing / Small Food Business
-    else if (/(food processing|pickle|pickles|achar|spices|masala|papad|flour|atta chakki|snacks|chips|अचार|मसाला|मसाले|पापड़|आटा|खाद्य प्रसंस्करण|ఆహార ప్రాసెసింగ్|ఊరగాయ|మసాలాలు)/i.test(t)) {
-      extracted.business = 'Food Processing';
-    }
+  // 5. Business Idea / Selection
+  const biz = normalizeBusiness(t);
+  if (biz) {
+    extracted.business = biz;
   }
 
-  // --------------------------------------------------------------------------
-  // 5. DOMAIN-SPECIFIC ENTITIES (Animals, Quantity, SubCategory, Products)
-  // --------------------------------------------------------------------------
-  // A. Animal Type & Quantity
-  const qtyMatch = t.match(/(\d+)\s*(?:buffaloes|buffalo|bhains|bhainse|cows|cow|gaay|gay|birds|murgi|murgiyan|goats|goat|bakri|bakriyan|భైన్స్|గేదెలు|ఆవులు|కోళ్లు|మేకలు|भैंस|गाय|मुर्गी|बकरी|पक्षी)/i);
-  if (qtyMatch) {
-    extracted.quantity = parseInt(qtyMatch[1], 10);
-    const matchedText = qtyMatch[0].toLowerCase();
-    if (/buffalo|bhains|గేదె|भैंस/.test(matchedText)) {
-      extracted.animalType = 'Buffalo';
-      if (!extracted.business) extracted.business = 'Dairy Farming';
-    } else if (/cow|gaay|ఆవు|गाय/.test(matchedText)) {
-      extracted.animalType = 'Cow';
-      if (!extracted.business) extracted.business = 'Dairy Farming';
-    } else if (/bird|murgi|కోడి|కోళ్ల|मुर्गी|पक्षी/.test(matchedText)) {
-      extracted.animalType = 'Poultry Bird';
-      if (!extracted.business) extracted.business = 'Poultry Farming';
-    } else if (/goat|bakri|మేక|बकरी/.test(matchedText)) {
-      extracted.animalType = 'Goat';
-      if (!extracted.business) extracted.business = 'Goat Farming';
-    }
+  // 6. Land extraction
+  if (/\b(own land|have my own land|family land|have land|1-2 acres|2-5 acres|apni zameen|khud ki zameen)\b/i.test(t) ||
+      /(సొంత భూమి|కుటుంబ భూమి|భూమి ఉంది|अपनी जमीन|पारिवारिक जमीन|खुद की जमीन)/i.test(t)) {
+    extracted.land = 'Yes';
+  } else if (/\b(no land|don't have land|rented land|kiraya)\b/i.test(t) ||
+             /(భూమి లేదు|जमीन नहीं|किराये पर)/i.test(t)) {
+    extracted.land = 'No';
   }
 
-  // Handle 10+1 unit pattern for goats
-  const unit10Match = t.match(/10\s*\+\s*1\s*(?:unit|goat|bakri|మేకలు)?/i);
-  if (unit10Match) {
-    extracted.quantity = 11;
-    extracted.animalType = 'Goat';
-    if (!extracted.business) extracted.business = 'Goat Farming';
+  // 7. Space extraction
+  if (/\b(have space|enough space|sufficient space|space available|jagah hai|jagah available)\b/i.test(t) ||
+      /(స్థలం ఉంది|తగిన స్థలం|जगह है|जगह उपलब्ध)/i.test(t)) {
+    extracted.space = 'Yes';
+  } else if (/\b(no space|limited space|kam jagah)\b/i.test(t) ||
+             /(పరిమిత స్థలం|స్థలం లేదు|कम जगह|जगह नहीं)/i.test(t)) {
+    extracted.space = 'Limited space';
   }
 
-  // Direct mention of animals without number
-  if (!extracted.animalType) {
-    if (/(buffalo|bhains|भैंस|గేదె)/i.test(t)) {
-      extracted.animalType = 'Buffalo';
-      if (!extracted.business) extracted.business = 'Dairy Farming';
-    } else if (/(cow|cows|gaay|गाय|ఆవు)/i.test(t)) {
-      extracted.animalType = 'Cow';
-      if (!extracted.business) extracted.business = 'Dairy Farming';
-    } else if (/(goat|goats|bakri|bakriyan|बकरी|మేక)/i.test(t)) {
-      extracted.animalType = 'Goat';
-      if (!extracted.business) extracted.business = 'Goat Farming';
-    } else if (/(broiler|layer|chicken|bird|birds|murgi|కోడి)/i.test(t)) {
-      extracted.animalType = 'Poultry Bird';
-      if (!extracted.business) extracted.business = 'Poultry Farming';
-    }
-  }
-
-  // Raw number reply for quantity if business already known and quantity missing
-  if (!extracted.quantity && !existingState.quantity && existingState.business) {
-    const pureNumMatch = t.match(/^(\d{1,5})$/);
-    if (pureNumMatch) {
-      extracted.quantity = parseInt(pureNumMatch[1], 10);
-    }
-  }
-
-  // B. Poultry Subcategory (Broiler vs Layer)
-  if (/(broiler|meat|मांस|బ్రాయిలర్)/i.test(t)) {
-    extracted.subCategory = 'Broiler';
-    if (!extracted.business) extracted.business = 'Poultry Farming';
-  } else if (/(layer|egg|eggs|ande|अंडे|లేయర్|గుడ్లు)/i.test(t)) {
-    extracted.subCategory = 'Layer';
-    if (!extracted.business) extracted.business = 'Poultry Farming';
-  }
-
-  // C. Goat Subcategory (Meat vs Breeding vs Both)
-  if (/(both|meat and breeding|dono|दोनों|రెండు|మాంసం మరియు బ్రీడింగ్)/i.test(t) && (/goat|bakri|మేక/i.test(t) || existingState.business === 'Goat Farming')) {
-    extracted.subCategory = 'Dual Purpose';
-    if (!extracted.business) extracted.business = 'Goat Farming';
-  } else if (/(breeding|नस्ल सुधार|ब्रीडिंग|ప్రజననం)/i.test(t) && (/goat|bakri|మేక/i.test(t) || existingState.business === 'Goat Farming')) {
-    extracted.subCategory = 'Breeding';
-    if (!extracted.business) extracted.business = 'Goat Farming';
-  } else if (/(meat|mutton|मांस|మటన్)/i.test(t) && (/goat|bakri|మేక/i.test(t) || existingState.business === 'Goat Farming')) {
-    extracted.subCategory = 'Meat';
-    if (!extracted.business) extracted.business = 'Goat Farming';
-  }
-
-  // D. Food Processing Products
-  if (/(mango pickle|aam ka achar|आम का अचार|మామిడికాయ ఊరగాయ|mango)/i.test(t)) {
-    extracted.productType = 'Mango Pickle';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  } else if (/(lemon pickle|nimbu ka achar|नींबू का अचार|నిమ్మకాయ ఊరగాయ|lemon|nimbu)/i.test(t)) {
-    extracted.productType = 'Lemon Pickle';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  } else if (/(chilli pickle|mirch ka achar|मिर्च का अचार|మిర్చి ఊరగాయ|chilli|mirch)/i.test(t)) {
-    extracted.productType = 'Chilli Pickle';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  } else if (/(pickle|pickles|achar|अचार|ఊరగాయ)/i.test(t)) {
-    extracted.productType = 'Pickles';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  } else if (/(spices|masala|masale|मसाला|मसाले|మసాలాలు)/i.test(t)) {
-    extracted.productType = 'Spices';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  } else if (/(papad|पापड़|అప్పడాలు)/i.test(t)) {
-    extracted.productType = 'Papad';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  } else if (/(flour|atta|chakki|आटा|పిండి|ఆటా)/i.test(t)) {
-    extracted.productType = 'Flour Milling';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  } else if (/(snacks|chips|namkeen|नमकीन|चिप्स|స్నాక్స్)/i.test(t)) {
-    extracted.productType = 'Snacks & Chips';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  } else if (/(sweet|sweets|mithai|bakery|मिठाई|స్వీట్లు)/i.test(t)) {
-    extracted.productType = 'Sweets & Bakery';
-    if (!extracted.business) extracted.business = 'Food Processing';
-  }
-
-  // --------------------------------------------------------------------------
-  // 6. RESOURCES: LAND, SHED, FODDER, RAW MATERIAL, WORKSPACE, SALES CHANNEL
-  // --------------------------------------------------------------------------
-  // Compound land & shed answers:
-  if (/(have land.*(?:no|without).*shed|land hai.*shed nahi|zameen hai.*shed nahi|जमीन है.*शेड नहीं|స్థలం ఉంది.*షెడ్ లేదు)/i.test(t)) {
-    extracted.landAvailable = true;
-    extracted.shedAvailable = false;
-  } else if (/(no.*land.*(?:have|with).*shed|land nahi.*shed hai|जमीन नहीं.*शेड है|స్థలం లేదు.*షెడ్ ఉంది)/i.test(t)) {
-    extracted.landAvailable = false;
-    extracted.shedAvailable = true;
-  } else if (/(have both|both are available|dono hai|donon hai|दोनों हैं|రెండు ఉన్నాయి|land and shed|zameen aur shed)/i.test(t)) {
-    extracted.landAvailable = true;
-    extracted.shedAvailable = true;
-  } else if (/(neither|dono nahi|donon nahi|dono nahi hai|दोनों नहीं|రెండు లేవు|no land.*no shed)/i.test(t)) {
-    extracted.landAvailable = false;
-    extracted.shedAvailable = false;
-  } else {
-    // Individual Land
-    if (/(have land|land is available|land available|land hai|zameen hai|जमीन है|సొంత స్థలం ఉంది|స్థలం ఉంది|open grazing land)/i.test(t)) {
-      extracted.landAvailable = true;
-    } else if (/(no land|without land|land nahi|zameen nahi|जमीन नहीं|స్థలం లేదు)/i.test(t)) {
-      extracted.landAvailable = false;
-    }
-
-    // Individual Shed
-    if (/(have shed|shed is available|shed available|have a shed|have cattle shed|have poultry shed|have goat shed|shed hai|शेड है|షెడ్ ఉంది)/i.test(t)) {
-      extracted.shedAvailable = true;
-    } else if (/(no shed|no cattle shed|no poultry shed|without shed|shed nahi|need a shed|need to build a shed|shed banana padega|शेड नहीं|షెడ్ లేదు)/i.test(t)) {
-      extracted.shedAvailable = false;
-    }
-  }
-
-  // Green Fodder / Feed:
-  if (/(green fodder available|fodder available|hara chara hai|हरा चारा है|పచ్చిగడ్డి ఉంది|fodder is available|feed available|green fodder)/i.test(t)) {
-    extracted.feedFodder = 'locally available';
-  } else if (/(purchase feed|market se khareedenge|खरीदेंगे|కొనుగోలు చేస్తాము|dry feed|purchase from market|bazaar se)/i.test(t)) {
-    extracted.feedFodder = 'purchase from market';
-  }
-
-  // Water & Electricity:
-  if (/(water is available|clean water|pani hai|water available|pani ki suvidha hai|తాగునీరు ఉంది|మంచి నీరు)/i.test(t)) {
-    extracted.waterAvailable = true;
-  } else if (/(no water|pani nahi|water problem|నీటి సమస్య)/i.test(t)) {
-    extracted.waterAvailable = false;
-  }
-
-  if (/(electricity available|bijli hai|current undi|విద్యుత్ ఉంది)/i.test(t)) {
-    extracted.electricityAvailable = true;
-  } else if (/(no electricity|bijli nahi|power cut|కరెంట్ లేదు)/i.test(t)) {
-    extracted.electricityAvailable = false;
-  }
-
-  // Veterinary Access:
-  if (/(veterinary available|hospital nearby|doctor hai|డాక్టర్ ఉన్నారు|पशु अस्पताल|doctor available|access to veterinary)/i.test(t)) {
-    extracted.veterinaryAccess = true;
-  } else if (/(no doctor|no veterinary|hospital door hai|పశువైద్యశాల లేదు)/i.test(t)) {
-    extracted.veterinaryAccess = false;
-  }
-
-  // Food Raw Materials:
-  if (/(locally available|locally|mangoes locally|local market|आसानी से मिलता है|స్థానికంగా|local mangoes|local raw material)/i.test(t)) {
-    extracted.rawMaterial = 'locally available';
-  } else if (/(suppliers|outside|बाहर से|సప్లయర్స్|purchase from suppliers|wholesale market)/i.test(t)) {
-    extracted.rawMaterial = 'from suppliers';
-  }
-
-  // Workspace:
-  if (/(from home|start from home|ghar se|घर से|ఇంట్లో)/i.test(t)) {
-    extracted.workspace = 'home';
-  } else if (/(separate unit|commercial unit|workshop|alag jagah|अलग जगह|ప్రత్యేక యూనిట్|commercial workspace)/i.test(t)) {
-    extracted.workspace = 'commercial unit';
-  }
-
-  // Sales Channel:
-  if (/(collection center|dairy collection center|dairy center|cooperative|सहकारी|డైరీ కలెక్షన్ సెంటర్|సొసైటీ)/i.test(t)) {
-    extracted.salesChannel = 'dairy collection center';
-  } else if (/(wholesalers|mandi|मंडी|హోల్‌సేల్)/i.test(t)) {
-    extracted.salesChannel = 'wholesalers';
-  } else if (/(contract|contract farming|company|कॉन्ट्रैक्ट|కాంట్రాక్ట్)/i.test(t)) {
-    extracted.salesChannel = 'contract farming';
-  } else if (/(local customers|shops|hotels|local shops|स्थानीय|लोकल|వినియోగదారులు|హాటల్స్)/i.test(t)) {
-    extracted.salesChannel = 'local customers';
-  }
-
-  // Experience:
-  if (/(have experience|experience hai|anubhav hai|worked before|అనుభవం ఉంది|अनुभव है|experienced)/i.test(t)) {
-    extracted.experience = 'experienced';
-  } else if (/(no experience|beginner|naya hoon|pehli baar|new to this|అనుభవం లేదు|अनुभव नहीं)/i.test(t)) {
-    extracted.experience = 'beginner';
-  }
-
-  // Subsidy / Loan:
-  if (/(need loan|need subsidy|subsidy chahiye|loan chahiye|सरकारी मदद|రుణం కావాలి|సబ్సిడీ కావాలి|government support)/i.test(t)) {
-    extracted.subsidyNeeded = true;
-  } else if (/(own funds|self funded|khud ka paisa|khud lagayenge|సొంత నిధులు)/i.test(t)) {
-    extracted.subsidyNeeded = false;
+  // 8. Animals extraction
+  const animCount = parseAnimalCount(t);
+  if (animCount) {
+    extracted.animals = animCount;
   }
 
   return extracted;
 }
 
 /**
- * Check if the user is asking an informational question mid-flow
+ * Generate Final 10-Point Business Analysis in the Selected Language
  */
-function detectUserQuestion(text) {
-  const lower = text.toLowerCase();
-  
-  // 1. Comparison query: "Dairy aur poultry mein kya better hai?", "dairy vs poultry"
-  if (
-    (lower.includes('dairy') && lower.includes('poultry')) ||
-    (lower.includes('डेयरी') && lower.includes('पोल्ट्री')) ||
-    (lower.includes('పాడి') && lower.includes('పౌల్ట్రీ')) ||
-    lower.includes('better') ||
-    lower.includes('behtar') ||
-    lower.includes('बेहतर') ||
-    lower.includes('తేడా') ||
-    lower.includes('vs') ||
-    (lower.includes('kaunsa') && lower.includes('accha'))
-  ) {
-    if (
-      lower.includes('dairy') || lower.includes('poultry') || lower.includes('goat') || lower.includes('food') ||
-      lower.includes('डेयरी') || lower.includes('पोल्ट्री') || lower.includes('बकरी') || lower.includes('పాడి')
-    ) {
-      return 'COMPARISON_QUESTION';
-    }
+function generateFinalAnalysis(state, lang = 'en') {
+  const l = normalizeLang(lang);
+  const name = state.name || 'Entrepreneur';
+  const stateName = state.state || (state.district ? `${state.district} area` : 'Your area');
+  const district = state.district || 'Your district';
+  const biz = state.business || 'DAIRY';
+  const answers = state.answers || {};
+
+  const budgetVal = answers.budget || state.budget || (l === 'en' ? '₹1–3 Lakh (Approximate)' : (l === 'te' ? '₹1–3 లక్షలు (సుమారు)' : '₹1–3 लाख (अनुमानित)'));
+
+  if (l === 'en') {
+    const bizTitles = {
+      DAIRY: 'Dairy Farming Business',
+      AGRICULTURE: 'Commercial Agriculture & Farming',
+      FOOD: 'Food & Culinary Processing Unit',
+      RETAIL: 'Retail Store Business',
+      MANUFACTURING: 'Small-Scale Manufacturing Unit',
+      SERVICE: 'Service & Maintenance Enterprise',
+      HANDICRAFT: 'Handicraft & Artisan Workshop',
+      DIGITAL: 'Digital & Online Services Venture'
+    };
+    const title = bizTitles[biz] || biz;
+
+    let whyFit = `You have space and resources suited for starting with ${answers.dairy_animals || answers.land || 'your scale'} in ${district}, ${stateName}. Daily local demand provides steady cash flow.`;
+    let res = `${answers.dairy_animals || '2-5 Animals'} / workspace, clean water, power, and storage.`;
+    let income = '₹20,000 – ₹45,000 per month (depending on production & local rates).';
+    let setup = 'Setting up clean shed/workspace, local trade registration, and tie-up with buyers/cooperatives.';
+    let market = answers.market || answers.target_customers || 'Local customers, daily markets, retail shops.';
+    let risks = 'Input price volatility and health/maintenance. (Mitigation: Insurance and regular checkups).';
+    let schemes = 'PM Mudra Yojana, PMEGP (up to 35% subsidy), and NABARD / State Subsidies.';
+    let steps = '1. Finalize your location and reliable suppliers.\n2. Complete basic Udyam / FSSAI registration.\n3. Secure initial customer pre-orders and start operations.';
+
+    return `🎉 **${title} — Complete Business Analysis for ${name}**
+
+1. **Selected Business:**
+   **${title}**
+
+2. **Why this business fits your situation:**
+   ${whyFit}
+
+3. **Estimated Starting Investment:**
+   **${budgetVal}** *(Based on your indicated budget and startup requirements)*
+
+4. **Required Resources:**
+   ${res}
+
+5. **Possible Income Range:**
+   **${income}**
+
+6. **Basic Setup Requirements:**
+   ${setup}
+
+7. **Possible Customers & Market:**
+   ${market}
+
+8. **Major Risks & Mitigation:**
+   ${risks}
+
+9. **Relevant Government Support & Schemes:**
+   ${schemes}
+
+10. **Simple First Steps to Start:**
+${steps}
+
+---
+⚠️ *Note: Investment and income figures are estimates. Actual returns depend on your location, local demand, raw material costs, competition, and business execution.*`;
   }
 
-  // 2. Subsidy / Government Scheme query: "Kaunsi sarkari scheme milegi?", "subsidy", "yojana"
-  const hasSubsidyWord = lower.includes('subsidy') || lower.includes('सब्सिडी') || 
-    lower.includes('సబ్సిడీ') || lower.includes('yojana') || lower.includes('योजना') || lower.includes('పథకం') || 
-    lower.includes('sahayata') || lower.includes('सहायता') || lower.includes('సహాయం') || lower.includes('anudan') || lower.includes('अनुदान') ||
-    lower.includes('scheme') || lower.includes('sarkari');
+  if (l === 'te') {
+    const bizTitles = {
+      DAIRY: 'వాణిజ్య పాడి పరిశ్రమ (డైరీ ఫార్మింగ్)',
+      AGRICULTURE: 'వాణిజ్య వ్యవసాయం & సాగు',
+      FOOD: 'ఆహార తయారీ & ప్రాసెసింగ్ యూనిట్',
+      RETAIL: 'రిటైల్ దుకాణం వ్యాపారం',
+      MANUFACTURING: 'చిన్న తరహా తయారీ యూనిట్',
+      SERVICE: 'సేవా మరియు నిర్వహణ వ్యాపారం',
+      HANDICRAFT: 'హస్తకళలు & ఆర్టిసాన్ యూనిట్',
+      DIGITAL: 'డిజిటల్ & ఆన్‌లైన్ సర్వీసెస్'
+    };
+    const title = bizTitles[biz] || biz;
 
-  const hasQueryWord = lower.includes('milegi') || lower.includes('milti') || lower.includes('kya') || lower.includes('hai') || 
-    lower.includes('how much') || lower.includes('లభిస్తుంది') || lower.includes('ఉందా') || lower.includes('मिलती') || 
-    lower.includes('मिलेगी') || lower.includes('क्या') || lower.includes('है क्या') || lower.includes('ఎంత') ||
-    lower.includes('kaunsi') || lower.includes('कौनसी') || lower.includes('ఏ') || text.includes('?');
+    let whyFit = `${district}, ${stateName} ప్రాంతంలో మీ బడ్జెట్ మరియు అందుబాటులో ఉన్న వనరులకు ఈ వ్యాపారం అనుకూలంగా ఉంటుంది. స్థానికంగా స్థిరమైన డిమాండ్ ఉంది.`;
+    let res = `అవసరమైన పశువులు/యంత్రాలు, పని స్థలం, నీటి వసతి మరియు ముడి సరుకు.`;
+    let income = 'నెలకు ₹20,000 – ₹45,000 (ఉత్పత్తి మరియు స్థానిక మార్కెట్ ధరపై ఆధారపడి).';
+    let setup = 'షెడ్/షాప్ ఏర్పాటు, లైసెన్స్ లేదా రిజిస్ట్రేషన్ మరియు కొనుగోలుదారులతో ఒప్పందం.';
+    let market = answers.market || answers.target_customers || 'స్థానిక కస్టమర్లు, మార్కెట్లు మరియు రిటైల్ షాపులు.';
+    let risks = 'ఖర్చులు పెరగడం మరియు మార్కెట్ ఒడిదుడుకులు. (పరిష్కారం: బీమా మరియు ముందస్తు ప్రణాళిక).';
+    let schemes = 'పీఎం ముద్ర యోజన (రూ. 10 లక్షల వరకు), PMEGP రాయితీ పథకం, నాబార్డ్ సబ్సిడీ.';
+    let steps = '1. సరైన స్థలాన్ని సిద్ధం చేసుకోవడం.\n2. ప్రాథమిక ప్రభుత్వ రిజిస్ట్రేషన్ పూర్తి చేయడం.\n3. స్థానిక కస్టమర్లతో నేరుగా అనుసంధానం కావడం.';
 
-  if (hasSubsidyWord && (hasQueryWord || text.includes('?'))) {
-    return 'SUBSIDY_QUESTION';
+    return `🎉 **${title} — ${name} గారి కోసం పూర్తి వ్యాపార విశ్లేషణ**
+
+1. **ఎంచుకున్న వ్యాపారం:**
+   **${title}**
+
+2. **ఈ వ్యాపారం మీ పరిస్థితికి ఎందుకు అనుకూలం:**
+   ${whyFit}
+
+3. **అంచనా ప్రారంభ పెట్టుబడి:**
+   **${budgetVal}** *(మీ బడ్జెట్ మరియు ప్రాథమిక అవసరాల ప్రకారం)*
+
+4. **అవసరమైన వనరులు:**
+   ${res}
+
+5. **సంభావ్య ఆదాయ పరిధి:**
+   **${income}**
+
+6. **ప్రాథమిక ఏర్పాట్లు:**
+   ${setup}
+
+7. **కస్టమర్లు మరియు మార్కెట్:**
+   ${market}
+
+8. **ప్రధాన రిస్క్‌లు మరియు నివారణ:**
+   ${risks}
+
+9. **ప్రభుత్వ పథకాలు & రాయితీలు:**
+   ${schemes}
+
+10. **ప్రారంభించడానికి మొదటి దశలు:**
+${steps}
+
+---
+⚠️ *గమనిక: పెట్టుబడి మరియు ఆదాయం అంచనాలు మాత్రమే. ఇవి స్థానిక డిమాండ్, ఖర్చులు, పోటీ మరియు నిర్వహణపై ఆధారపడి ఉంటాయి.*`;
   }
 
-  // 3. Loan / EMI query: "5 lakh loan ki EMI kitni hogi?"
-  const hasLoanWord = lower.includes('loan') || lower.includes('emi') || lower.includes('लोन') || lower.includes('ऋण') || 
-    lower.includes('రుణం') || lower.includes('byaj') || lower.includes('ब्याज') || lower.includes('వడ్డీ') || lower.includes('ఈఎమ్‌ఐ');
-
-  const hasLoanQueryWord = lower.includes('kitna') || lower.includes('kitni') || lower.includes('kaise') || lower.includes('how') || lower.includes('ఎంత') || 
-    lower.includes('rate') || lower.includes('कितना') || lower.includes('कितनी') || lower.includes('मिलेगा') || lower.includes('लगेगा') || lower.includes('hogi');
-
-  if (hasLoanWord && (hasLoanQueryWord || text.includes('?'))) {
-    return 'LOAN_QUESTION';
-  }
-
-  // 4. Profit query
-  if (lower.includes('profit') || lower.includes('मुनाफा') || lower.includes('कमाई') || lower.includes('लाभ') || 
-      lower.includes('లాభం') || lower.includes('income') || lower.includes('आमदनी')) {
-    return 'PROFIT_QUESTION';
-  }
-
-  // 5. Budget inquiry without business: "Mere paas 3 lakh hain", "budget 2 lakh"
-  if (
-    !lower.includes('dairy') && !lower.includes('poultry') && !lower.includes('goat') && !lower.includes('food') &&
-    (lower.includes('mere paas') || lower.includes('मेरे पास') || lower.includes('నా దగ్గర') || lower.includes('i have') || lower.includes('budget') || lower.includes('capital')) &&
-    (lower.includes('lakh') || lower.includes('hazar') || lower.includes('लाख') || lower.includes('हजार') || lower.includes('లక్ష') || /\d{5,8}/.test(text))
-  ) {
-    return 'BUDGET_ADVICE_QUESTION';
-  }
-
-  return null;
-}
-
-/**
- * Direct Question Answer Formulations in Female Advisor Persona
- */
-function answerUserQuestion(questionType, state, langMode) {
-  const name = state.name ? `${state.name} ji` : (langMode === 'en' ? 'friend' : (langMode === 'te' ? 'గారు' : 'जी'));
-  let bTitle = state.business || 'व्यवसाय';
-  if (state.business === 'Dairy Farming') bTitle = langMode === 'hi_deva' ? 'डेयरी फार्मिंग' : (langMode === 'te' ? 'పాడి పరిశ్రమ' : 'Dairy Farming');
-  else if (state.business === 'Poultry Farming') bTitle = langMode === 'hi_deva' ? 'पोल्ट्री फार्मिंग' : (langMode === 'te' ? 'పౌల్ట్రీ ఫార్మింగ్' : 'Poultry Farming');
-  else if (state.business === 'Goat Farming') bTitle = langMode === 'hi_deva' ? 'बकरी पालन' : (langMode === 'te' ? 'మేకల పెంపకం' : 'Goat Farming');
-  else if (state.business === 'Food Processing') bTitle = langMode === 'hi_deva' ? 'खाद्य प्रसंस्करण' : (langMode === 'te' ? 'ఆహార ప్రాసెసింగ్' : 'Food Processing');
-
-  if (questionType === 'COMPARISON_QUESTION') {
-    if (langMode === 'hi_deva') {
-      return `**डेयरी फार्मिंग vs पोल्ट्री फार्मिंग — व्यावहारिक तुलना:**\n\n` +
-        `1. **डेयरी फार्मिंग (कम जोखिम, दैनिक नकद आय):**\n` +
-        `• **आय:** रोज़ाना दूध बिक्री से प्रतिदिन नकद भुगतान मिलता है।\n` +
-        `• **पूंजी सुरक्षा:** पशुधन और बछड़े आपकी पूंजी बढ़ाते हैं।\n` +
-        `• **सब्सिडी:** नाबार्ड / AHIDF योजना से 25% - 33.33% सब्सिडी और KCC पर 4% ब्याज दर।\n` +
-        `• **आवश्यकता:** हरा चारा, स्वच्छ पानी और पशु शेड।\n\n` +
-        `2. **पोल्ट्री फार्मिंग (त्वरित चक्र, मध्यम जोखिम):**\n` +
-        `• **आय:** ब्रायलर 40-45 दिनों में तैयार हो जाते हैं, जिससे साल में 5-6 बार त्वरित मुनाफा होता है।\n` +
-        `• **ज़मीन:** कम ज़मीन की आवश्यकता होती है।\n` +
-        `• **जोखिम:** बीमारी व बाज़ार में भाव में उतार-चढ़ाव का थोड़ा जोखिम रहता है।\n\n` +
-        `यदि आपके पास ज़मीन व चारा उपलब्ध है तो **डेयरी** सबसे सुरक्षित है। आप इनमें से किस व्यवसाय में आगे बढ़ना चाहते हैं?`;
-    } else if (langMode === 'te') {
-      return `**పాడి పరిశ్రమ vs పౌల్ట్రీ ఫార్మింగ్ — పోలిక:**\n\n` +
-        `1. **పాడి పరిశ్రమ (తక్కువ రిస్క్, రోజువారీ నగదు ఆదాయం):**\n` +
-        `• రోజువారీ పాల విక్రయం ద్వారా క్రమం తప్పకుండా ఆదాయం లభిస్తుంది.\n` +
-        `• నాబార్డ్ నుండి 25% - 33% సబ్సిడీ మరియు 4% వడ్డీతో KCC రుణం.\n` +
-        `• పచ్చిగడ్డి, నీటి సదుపాయం అవసరం.\n\n` +
-        `2. **పౌల్ట్రీ ఫార్మింగ్ (త్వరిత రాబడి, మధ్యస్థ రిస్క్):**\n` +
-        `• బ్రాయిలర్లు 40-45 రోజులలో సిద్ధమవుతాయి, ఏడాదికి 5-6 బ్యాచ్‌ల ద్వారా లాభం.\n` +
-        `• తక్కువ స్థలం సరిపోతుంది.\n\n` +
-        `మీ వనరుల ప్రకారం మీరు దేనితో ప్రారంభించాలనుకుంటున్నారు?`;
-    } else if (langMode === 'hi_latin') {
-      return `**Dairy Farming vs Poultry Farming — Comparison:**\n\n` +
-        `1. **Dairy Farming (Low Risk, Daily Cashflow):**\n` +
-        `• Daily milk sale se continuous cashflow generate hota hai.\n` +
-        `• NABARD / AHIDF se 25% - 33.33% capital subsidy aur KCC par 4% loan milta hai.\n` +
-        `• Green fodder, water aur shed required hota hai.\n\n` +
-        `2. **Poultry Farming (Fast Cycles, Moderate Risk):**\n` +
-        `• Broilers 40-45 din mein ready ho jaate hain (yearly 5-6 batches).\n` +
-        `• Kam land space mein shuru hota hai.\n` +
-        `• Feed price aur mortality risk thoda rehta hai.\n\n` +
-        `Agar land aur chara hai toh **Dairy** safest choice hai. Aap kis mein interest rakhte hain?`;
-    } else {
-      return `**Dairy Farming vs Poultry Farming — Key Comparison:**\n\n` +
-        `1. **Dairy Farming (Lower Risk, Daily Income):**\n` +
-        `• Regular daily cash flow from milk sales to collection centres.\n` +
-        `• 25% to 33.33% NABARD capital subsidy + 4% interest KCC loans.\n` +
-        `• Requires green fodder, clean water, and cattle shed.\n\n` +
-        `2. **Poultry Farming (Fast Cycle, Moderate Risk):**\n` +
-        `• 40-45 day broiler lifecycle with 5-6 batches per year.\n` +
-        `• Compact land footprint.\n` +
-        `• Requires strict bio-security and disease management.\n\n` +
-        `Which of these matches your available land and resources better?`;
-    }
-  }
-
-  if (questionType === 'BUDGET_ADVICE_QUESTION') {
-    const budgetVal = state.budget || 300000;
-    const bFmt = formatINR(budgetVal);
-
-    if (langMode === 'hi_deva') {
-      return `**${bFmt}** का बजट ग्रामीण उद्यम शुरू करने के लिए बहुत अच्छा और व्यावहारिक है!\n\n` +
-        `इस बजट में आप निम्न में से कोई भी लाभदायक व्यवसाय चुन सकते हैं:\n` +
-        `1. **डेयरी फार्मिंग:** 3-4 उच्च दुग्ध देने वाली मुर्राह भैंसें या एचएफ गायें (प्रतिदिन 30-40 लीटर दूध उत्पादन)।\n` +
-        `2. **ब्रायलर पोल्ट्री फार्म:** 1,000 मुर्गियों का शेड व पहला बैच (45 दिन में फसल चक्र)।\n` +
-        `3. **बकरी पालन यूनिट:** 20+1 बकरियों की ब्रीडिंग यूनिट (NLM से 50% तक सब्सिडी)।\n` +
-        `4. **खाद्य प्रसंस्करण:** मसाला पिसाई या आटा चक्की / मिनी ऑयल मिल (PMFME योजना से 35% सब्सिडी)।\n\n` +
-        `इनमें से आप किस व्यवसाय में रुचि रखते हैं?`;
-    } else if (langMode === 'te') {
-      return `**${bFmt}** పెట్టుబడితో మీరు ఈ క్రింది లాభదాయకమైన వ్యాపారాలను ప్రారంభించవచ్చు:\n\n` +
-        `1. **పాడి పరిశ్రమ:** 3-4 గేదెలు లేదా ఆవులు (రోజుకు 30-40 లీటర్ల పాలు).\n` +
-        `2. **పౌల్ట్రీ ఫార్మింగ్:** 1,000 బ్రాయిలర్ కోళ్ల యూనిట్.\n` +
-        `3. **మేకల పెంపకం:** 20+1 యూనిట్ (50% NLM సబ్సిడీ).\n` +
-        `4. **ఫుడ్ ప్రాసెసింగ్:** పిండి మిల్లు లేదా మసాలా తయారీ యూనిట్.\n\n` +
-        `మీరు దేనిపై ఆసక్తి చూపుతున్నారు?`;
-    } else if (langMode === 'hi_latin') {
-      return `**${bFmt}** ka budget business shuru karne ke liye bahut accha hai!\n\n` +
-        `Is budget mein aap yeh profitable businesses start kar sakte hain:\n` +
-        `1. **Dairy Farming:** 3-4 high-yielding buffaloes ya cows (daily 30-40L milk).\n` +
-        `2. **Broiler Poultry:** 1,000 birds capacity shed.\n` +
-        `3. **Goat Farming:** 20+1 breeding unit (50% NLM subsidy eligible).\n` +
-        `4. **Food Processing:** Spice grinding ya mini flour mill unit (35% PMFME subsidy).\n\n` +
-        `Aap kis business mein shuru karna chahte hain?`;
-    } else {
-      return `A budget of **${bFmt}** is an excellent capital base to launch a rural enterprise!\n\n` +
-        `Top viable opportunities with this budget:\n` +
-        `1. **Dairy Farming:** 3-4 high-yield buffaloes/cows (30-40L daily milk yield).\n` +
-        `2. **Poultry Unit:** 1,000 bird broiler capacity.\n` +
-        `3. **Goat Farming:** 20+1 commercial breeding unit (50% NLM capital subsidy).\n` +
-        `4. **Micro Food Processing:** Spices or flour processing unit (35% PMFME grant).\n\n` +
-        `Which of these sectors interests you the most?`;
-    }
-  }
-
-  if (questionType === 'SUBSIDY_QUESTION') {
-    if (langMode === 'hi_deva') {
-      return `जी हाँ ${name}! **${bTitle}** के लिए सरकार से आकर्षक सब्सिडी उपलब्ध है:\n\n` +
-        `• **नाबार्ड / AHIDF योजना:** पशुपालन व डेयरी प्रोजेक्ट पर 25% से 33.33% तक कैपिटल सब्सिडी मिलती है।\n` +
-        `• **PMEGP योजना:** ग्रामीण क्षेत्र में सूक्ष्म उद्योग के लिए 25% से 35% तक सब्सिडी मिलती है।\n` +
-        `• **राष्ट्रीय पशुधन मिशन (NLM):** बकरी पालन यूनिट पर 50% तक सब्सिडी उपलब्ध है।\n` +
-        `• **PMFME योजना:** खाद्य प्रसंस्करण में 35% तक सब्सिडी (अधिकतम ₹10 लाख) मिलती है।\n\n` +
-        `क्या आप इनमें से किसी योजना के लिए आवेदन प्रक्रिया जानना चाहते हैं?`;
-    } else if (langMode === 'te') {
-      return `అవును ${name}! **${bTitle}** కోసం ప్రభుత్వ రాయితీలు అందుబాటులో ఉన్నాయి:\n\n` +
-        `• **నాబార్డ్ / AHIDF పథకం:** ప్రాజెక్ట్ ఖర్చుపై 25% నుండి 33.33% వరకు రాయితీ లభిస్తుంది.\n` +
-        `• **PMEGP:** గ్రామీణ ప్రాంతాల్లో 25% - 35% సబ్సిడీ లభిస్తుంది.\n` +
-        `• **జాతీయ పశుసంవర్ధక మిషన్ (NLM):** మేకల పెంపకంపై 50% సబ్సిడీ లభిస్తుంది.\n\n` +
-        `మీరు సబ్సిడీ దరఖాస్తు విధానం గురించి తెలుసుకోవాలనుకుంటున్నారా?`;
-    } else if (langMode === 'hi_latin') {
-      return `Ji haan ${name}! **${bTitle}** ke liye sarkar se subsidy uplabdh hai:\n\n` +
-        `• **NABARD / AHIDF Yojana:** 25% se 33.33% tak ki capital subsidy milti hai.\n` +
-        `• **PMEGP Yojana:** Grameen area mein 25% se 35% tak ki subsidy milti hai.\n` +
-        `• **KCC Pashupalan:** 4% concessional interest rate par loan milta hai.\n\n` +
-        `Kya aap NABARD ya PMEGP subsidy application process ke bare mein janna chahte hain?`;
-    } else {
-      return `Yes, ${name}! Government subsidies are actively available for **${bTitle}**:\n\n` +
-        `• **NABARD / AHIDF Scheme:** 25% to 33.33% back-ended capital subsidy for livestock & dairy.\n` +
-        `• **PMEGP Scheme:** Up to 35% margin money subsidy in rural areas.\n` +
-        `• **NLM (National Livestock Mission):** Up to 50% subsidy for goat & poultry units.\n` +
-        `• **PMFME Scheme:** 35% subsidy for micro food processing units.\n\n` +
-        `Would you like step-by-step guidance on applying for these schemes?`;
-    }
-  }
-
-  if (questionType === 'LOAN_QUESTION') {
-    const budget = state.budget || 500000;
-    const loanAmt = Math.round(budget * 0.85);
-    const emi = Math.round((loanAmt * 0.08 / 12) / (1 - Math.pow(1 + 0.08 / 12, -60)));
-
-    if (langMode === 'hi_deva') {
-      return `**${formatINR(budget)}** के प्रोजेक्ट पर लगभग **${formatINR(loanAmt)}** (80%-85%) तक का बैंक ऋण मिल सकता है:\n\n` +
-        `• **ब्याज दर:** 7.5% - 8.5% वार्षिक (पशुपालन KCC पर मात्र 4%)\n` +
-        `• **अवधि:** 5 वर्ष (60 महीने)\n` +
-        `• **अनुमानित मासिक EMI:** लगभग **${formatINR(emi)}/माह**\n` +
-        `• **सब्सिडी लाभ:** नाबार्ड/PMEGP के तहत ₹1,25,000 से ₹1,65,000 तक की पूंजीगत सब्सिडी आपके ऋण खाते में क्रेडिट होगी।\n\n` +
-        `आप किस व्यवसाय के लिए ऋण की योजना बना रहे हैं?`;
-    } else if (langMode === 'te') {
-      return `**${formatINR(budget)}** ప్రాజెక్టుకు దాదాపు **${formatINR(loanAmt)}** వరకు బ్యాంకు రుణం లభిస్తుంది:\n\n` +
-        `• **వడ్డీ రేటు:** 7.5% - 8.5% వార్షికం (KCC ద్వారా 4%)\n` +
-        `• **నెలవారీ ఈఎమ్‌ఐ:** దాదాపు **${formatINR(emi)}/నెల**\n` +
-        `• **సబ్సిడీ:** ₹1.25 లక్షల నుండి ₹1.65 లక్షల వరకు రాయితీ లభిస్తుంది.\n\n` +
-        `మీరు ఏ వ్యాపారం కోసం రుణాన్ని ప్లాన్ చేస్తున్నారు?`;
-    } else {
-      return `For a **${formatINR(budget)}** project, you can avail a bank loan of approx. **${formatINR(loanAmt)}**:\n\n` +
-        `• **Interest Rate:** 7.5% - 8.5% p.a. (4% on Animal Husbandry KCC)\n` +
-        `• **Tenure:** 5 Years\n` +
-        `• **Estimated Monthly EMI:** approx. **${formatINR(emi)}/month**\n` +
-        `• **Subsidy Benefit:** ₹1,25,000 to ₹1,65,000 back-ended subsidy credited against loan.\n\n` +
-        `Which business sector are you planning to seek finance for?`;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Intelligent Dynamic Advisor Agent Engine (Female Persona)
- */
-function dynamicAgentReasoning({ message, conversation_state = {}, profile = {}, lang = 'hi' }) {
-  const langMode = detectLanguageMode(message, conversation_state.lang || lang);
-  const newlyExtracted = extractEntities(message, conversation_state);
-
-  // Infer Name from extraction, conversation_state, or profile
-  let resolvedName = newlyExtracted.name || conversation_state.name;
-  if (!resolvedName && profile?.name && profile.name !== 'Demo Entrepreneur') {
-    resolvedName = profile.name;
-  }
-  // If user was prompted for name on last turn, treat any simple reply as their name
-  if (!resolvedName && conversation_state.lastIntent === 'ASK_NAME' && message.trim()) {
-    const rawClean = message.trim().replace(/[।!?.,]/g, '');
-    if (rawClean.length <= 25 && !/(dairy|poultry|business|farming|lakh|loan|scheme|hello|hi|namaste)/i.test(rawClean)) {
-      resolvedName = rawClean;
-    }
-  }
-
-  // Infer District from extraction, conversation_state, or profile
-  let resolvedDistrict = newlyExtracted.district || conversation_state.district || profile?.district || profile?.village_name || null;
-  if (!resolvedDistrict && conversation_state.lastIntent === 'ASK_DISTRICT' && message.trim()) {
-    const rawClean = message.trim().replace(/[।!?.,]/g, '');
-    if (rawClean.length <= 30 && !/(dairy|poultry|business|farming|lakh|loan|scheme|haan|nahi|yes|no)/i.test(rawClean)) {
-      resolvedDistrict = rawClean;
-    }
-  }
-
-  // Merge updated entities into conversation state (NEVER overwrite non-null with null)
-  const state = {
-    name: resolvedName || null,
-    district: resolvedDistrict || null,
-    state: newlyExtracted.state || conversation_state.state || profile?.state || null,
-    business: newlyExtracted.business || conversation_state.business || profile?.business_interest || profile?.business_idea || null,
-    subCategory: newlyExtracted.subCategory || conversation_state.subCategory || null,
-    animalType: newlyExtracted.animalType || conversation_state.animalType || null,
-    quantity: newlyExtracted.quantity !== undefined && newlyExtracted.quantity !== null
-      ? newlyExtracted.quantity 
-      : (conversation_state.quantity || null),
-    productType: newlyExtracted.productType || conversation_state.productType || null,
-    budget: newlyExtracted.budget !== undefined && newlyExtracted.budget !== null 
-      ? newlyExtracted.budget 
-      : (conversation_state.budget || null),
-    landAvailable: newlyExtracted.landAvailable !== undefined && newlyExtracted.landAvailable !== null
-      ? newlyExtracted.landAvailable 
-      : (conversation_state.landAvailable !== undefined ? conversation_state.landAvailable : null),
-    shedAvailable: newlyExtracted.shedAvailable !== undefined && newlyExtracted.shedAvailable !== null
-      ? newlyExtracted.shedAvailable 
-      : (conversation_state.shedAvailable !== undefined ? conversation_state.shedAvailable : null),
-    feedFodder: newlyExtracted.feedFodder || conversation_state.feedFodder || null,
-    rawMaterial: newlyExtracted.rawMaterial || conversation_state.rawMaterial || null,
-    waterAvailable: newlyExtracted.waterAvailable !== undefined && newlyExtracted.waterAvailable !== null
-      ? newlyExtracted.waterAvailable 
-      : (conversation_state.waterAvailable !== undefined ? conversation_state.waterAvailable : null),
-    electricityAvailable: newlyExtracted.electricityAvailable !== undefined && newlyExtracted.electricityAvailable !== null
-      ? newlyExtracted.electricityAvailable 
-      : (conversation_state.electricityAvailable !== undefined ? conversation_state.electricityAvailable : null),
-    veterinaryAccess: newlyExtracted.veterinaryAccess !== undefined && newlyExtracted.veterinaryAccess !== null
-      ? newlyExtracted.veterinaryAccess 
-      : (conversation_state.veterinaryAccess !== undefined ? conversation_state.veterinaryAccess : null),
-    workspace: newlyExtracted.workspace || conversation_state.workspace || null,
-    salesChannel: newlyExtracted.salesChannel || conversation_state.salesChannel || null,
-    experience: newlyExtracted.experience || conversation_state.experience || null,
-    subsidyNeeded: newlyExtracted.subsidyNeeded !== undefined && newlyExtracted.subsidyNeeded !== null
-      ? newlyExtracted.subsidyNeeded 
-      : (conversation_state.subsidyNeeded !== undefined ? conversation_state.subsidyNeeded : null),
-    goal: newlyExtracted.goal || conversation_state.goal || null,
-    lastIntent: conversation_state.lastIntent || null,
-    lang: langMode
+  // Default Hindi
+  const bizTitles = {
+    DAIRY: 'डेयरी फार्मिंग बिजनेस',
+    AGRICULTURE: 'व्यावसायिक कृषि एवं खेती',
+    FOOD: 'खाद्य प्रसंस्करण एवं फूड बिजनेस',
+    RETAIL: 'रिटेल स्टोर एवं व्यापार',
+    MANUFACTURING: 'लघु विनिर्माण (मैन्युफैक्चरिंग) इकाई',
+    SERVICE: 'सर्विस एवं मेंटेनेंस व्यवसाय',
+    HANDICRAFT: 'हस्तशिल्प एवं कारीगरी इकाई',
+    DIGITAL: 'डिजिटल एवं ऑनलाइन सेवा उद्यम'
   };
+  const title = bizTitles[biz] || biz;
 
-  // Check if user asked an informational question mid-flow
-  const detectedQuestion = detectUserQuestion(message);
-  if (detectedQuestion) {
-    const questionAnswer = answerUserQuestion(detectedQuestion, state, langMode);
-    if (questionAnswer) {
-      state.lastIntent = detectedQuestion;
+  let whyFit = `${district} (${stateName}) में आपके बजट और उपलब्ध संसाधनों के अनुकूल यह व्यापार सही संतुलन देता है। यहाँ दैनिक स्थिर मांग उपलब्ध है।`;
+  let res = `कार्यस्थल, आवश्यक उपकरण, बिजली-पानी और शुरुआती कच्चा माल।`;
+  let income = '₹20,000 – ₹45,000 प्रतिमाह (स्थानीय बाजार व उत्पादन के आधार पर)।';
+  let setup = 'कार्यस्थल का निर्माण, बेसिक उद्यम/FSSAI रजिस्ट्रेशन और सप्लायर्स से अनुबंध।';
+  let market = answers.market || answers.target_customers || 'स्थानीय ग्राहक, किराना दुकानें व थोक बाजार।';
+  let risks = 'लागत में उतार-चढ़ाव और मौसम। (समाधान: बीमा एवं समय पर टीकाकरण/रखरखाव)।';
+  let schemes = 'पीएम मुद्रा योजना, PMEGP (25%–35% सब्सिडी), नाबार्ड एवं राज्य स्तरीय योजनाएं।';
+  let steps = '1. स्थान एवं आवश्यक सप्लायर फाइनल करें।\n2. जरूरी बेसिक ऑनलाइन रजिस्ट्रेशन पूरा करें।\n3. लोकल ग्राहकों से एडवांस ऑर्डर लेकर काम शुरू करें।';
+
+  return `🎉 **${title} — ${name} जी के लिए संपूर्ण बिजनेस विश्लेषण**
+
+1. **चुना गया व्यवसाय (Selected Business):**
+   **${title}**
+
+2. **यह आपके लिए क्यों उपयुक्त है:**
+   ${whyFit}
+
+3. **अनुमानित शुरुआती निवेश:**
+   **${budgetVal}** *(आपके बताए गए बजट और शुरुआती आवश्यकताओं के अनुसार)*
+
+4. **आवश्यक संसाधन:**
+   ${res}
+
+5. **संभावित आय सीमा:**
+   **${income}**
+
+6. **बुनियादी आवश्यकताएं (Setup):**
+   ${setup}
+
+7. **संभावित ग्राहक व बाजार:**
+   ${market}
+
+8. **मुख्य जोखिम व समाधान:**
+   ${risks}
+
+9. **सरकारी योजनाएं व सब्सिडी:**
+   ${schemes}
+
+10. **शुरुआत के आसान कदम:**
+${steps}
+
+---
+⚠️ *ध्यान दें: यहाँ बताया गया निवेश और आय अनुमानित (estimates) हैं। वास्तविक लाभ आपके क्षेत्र की मांग, लागत, प्रतिस्पर्धा और प्रबंधन पर निर्भर करता है।*`;
+}
+
+/**
+ * Main Conversational Engine supporting Language as the Source of Truth
+ */
+function processConversationalTurn({ message, conversation_state = {}, lang = 'en' }) {
+  const selectedLang = normalizeLang(lang || conversation_state.lang || 'en');
+  const userText = (message || '').trim();
+  const state = { ...conversation_state };
+
+  // Store current selected language in state
+  state.lang = selectedLang;
+
+  // Defaults
+  state.name = state.name || null;
+  state.state = state.state || null;
+  state.district = state.district || null;
+  state.business = state.business || null;
+  state.flowType = state.flowType || null; // 'own_idea' or 'suggest'
+  state.step = state.step || 'START';
+  state.currentQuestionIndex = state.currentQuestionIndex !== undefined ? state.currentQuestionIndex : 0;
+  state.answers = state.answers || {};
+
+  // Compound Extraction from user's current message
+  const compound = extractCompoundEntities(userText, state);
+  if (compound.name && !state.name) state.name = compound.name;
+  if (compound.state && !state.state) state.state = compound.state;
+  if (compound.district && !state.district) state.district = compound.district;
+  if (compound.budget) {
+    state.answers.budget = compound.budget;
+    state.answers.dairy_budget = compound.budget;
+  }
+  if (compound.land) {
+    state.answers.land = compound.land;
+    state.answers.dairy_land = compound.land;
+    state.answers.agri_land = compound.land;
+  }
+  if (compound.space) {
+    state.answers.space = compound.space;
+    state.answers.dairy_space = compound.space;
+  }
+  if (compound.animals) {
+    state.answers.animals = "2-5";
+    state.answers.dairy_animals = compound.animals;
+  }
+  let justIdentifiedBusiness = false;
+  if (compound.business && !state.business) {
+    state.business = compound.business;
+    state.businessType = compound.business.toLowerCase();
+    justIdentifiedBusiness = true;
+  }
+  if (state.business && !state.businessType) {
+    state.businessType = state.business.toLowerCase();
+  }
+
+  // Check for "I don't know" / unsure
+  const lower = userText.toLowerCase();
+  const isUnsure = /\b(don't know|dont know|not sure|pata nahi|nahi pata|idea nahi|samajh nahi|decide nahi|తెలియదు|ఖచ్చితంగా తెలియదు)\b/i.test(lower);
+
+  // --------------------------------------------------------------------------
+  // STEP 1: ASK NAME
+  // --------------------------------------------------------------------------
+  if (state.step === 'START' || !state.name) {
+    if (userText && !compound.name && state.step === 'ASK_NAME') {
+      const cleanName = userText.replace(/[^\w\s\u0900-\u097F\u0C00-\u0C7F]/gi, '').trim();
+      const forbidden = ['hello', 'hi', 'namaste', 'dairy', 'farming', 'yes', 'no', 'నమస్కారం', 'హలో'];
+      if (cleanName.length >= 2 && !forbidden.includes(cleanName.toLowerCase())) {
+        state.name = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+      }
+    }
+
+    if (!state.name) {
+      state.step = 'ASK_NAME';
+      const qObj = INITIAL_QUESTIONS.ask_name;
+      const msg = qObj.message[selectedLang];
       return {
-        reply: questionAnswer,
-        speak_text: cleanForSpeech(questionAnswer),
-        conversation_state: state,
-        intent: detectedQuestion
+        message: msg,
+        language: selectedLang,
+        questionId: qObj.questionId,
+        quickReplies: qObj.quickReplies[selectedLang],
+        business: null,
+        step: 1,
+        waitingForAnswer: true,
+        reply: msg,
+        speak_text: cleanForSpeech(msg),
+        conversation_state: state
       };
     }
   }
 
-  // If business is ALREADY known, proceed straight into that Business Domain Advisory!
+  // --------------------------------------------------------------------------
+  // STEP 2: ASK STATE
+  // --------------------------------------------------------------------------
+  if (state.name && !state.state) {
+    if (userText && state.step === 'ASK_STATE') {
+      const matched = COMMON_STATES.find(s => s.toLowerCase() === lower || lower.includes(s.toLowerCase()));
+      if (matched) {
+        state.state = matched;
+      } else if (compound.state) {
+        state.state = compound.state;
+      } else if (userText.length >= 2 && !['yes', 'no', 'namaste'].includes(lower)) {
+        state.state = userText.charAt(0).toUpperCase() + userText.slice(1);
+      }
+    }
+
+    if (!state.state) {
+      state.step = 'ASK_STATE';
+      const qObj = INITIAL_QUESTIONS.ask_state;
+      const msg = qObj.message[selectedLang](state.name);
+      return {
+        message: msg,
+        language: selectedLang,
+        questionId: qObj.questionId,
+        quickReplies: qObj.quickReplies[selectedLang],
+        business: null,
+        step: 2,
+        waitingForAnswer: true,
+        reply: msg,
+        speak_text: cleanForSpeech(msg),
+        conversation_state: state
+      };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 3: ASK DISTRICT
+  // --------------------------------------------------------------------------
+  if (state.name && state.state && !state.district) {
+    if (userText && state.step === 'ASK_DISTRICT') {
+      const cleanDist = userText.replace(/[^\w\s\u0900-\u097F\u0C00-\u0C7F]/gi, '').trim();
+      const forbidden = ['yes', 'no', 'dairy', 'farming', 'state', 'district', 'lakh', 'avunu', 'ledu'];
+      if (cleanDist.length >= 2 && !forbidden.includes(cleanDist.toLowerCase())) {
+        state.district = cleanDist.charAt(0).toUpperCase() + cleanDist.slice(1);
+      }
+    }
+
+    if (!state.district) {
+      state.step = 'ASK_DISTRICT';
+      const qObj = INITIAL_QUESTIONS.ask_district;
+      const msg = qObj.message[selectedLang];
+      return {
+        message: msg,
+        language: selectedLang,
+        questionId: qObj.questionId,
+        quickReplies: qObj.quickReplies[selectedLang],
+        business: null,
+        step: 3,
+        waitingForAnswer: true,
+        reply: msg,
+        speak_text: cleanForSpeech(msg),
+        conversation_state: state
+      };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 4: IDEA CHECK
+  // --------------------------------------------------------------------------
+  if (state.name && state.state && state.district && !state.business && !state.flowType) {
+    if (userText && state.step === 'ASK_IDEA_CHECK') {
+      if (/\b(own_idea|mere paas|idea hai|i have an idea|నా దగ్గర ఆలోచన|own idea|yes|already)\b/i.test(lower)) {
+        state.flowType = 'own_idea';
+      } else if (/\b(suggest|aap suggest|suggest a business|మీరు సూచించండి|no|nahi|recommend)\b/i.test(lower)) {
+        state.flowType = 'suggest';
+      } else {
+        const detected = normalizeBusiness(userText);
+        if (detected) {
+          state.business = detected;
+          state.businessType = detected.toLowerCase();
+          state.flowType = 'own_idea';
+          justIdentifiedBusiness = true;
+        }
+      }
+    }
+
+    if (!state.flowType && !state.business) {
+      state.step = 'ASK_IDEA_CHECK';
+      const qObj = INITIAL_QUESTIONS.idea_check;
+      const msg = qObj.message[selectedLang];
+      return {
+        message: msg,
+        language: selectedLang,
+        questionId: qObj.questionId,
+        quickReplies: qObj.quickReplies[selectedLang],
+        business: null,
+        step: 4,
+        waitingForAnswer: true,
+        reply: msg,
+        speak_text: cleanForSpeech(msg),
+        conversation_state: state
+      };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 5: CHOOSE BUSINESS
+  // --------------------------------------------------------------------------
   if (!state.business) {
-    // --------------------------------------------------------------------------
-    // STAGE 1: ASK NAME (Only if name is missing AND not already asked)
-    // --------------------------------------------------------------------------
-    if (!state.name && conversation_state.lastIntent !== 'ASK_NAME') {
-      state.lastIntent = 'ASK_NAME';
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `नमस्ते! मैं उद्यमसारथी हूँ, आपकी एआई बिजनेस एडवाइजर। मैं आपको नया व्यवसाय शुरू करने या बढ़ाने में मदद करूँगी।\n\nसबसे पहले, क्या मैं आपका नाम जान सकती हूँ?`;
-      } else if (langMode === 'te') {
-        reply = `నమస్కారం! నేను ఉద్యమ్‌సారథిని, మీ ఏఐ వ్యాపార సలహాదారుని. వ్యాపారం ప్రారంభించడానికి మరియు వృద్ధి చేయడానికి నేను మీకు సహాయం చేస్తాను.\n\nముందుగా, మీ పేరు ఏమిటి?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Namaste! Main UdyamSarthi hoon, aapki AI business advisor. Main aapko business start ya grow karne mein help karungi.\n\nSabse pehle, kya main aapka naam jaan sakti hoon?`;
-      } else {
-        reply = `Namaste! I am UdyamSarthi, your AI Business Advisor. I will help you start and scale your enterprise.\n\nFirst, may I know your name?`;
+    if (userText && (state.step === 'ASK_BUSINESS_SELECTION' || state.step === 'ASK_IDEA_CHECK')) {
+      const detected = normalizeBusiness(userText);
+      if (detected) {
+        state.business = detected;
+        state.businessType = detected.toLowerCase();
+        justIdentifiedBusiness = true;
       }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'ASK_NAME'
-      };
     }
 
-    // --------------------------------------------------------------------------
-    // STAGE 2: ASK DISTRICT (Only if district missing AND not already asked)
-    // --------------------------------------------------------------------------
-    if (!state.district && conversation_state.lastIntent !== 'ASK_DISTRICT') {
-      state.lastIntent = 'ASK_DISTRICT';
-      const namePrefix = state.name ? `${state.name} जी` : 'जी';
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `बहुत अच्छा ${namePrefix}। आप किस जिले या गाँव में अपना व्यवसाय शुरू करना चाहते हैं?`;
-      } else if (langMode === 'te') {
-        reply = `చాలా మంచిది ${state.name ? state.name + ' గారు' : ''}. మీరు ఏ జిల్లా లేదా గ్రామంలో వ్యాపారం ప్రారంభించాలనుకుంటున్నారు?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Bahut achha ${state.name || ''} ji. Aap kis district ya village mein business shuru karna chahte hain?`;
-      } else {
-        reply = `Thank you ${state.name || ''}. Which district or village do you want to start your business in?`;
-      }
+    if (!state.business) {
+      state.step = 'ASK_BUSINESS_SELECTION';
+      const qObj = state.flowType === 'own_idea' ? INITIAL_QUESTIONS.choose_business_own : INITIAL_QUESTIONS.choose_business_suggest;
+      const msg = qObj.message[selectedLang];
       return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'ASK_DISTRICT'
+        message: msg,
+        language: selectedLang,
+        questionId: qObj.questionId,
+        quickReplies: qObj.quickReplies[selectedLang],
+        business: null,
+        step: 5,
+        waitingForAnswer: true,
+        reply: msg,
+        speak_text: cleanForSpeech(msg),
+        conversation_state: state
       };
     }
-
-    // --------------------------------------------------------------------------
-    // STAGE 3: ASK BUSINESS IDEA
-    // --------------------------------------------------------------------------
-    state.lastIntent = 'ASK_BUSINESS_IDEA';
-    const locTxt = state.district ? `${state.district} में ` : '';
-    let reply = '';
-    if (langMode === 'hi_deva') {
-      reply = `बहुत बढ़िया। ${locTxt}आप किस प्रकार का व्यवसाय शुरू करना चाहते हैं — जैसे डेयरी फार्मिंग, पोल्ट्री, बकरी पालन, या खाद्य प्रसंस्करण?`;
-    } else if (langMode === 'te') {
-      reply = `చాలా బాగుంది. ${state.district ? state.district + 'లో ' : ''}మీరు ఏ రకమైన వ్యాపారం ప్రారంభించాలనుకుంటున్నారు — పాడి పరిశ్రమ, పౌల్ట్రీ, మేకల పెంపకం లేదా ఆహార ప్రాసెసింగ్?`;
-    } else if (langMode === 'hi_latin') {
-      reply = `Bahut badhiya. ${locTxt}aap kis type ka business shuru karna chahte hain — jaise dairy farming, poultry, goat farming, ya food processing?`;
-    } else {
-      reply = `Great. What type of business would you like to start ${state.district ? 'in ' + state.district : ''} — such as dairy farming, poultry farming, goat farming, or food processing?`;
-    }
-    return {
-      reply,
-      speak_text: cleanForSpeech(reply),
-      conversation_state: state,
-      intent: 'ASK_BUSINESS_IDEA'
-    };
   }
 
   // --------------------------------------------------------------------------
-  // STAGE 4: DYNAMIC BUSINESS-SPECIFIC ADVISORY (4 RURAL DOMAINS)
+  // BUSINESS FLOW QUESTIONS (DAIRY, AGRICULTURE, FOOD, RETAIL, etc.)
   // --------------------------------------------------------------------------
+  const questions = BUSINESS_FLOWS_I18N[state.business] || BUSINESS_FLOWS_I18N.DAIRY;
 
-  // ==========================================================================
-  // DOMAIN 1: DAIRY FARMING
-  // ==========================================================================
-  if (state.business === 'Dairy Farming') {
-    // If district not known and hasn't been asked yet:
-    if (!state.district && conversation_state.lastIntent !== 'DAIRY_ASK_LOCATION') {
-      state.lastIntent = 'DAIRY_ASK_LOCATION';
-      const nameTxt = state.name ? `${state.name} जी` : 'जी';
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `शानदार ${nameTxt}! डेयरी फार्मिंग दैनिक नकद आय का सबसे मजबूत स्रोत है। आप किस जिले या गाँव में यह फार्म शुरू करना चाहते हैं?`;
-      } else if (langMode === 'te') {
-        reply = `చాలా మంచి ఆలోచన! మీరు ఏ జిల్లా లేదా గ్రామంలో పాడి పరిశ్రమ ప్రారంభించాలనుకుంటున్నారు?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Shandar ${state.name || ''} ji! Dairy farming daily cashflow ka best business hai. Aap kis district ya gaon mein setup karna chahte hain?`;
-      } else {
-        reply = `Excellent! Dairy farming is a reliable daily cashflow enterprise. Which district or village are you planning to set this up in?`;
-      }
+  // Immediately after successfully identifying business: ask Question 1 without stopping!
+  if (justIdentifiedBusiness) {
+    const nextQ = getNextUnansweredQuestion(questions, state.answers);
+    if (nextQ) {
+      state.step = `BIZ_Q_${nextQ.index}`;
+      state.currentQuestionIndex = nextQ.index;
+
+      const acks = {
+        en: "Great! Let's understand your requirements step by step.\n\n",
+        hi: "बहुत अच्छा! आइए चरणबद्ध तरीके से आपकी आवश्यकताएं समझते हैं।\n\n",
+        te: "చాలా మంచిది! మీ అవసరాలను దశలవారీగా అర్థం చేసుకుందాం.\n\n"
+      };
+      const ack = acks[selectedLang] || acks.en;
+      const qMsg = nextQ.question.message[selectedLang] || nextQ.question.message.en;
+      const fullMsg = `${ack}${qMsg}`;
+      const qReplies = nextQ.question.quickReplies[selectedLang] || nextQ.question.quickReplies.en;
+
       return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'DAIRY_ASK_LOCATION'
+        message: fullMsg,
+        language: selectedLang,
+        questionId: nextQ.question.questionId,
+        quickReplies: qReplies,
+        business: state.business,
+        step: nextQ.index + 1,
+        waitingForAnswer: true,
+        reply: fullMsg,
+        speak_text: cleanForSpeech(fullMsg),
+        conversation_state: state
       };
     }
-
-    // A. If user mentioned budget first, acknowledge budget and check land & shed
-    if (state.budget && (state.landAvailable === null || state.shedAvailable === null) && conversation_state.lastIntent !== 'DAIRY_ASK_LAND_SHED') {
-      state.lastIntent = 'DAIRY_ASK_LAND_SHED';
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `यह एक बहुत अच्छी शुरुआत है ${state.name || ''} जी। क्या आपके पास पहले से जमीन और पशु शेड उपलब्ध है?`;
-      } else if (langMode === 'te') {
-        reply = `ఇది మంచి ప్రారంభం ${state.name || ''} గారు. మీ వద్ద ముందే సొంత స్థలం మరియు పశువుల షెడ్ అందుబాటులో ఉందా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Yeh ek acchi shuruaat hai ${state.name || ''} ji. Kya aapke paas pehle se land aur cattle shed available hai?`;
-      } else {
-        reply = `That's a good start, ${state.name || ''}. Do you already have land and a cattle shed available?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'DAIRY_ASK_LAND_SHED'
-      };
-    }
-
-    // B. If land & shed are known, or if budget wasn't provided first, ask number of animals
-    if (!state.quantity && !state.animalType) {
-      let reply = '';
-      const shedNote = state.shedAvailable === false 
-        ? (langMode === 'hi_deva' ? 'समझ गई, शेड निर्माण की योजना के साथ, ' : (langMode === 'hi_latin' ? 'Samajh gayi, shed banane ke saath, ' : 'Understood. Since you will need to construct a shed, '))
-        : '';
-
-      if (langMode === 'hi_deva') {
-        reply = `${shedNote}आप डेयरी में कितने पशुओं (गाय या भैंस) से शुरुआत करने की योजना बना रहे हैं?`;
-      } else if (langMode === 'te') {
-        reply = `మీరు పాడి పరిశ్రమలో ఎన్ని ఆవులు లేదా గేదెలతో ప్రారంభించాలనుకుంటున్నారు?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `${shedNote}aap dairy farming mein kitne cows ya buffaloes se shuruaat karna chahte hain?`;
-      } else {
-        reply = `${shedNote}how many cows or buffaloes are you planning to keep?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'DAIRY_ASK_ANIMALS'
-      };
-    }
-
-    // C. If land & shed still unknown (user told animals first)
-    if (state.landAvailable === null || state.shedAvailable === null) {
-      const animalTxt = state.quantity ? `${state.quantity} ${state.animalType || 'पशुओं'}` : 'डेयरी फार्मिंग';
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `समझ गई ${state.name} जी। ${animalTxt} के लिए क्या आपके पास पहले से जमीन और पशु शेड उपलब्ध है?`;
-      } else if (langMode === 'te') {
-        reply = `అర్థమైంది ${state.name} గారు. మీ వద్ద ముందే సొంత స్థలం మరియు పశువుల షెడ్ అందుబాటులో ఉందా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Samajh gayi ${state.name} ji. ${animalTxt} ke liye kya aapke paas pehle se land aur cattle shed available hai?`;
-      } else {
-        reply = `Understood, ${state.name}. Do you already have land and a cattle shed available for ${animalTxt}?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'DAIRY_ASK_INFRA'
-      };
-    }
-
-    // D. Investment Budget (if not already known)
-    if (!state.budget) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `बहुत अच्छा। इस डेयरी सेटअप के लिए आपका अनुमानित निवेश बजट कितना है?`;
-      } else if (langMode === 'te') {
-        reply = `చాలా మంచిది. ఈ పాడి పరిశ్రమ కోసం మీ వద్ద అందుబాటులో ఉన్న పెట్టుబడి బడ్జెట్ ఎంత?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Bahut achha. Is dairy setup ke liye aapka approximate investment budget kitna hai?`;
-      } else {
-        reply = `What is your approximate investment budget for this dairy farm?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'DAIRY_ASK_BUDGET'
-      };
-    }
-
-    // E. Green Fodder & Water
-    if (!state.feedFodder) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `पशुओं के लिए क्या आपके पास हरा चारा और स्वच्छ पानी आसानी से उपलब्ध है, या आप बाजार से सूखा चारा व दाना खरीदेंगे?`;
-      } else if (langMode === 'te') {
-        reply = `పశువులకు పచ్చిగడ్డి సాగు చేయడానికి నీరు మరియు స్థలం అందుబాటులో ఉందా, లేక మార్కెట్ నుండి కొనుగోలు చేస్తారా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Pashuon ke liye kya aapke paas hara chara aur paani easily available hai, ya aap market se feed khareedenge?`;
-      } else {
-        reply = `Is green fodder and clean water easily available at your location, or will you purchase cattle feed from the market?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'DAIRY_ASK_FODDER'
-      };
-    }
-
-    // F. Sales Channel
-    if (!state.salesChannel) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `दूध की बिक्री आप कहाँ करेंगे — स्थानीय ग्राहकों को, दुकानों/होटलों में, या नजदीकी डेयरी कलेक्शन सेंटर में?`;
-      } else if (langMode === 'te') {
-        reply = `పాల విక్రయం మీరు స్థానిక కస్టమర్లకు, హోటళ్లకు చేస్తారా లేక డైరీ కలెక్షన్ సెంటర్‌కా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Doodh ki bikri aap kahan karenge — local customers ko, shops/hotels mein, ya nearby dairy collection center mein?`;
-      } else {
-        reply = `Will you produce milk for local customers, shops, hotels, or dairy collection centers?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'DAIRY_ASK_SALES'
-      };
-    }
-
-    // G. Comprehensive Personalized Dairy Feasibility Advisory
-    const qty = state.quantity || 4;
-    const animal = state.animalType || 'भैंस';
-    const isBuffalo = /buffalo|भैंस|గేదె/i.test(animal);
-    const dailyLitres = qty * (isBuffalo ? 10 : 12);
-    const milkRate = isBuffalo ? 55 : 42;
-    const grossDaily = dailyLitres * milkRate;
-    const grossMonthly = grossDaily * 30;
-    const netMonthly = Math.round(grossMonthly * 0.42);
-    const budgetFmt = formatINR(state.budget);
-
-    let reply = '';
-    if (langMode === 'hi_deva') {
-      reply = `शानदार ${state.name} जी! ${state.district} में आपकी डेयरी फार्मिंग योजना तैयार है:\n\n` +
-        `• **पशु:** ${qty} ${animal}\n` +
-        `• **अनुमानित दैनिक दूध उत्पादन:** लगभग ${dailyLitres} लीटर/दिन\n` +
-        `• **निवेश बजट:** ${budgetFmt}\n` +
-        `• **अनुमानित मासिक शुद्ध आय:** लगभग ${formatINR(netMonthly)}/माह\n\n` +
-        `**उद्यमसारथी वित्तीय व सरकारी सहायता रणनीति:**\n` +
-        `1. **नाबार्ड / AHIDF योजना:** इस प्रोजेक्ट पर 25% से 33.33% तक कैपिटल सब्सिडी उपलब्ध है।\n` +
-        `2. **पशुपालन KCC:** मात्र 4% रियायती ब्याज दर पर कार्यशील पूंजी ऋण मिल सकता है।\n` +
-        `3. ${state.salesChannel === 'dairy collection center' ? 'डेयरी कलेक्शन सेंटर में नियमित भुगतान और फैट आधारित बोनस सुनिश्चित रहेगा।' : 'स्थानीय ग्राहकों व दुकानों को सीधे आपूर्ति से अधिकतम लाभ मार्जिन मिलेगा।'}\n\n` +
-        `क्या आप नाबार्ड सब्सिडी के लिए आवेदन प्रक्रिया और आवश्यक दस्तावेजों के बारे में जानना चाहते हैं?`;
-    } else if (langMode === 'te') {
-      reply = `చాలా బాగుంది ${state.name} గారు! ${state.district}లో మీ పాడి పరిశ్రమ ప్రణాళిక సిద్ధమైంది:\n\n` +
-        `• **పశువులు:** ${qty} ${animal}\n` +
-        `• **రోజువారీ పాల ఉత్పత్తి:** దాదాపు ${dailyLitres} లీటర్లు/రోజు\n` +
-        `• **పెట్టుబడి బడ్జెట్:** ${budgetFmt}\n` +
-        `• **అంచనా నికర ఆదాయం:** దాదాపు ${formatINR(netMonthly)}/నెల\n\n` +
-        `నాబార్డ్ పథకం ద్వారా 25% నుండి 33.33% సబ్సిడీ మరియు కేవలం 4% వడ్డీతో KCC రుణం లభిస్తుంది. మీరు సబ్సిడీ దరఖాస్తు విధానం గురించి తెలుసుకోవాలనుకుంటున్నారా?`;
-    } else if (langMode === 'hi_latin') {
-      reply = `Shandar ${state.name} ji! ${state.district} mein aapki dairy farming scheme ready hai:\n\n` +
-        `• **Animals:** ${qty} ${animal}\n` +
-        `• **Estimated Milk Yield:** approx. ${dailyLitres} Litres/day\n` +
-        `• **Budget:** ${budgetFmt}\n` +
-        `• **Estimated Net Income:** approx. ${formatINR(netMonthly)}/month\n\n` +
-        `**Govt Support & Subsidies:**\n` +
-        `1. **NABARD / AHIDF:** 25% se 33.33% capital subsidy uplabdh hai.\n` +
-        `2. **KCC Pashupalan:** Concessional 4% interest rate working capital loan.\n\n` +
-        `Kya aap NABARD subsidy application process ke bare mein aur detail janna chahte hain?`;
-    } else {
-      reply = `Excellent, ${state.name}! Your personalized dairy enterprise plan in ${state.district} is structured:\n\n` +
-        `• **Livestock Unit:** ${qty} ${animal}\n` +
-        `• **Projected Milk Production:** ~${dailyLitres} Litres/day\n` +
-        `• **Budget:** ${budgetFmt}\n` +
-        `• **Projected Net Income:** approx. ${formatINR(netMonthly)}/month\n\n` +
-        `**Financial Advisory & Government Incentives:**\n` +
-        `1. **NABARD / AHIDF Scheme:** 25% to 33.33% back-ended capital subsidy.\n` +
-        `2. **Animal Husbandry KCC:** Working capital loans at 4% concessional interest rate.\n\n` +
-        `Would you like guidance on applying for the NABARD subsidy and bank loan documentation?`;
-    }
-    return {
-      reply,
-      speak_text: cleanForSpeech(reply),
-      conversation_state: state,
-      intent: 'DAIRY_COMPLETE_ADVICE'
-    };
   }
 
-  // ==========================================================================
-  // DOMAIN 2: POULTRY FARMING
-  // ==========================================================================
-  if (state.business === 'Poultry Farming') {
-    // 1. Broiler vs Layer
-    if (!state.subCategory) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `पोल्ट्री फार्मिंग बहुत लाभदायक व्यवसाय है। आप ब्रायलर (मांस उत्पादन) शुरू करना चाहते हैं या लेयर (अंडा उत्पादन)?`;
-      } else if (langMode === 'te') {
-        reply = `పౌల్ట్రీ ఫార్మింగ్ చాలా లాభదాయకమైనది. మీరు బ్రాయిలర్ (చికెన్ మాంసం) ప్రారంభించాలనుకుంటున్నారా లేక లేయర్ (గుడ్ల ఉత్పత్తి)నా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Poultry farming bahut faydemand business hai. Aap broiler (chicken meat) shuru karna chahte hain ya layer (egg production)?`;
-      } else {
-        reply = `Poultry farming is a high-growth business. Do you want to start broiler or layer poultry farming?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'POULTRY_ASK_TYPE'
-      };
-    }
+  // Record answer to previous question if answering an active step
+  if (state.step.startsWith('BIZ_Q_')) {
+    const prevIdx = parseInt(state.step.replace('BIZ_Q_', ''), 10);
+    const prevQuestionObj = questions[prevIdx];
+    if (prevQuestionObj && userText) {
+      // Land validation for "I don't know"
+      if (isUnsure && (prevQuestionObj.key === 'land' || prevQuestionObj.key === 'dairy_land' || prevQuestionObj.key === 'agri_land')) {
+        const landValidation = {
+          en: {
+            msg: "No problem. Can you tell the approximate land area?",
+            buttons: [
+              { label: "No Land", value: "No land" },
+              { label: "Less than 1 Acre", value: "Less than 1 Acre" },
+              { label: "1–2 Acres", value: "1–2 Acres" },
+              { label: "2–5 Acres", value: "2–5 Acres" },
+              { label: "More than 5 Acres", value: "More than 5 Acres" }
+            ]
+          },
+          hi: {
+            msg: "Koi problem nahi. Aap approximate area bata sakte hain?",
+            buttons: [
+              { label: "कोई जमीन नहीं", value: "No land" },
+              { label: "1 एकड़ से कम", value: "Less than 1 Acre" },
+              { label: "1–2 एकड़", value: "1–2 Acres" },
+              { label: "2–5 एकड़", value: "2–5 Acres" },
+              { label: "5 एकड़ से अधिक", value: "More than 5 Acres" }
+            ]
+          },
+          te: {
+            msg: "సమస్య లేదు. సుమారు ఎంత భూమి అందుబాటులో ఉందో చెప్పగలరా?",
+            buttons: [
+              { label: "భూమి లేదు", value: "No land" },
+              { label: "1 ఎకరం కంటే తక్కువ", value: "Less than 1 Acre" },
+              { label: "1–2 ఎకరాలు", value: "1–2 Acres" },
+              { label: "2–5 ఎకరాలు", value: "2–5 Acres" },
+              { label: "5 ఎకరాల కంటే ఎక్కువ", value: "More than 5 Acres" }
+            ]
+          }
+        };
 
-    // 2. Quantity (Bird Count)
-    if (!state.quantity) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `बहुत बढ़िया। आप शुरुआत में कितने पक्षियों (जैसे 500 या 1000 birds) से फार्म शुरू करने की योजना बना रहे हैं?`;
-      } else if (langMode === 'te') {
-        reply = `చాలా మంచిది. మీరు బ్యాచ్‌లో ఎన్ని కోళ్లతో (ఉదాహరణకు 500 లేదా 1000 birds) ప్రారంభించాలనుకుంటున్నారు?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Bahut badhiya. Aap batch mein kitne birds (jaise 500 ya 1000 birds) rakhne ki yojana bana rahe hain?`;
-      } else {
-        reply = `Great! How many birds are you planning to keep in your batch (e.g. 500, 1000, or 2000 birds)?`;
+        const v = landValidation[selectedLang];
+        return {
+          message: v.msg,
+          language: selectedLang,
+          questionId: 'land_unsure_validation',
+          quickReplies: v.buttons,
+          business: state.business,
+          step: prevIdx + 1,
+          waitingForAnswer: true,
+          reply: v.msg,
+          speak_text: cleanForSpeech(v.msg),
+          conversation_state: state
+        };
       }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'POULTRY_ASK_BIRDS'
-      };
-    }
 
-    // 3. Shed & Electricity/Water
-    if (state.shedAvailable === null || state.landAvailable === null) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `क्या आपके पास पोल्ट्री शेड, जमीन और बिजली-पानी की उचित व्यवस्था उपलब्ध है?`;
-      } else if (langMode === 'te') {
-        reply = `మీ వద్ద పౌల్ట్రీ షెడ్ మరియు నిరంతర విద్యుత్, తాగునీటి సదుపాయం అందుబాటులో ఉందా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Kya aapke paas poultry shed, zameen aur electricity-water ki arrangement available hai?`;
-      } else {
-        reply = `Do you already have a poultry shed and land with reliable electricity and clean water?`;
+      let normalizedAnswer = userText;
+      // Normalization for Animal Count ("around 5" -> "2-5" / "2–5 animals")
+      if (prevQuestionObj.key === 'dairy_animals' || prevQuestionObj.key === 'animals') {
+        const parsed = parseAnimalCount(userText);
+        if (parsed) normalizedAnswer = parsed;
       }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'POULTRY_ASK_SHED'
-      };
-    }
-
-    // 4. Budget
-    if (!state.budget) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `इस पोल्ट्री सेटअप के लिए आपका अनुमानित निवेश बजट कितना है?`;
-      } else if (langMode === 'te') {
-        reply = `ఈ పౌల్ట్రీ యూనిట్ కోసం మీ వద్ద ఉన్న పెట్టుబడి బడ్జెట్ ఎంత?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Is poultry setup ke liye aapka approximate investment budget kitna hai?`;
-      } else {
-        reply = `What is your approximate investment budget for this poultry farm?`;
+      // Normalization for Budget
+      else if ((prevQuestionObj.key === 'budget' || prevQuestionObj.key === 'dairy_budget') && compound.budget) {
+        normalizedAnswer = compound.budget;
       }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'POULTRY_ASK_BUDGET'
-      };
-    }
-
-    // 5. Sales Channel / Contract
-    if (!state.salesChannel) {
-      let reply = '';
-      if (state.subCategory === 'Broiler') {
-        if (langMode === 'hi_deva') {
-          reply = `क्या आप तैयार चिकन सीधे स्थानीय दुकानों/होलसेलरों को बेचेंगे, या किसी कंपनी के साथ कॉन्ट्रैक्ट फार्मिंग करेंगे?`;
-        } else {
-          reply = `Will you sell directly to local butcher shops and wholesalers, or partner with a company for contract poultry farming?`;
-        }
-      } else {
-        if (langMode === 'hi_deva') {
-          reply = `अंडों की बिक्री आप स्थानीय किराना दुकानों व बेकरियों में करेंगे या होलसेल व्यापारियों को?`;
-        } else {
-          reply = `Where will you sell the eggs — to local bakeries/shops or wholesale egg traders?`;
+      // Normalization for Land / Space
+      else if ((prevQuestionObj.key === 'land' || prevQuestionObj.key === 'dairy_land' || prevQuestionObj.key === 'agri_land') && compound.land) {
+        normalizedAnswer = compound.land;
+      }
+      else if ((prevQuestionObj.key === 'space' || prevQuestionObj.key === 'dairy_space' || prevQuestionObj.key === 'food_space' || prevQuestionObj.key === 'mfg_space') && compound.space) {
+        normalizedAnswer = compound.space;
+      }
+      // Check quick-replies across all languages (en, hi, te)
+      else if (prevQuestionObj.quickReplies) {
+        for (const lCode of ['en', 'hi', 'te']) {
+          const list = prevQuestionObj.quickReplies[lCode];
+          if (Array.isArray(list)) {
+            const matched = list.find(qr => 
+              (qr.label && qr.label.toLowerCase() === userText.toLowerCase()) ||
+              (qr.value && qr.value.toLowerCase() === userText.toLowerCase())
+            );
+            if (matched) {
+              normalizedAnswer = matched.value;
+              break;
+            }
+          }
         }
       }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'POULTRY_ASK_MARKET'
-      };
-    }
 
-    // 6. Comprehensive Poultry Advisory
-    const birds = state.quantity || 1000;
-    const budgetFmt = formatINR(state.budget);
-    const estProfitPerBatch = state.subCategory === 'Broiler' ? birds * 32 : Math.round(birds * 25);
-
-    let reply = '';
-    if (langMode === 'hi_deva') {
-      reply = `बहुत बढ़िया ${state.name} जी! ${state.district} में ${birds} पक्षियों के साथ ${state.subCategory} पोल्ट्री फार्मिंग योजना:\n\n` +
-        `• **यूनिट क्षमता:** ${birds} पक्षी (${state.subCategory})\n` +
-        `• **निवेश बजट:** ${budgetFmt}\n` +
-        `• **अनुमानित लाभ प्रति चक्र:** लगभग ${formatINR(estProfitPerBatch)} (35-42 दिन का चक्र)\n\n` +
-        `**उद्यमसारथी वित्तीय व सरकारी सहायता रणनीति:**\n` +
-        `1. **PMEGP योजना:** ग्रामीण क्षेत्र में पोल्ट्री फार्मिंग के लिए 25% से 35% तक सरकारी सब्सिडी मिलती है।\n` +
-        `2. ${state.salesChannel === 'contract farming' ? 'कॉन्ट्रैक्ट फार्मिंग में फीड व चूजों की लागत कंपनी वहन करती है, जिससे बाजार मूल्य जोखिम शून्य हो जाता है।' : 'स्वतंत्र रूप से थोक मंडी व स्थानीय दुकानों में बिक्री से प्रति पक्षी ₹30-₹35 का शुद्ध मार्जिन प्राप्त होता है।'}\n\n` +
-        `क्या आप पोल्ट्री शेड निर्माण मानक और बायो-सिक्योरिटी टीकाकरण के बारे में जानना चाहते हैं?`;
-    } else {
-      reply = `Excellent, ${state.name}! Your ${state.subCategory} poultry enterprise plan in ${state.district} is structured:\n\n` +
-        `• **Unit Capacity:** ${birds} Birds (${state.subCategory})\n` +
-        `• **Budget:** ${budgetFmt}\n` +
-        `• **Projected Net Margin:** approx. ${formatINR(estProfitPerBatch)} per batch (35-42 day cycle)\n\n` +
-        `**Financial Advisory & Incentives:**\n` +
-        `1. **PMEGP Scheme:** Eligible for 25% to 35% margin money subsidy in rural areas.\n` +
-        `2. **Working Capital:** Concessional poultry loans available through rural commercial banks.\n\n` +
-        `Would you like guidance on poultry shed biosecurity standards or PMEGP loan application?`;
+      state.answers[prevQuestionObj.key] = normalizedAnswer;
+      if (prevQuestionObj.key === 'dairy_animals') {
+        state.answers.animals = "2-5";
+        state.answers.dairy_animals = normalizedAnswer;
+      }
+      if (prevQuestionObj.key === 'dairy_space') state.answers.space = normalizedAnswer;
+      if (prevQuestionObj.key === 'dairy_land') state.answers.land = normalizedAnswer;
+      if (prevQuestionObj.key === 'dairy_budget') state.answers.budget = normalizedAnswer;
     }
+  }
+
+  // Find the next unanswered question (skipping already answered questions)
+  const nextUnanswered = getNextUnansweredQuestion(questions, state.answers);
+
+  // If all questions are answered, deliver Final Analysis
+  if (!nextUnanswered) {
+    state.step = 'FINAL_ANALYSIS';
+    const analysis = generateFinalAnalysis(state, selectedLang);
     return {
-      reply,
-      speak_text: cleanForSpeech(reply),
-      conversation_state: state,
-      intent: 'POULTRY_COMPLETE_ADVICE'
+      message: analysis,
+      language: selectedLang,
+      questionId: 'final_analysis',
+      quickReplies: [],
+      business: state.business,
+      step: "COMPLETED",
+      waitingForAnswer: false,
+      reply: analysis,
+      speak_text: cleanForSpeech(analysis.split('⚠️')[0].slice(0, 260)),
+      conversation_state: state
     };
   }
 
-  // ==========================================================================
-  // DOMAIN 3: GOAT FARMING
-  // ==========================================================================
-  if (state.business === 'Goat Farming') {
-    // 1. Meat vs Breeding vs Both
-    if (!state.subCategory) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `बकरी पालन कम लागत में बेहतरीन मुनाफा देता है। आप इसे मुख्य रूप से मांस बिक्री (meat) के लिए करना चाहते हैं, ब्रीडिंग (नस्ल सुधार) के लिए, या दोनों के लिए?`;
-      } else if (langMode === 'te') {
-        reply = `మేకల పెంపకం తక్కువ ఖర్చుతో మంచి లాభాలనిస్తుంది. మీరు దీన్ని మాంసం విక్రయం కోసమా, బ్రీడింగ్ కోసమా లేక రెండింటి కోసమా చేయాలనుకుంటున్నారు?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Goat farming kam lagat mein accha munafa deta hai. Aap meat production ke liye karna chahte hain, breeding ke liye, ya dono ke liye?`;
-      } else {
-        reply = `Goat farming offers strong returns with low initial capital. Are you planning goat farming for meat, breeding, or both?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'GOAT_ASK_TYPE'
-      };
-    }
+  // Ask the next predefined question in the selected language
+  const currentQ = nextUnanswered.question;
+  const qIndex = nextUnanswered.index;
+  state.step = `BIZ_Q_${qIndex}`;
+  state.currentQuestionIndex = qIndex;
 
-    // 2. Quantity
-    if (!state.quantity) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `बहुत बढ़िया। आप शुरुआत में कितनी बकरियों से शुरू करना चाहते हैं — जैसे मानक 10+1 यूनिट (10 बकरी + 1 बकरा) या 20 बकरियां?`;
-      } else if (langMode === 'te') {
-        reply = `చాలా మంచిది. మీరు ఎన్ని మేకలతో ప్రారంభించాలనుకుంటున్నారు — ఉదాహరణకు 10+1 యూనిట్ లేదా 20 మేకలు?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Bahut badhiya. Aap kitni goats se shuru karna chahte hain — jaise standard 10+1 unit ya 20 goats?`;
-      } else {
-        reply = `How many goats are you planning to start with — for example, a standard 10+1 unit (10 does + 1 buck) or 20 goats?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'GOAT_ASK_QUANTITY'
-      };
-    }
-
-    // 3. Shed & Land / Grazing
-    if (state.shedAvailable === null || state.landAvailable === null) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `क्या आपके पास बकरियों के लिए शेड और जमीन उपलब्ध है, और आप चराई (grazing) कराएंगे या स्टॉल-फीडिंग (शेड में चारा खिलाना) करेंगे?`;
-      } else if (langMode === 'te') {
-        reply = `మీ వద్ద మేకల షెడ్ మరియు స్థలం అందుబాటులో ఉందా, మరియు మీరు బయట మేపుతారా లేక స్టాల్ ఫీడింగ్ చేస్తారా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Kya aapke paas goat shed aur land available hai, aur aap grazing karayenge ya stall feeding?`;
-      } else {
-        reply = `Do you have land and a goat shed available, and will you rely on open grazing or stall-fed management?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'GOAT_ASK_SHED'
-      };
-    }
-
-    // 4. Budget
-    if (!state.budget) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `बकरियों की खरीद व शेड निर्माण के लिए आपका अनुमानित निवेश बजट कितना है?`;
-      } else if (langMode === 'te') {
-        reply = `మేకల కొనుగోలు మరియు షెడ్ కోసం మీ అంచనా బడ్జెట్ ఎంత?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Goat purchase aur shed setup ke liye aapka approximate investment budget kitna hai?`;
-      } else {
-        reply = `What is your approximate investment budget for purchasing the goats and setting up the shed?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'GOAT_ASK_BUDGET'
-      };
-    }
-
-    // 5. Veterinary Access
-    if (state.veterinaryAccess === null) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `क्या आपके क्षेत्र में टीकाकरण व प्राथमिक उपचार के लिए पशु चिकित्सक (veterinary doctor) या पशु अस्पताल उपलब्ध है?`;
-      } else {
-        reply = `Do you have access to veterinary services or an animal hospital nearby in your block?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'GOAT_ASK_VET'
-      };
-    }
-
-    // 6. Comprehensive Goat Advisory
-    const qty = state.quantity || 11;
-    const budgetFmt = formatINR(state.budget);
-    const annualProfit = Math.round(qty * 8500);
-
-    let reply = '';
-    if (langMode === 'hi_deva') {
-      reply = `शानदार ${state.name} जी! ${state.district} में ${qty} बकरियों के साथ ${state.subCategory || 'मांस व ब्रीडिंग'} योजना तैयार है:\n\n` +
-        `• **यूनिट आकार:** ${qty} बकरियां (अनुशंसित नस्ल: सिरोही या उस्मानाबादी)\n` +
-        `• **निवेश बजट:** ${budgetFmt}\n` +
-        `• **अनुमानित वार्षिक शुद्ध लाभ:** लगभग ${formatINR(annualProfit)}/वर्ष (बच्चे व मांस बिक्री)\n\n` +
-        `**उद्यमसारथी वित्तीय व सरकारी सहायता रणनीति:**\n` +
-        `1. **राष्ट्रीय पशुधन मिशन (NLM):** 100+ बकरी यूनिट पर 50% तक कैपिटल सब्सिडी मिलती है।\n` +
-        `2. **पशुपालन KCC ऋण:** 4% की रियायती ब्याज दर पर बैंक लोन उपलब्ध है।\n` +
-        `3. सिरोही और उस्मानाबादी नस्लें स्थानीय मौसम में रोग प्रतिरोधी हैं और तेजी से वजन बढ़ाती हैं।\n\n` +
-        `क्या आप बकरियों के टीकाकरण चार्ट और स्थानीय पशु हाट में बिक्री के बारे में जानना चाहते हैं?`;
-    } else {
-      reply = `Excellent, ${state.name}! Your goat farming enterprise plan in ${state.district} is structured:\n\n` +
-        `• **Unit Size:** ${qty} Goats (Recommended Breeds: Sirohi / Osmanabadi)\n` +
-        `• **Budget:** ${budgetFmt}\n` +
-        `• **Projected Annual Net Income:** approx. ${formatINR(annualProfit)}/year\n\n` +
-        `**Government Schemes & Advisory:**\n` +
-        `1. **National Livestock Mission (NLM):** Up to 50% capital subsidy on commercial units.\n` +
-        `2. **Animal Husbandry KCC:** Concessional working capital at 4% interest.\n\n` +
-        `Would you like guidance on vaccination schedules and goat procurement markets?`;
-    }
-    return {
-      reply,
-      speak_text: cleanForSpeech(reply),
-      conversation_state: state,
-      intent: 'GOAT_COMPLETE_ADVICE'
-    };
-  }
-
-  // ==========================================================================
-  // DOMAIN 4: FOOD PROCESSING / SMALL FOOD BUSINESS
-  // ==========================================================================
-  if (state.business === 'Food Processing') {
-    // 1. Specific Product Type
-    if (!state.productType) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `खाद्य प्रसंस्करण में बहुत संभावनाएं हैं। आप किस प्रकार का खाद्य उत्पाद बनाना चाहते हैं — जैसे अचार (pickles), मसाले (spices), पापड़, आटा चक्की, नमकीन/चिप्स, या कुछ और?`;
-      } else if (langMode === 'te') {
-        reply = `ఆహార ప్రాసెసింగ్‌లో అద్భుతమైన అవకాశాలు ఉన్నాయి. మీరు ఏ ఉత్పత్తి తయారు చేయాలనుకుంటున్నారు — ఊరగాయలు (pickles), మసాలాలు, పిండి, అప్పడాలు, చిప్స్ లేదా స్వీట్లు?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Food processing mein bahut acchi demand hai. Aap kaunsa product banana chahte hain — jaise pickles (achar), spices, papad, chakki flour, ya snacks/chips?`;
-      } else {
-        reply = `Food processing is a high-demand business. What type of food product do you want to make — such as pickles, spices, flour, snacks, papad, chips, or sweets?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'FOOD_ASK_PRODUCT'
-      };
-    }
-
-    // 2. Specific Variety (if generic pickles)
-    if (state.productType === 'Pickles') {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `शानदार! आप किस प्रकार का अचार बनाने की योजना बना रहे हैं — जैसे आम का अचार, नींबू, मिर्च, या मिक्स अचार?`;
-      } else if (langMode === 'te') {
-        reply = `చాలా బాగుంది! మీరు ఏ రకమైన ఊరగాయ తయారు చేయాలనుకుంటున్నారు — మామిడికాయ, నిమ్మకాయ, పచ్చిమిర్చి లేదా మిక్స్డ్?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Shandar! Aap kis type ka achar banana chahte hain — jaise mango, lemon, chilli, ya mix achar?`;
-      } else {
-        reply = `Great! What type of pickle are you planning to make, such as mango, lemon, chilli, or something else?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'FOOD_ASK_PICKLE_TYPE'
-      };
-    }
-
-    // 3. Raw Materials Availability
-    if (!state.rawMaterial) {
-      const pName = state.productType;
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `बहुत बढ़िया। क्या आपको ${pName} के लिए कच्चा माल ${state.district} में स्थानीय स्तर पर आसानी से मिल जाता है, या आप बाहर से मंगाएंगे?`;
-      } else if (langMode === 'te') {
-        reply = `చాలా మంచిది. మీకు ${pName} తయారీకి ముడి పదార్థాలు స్థానికంగా సులభంగా లభిస్తాయా, లేక బయటి నుండి తెప్పించుకుంటారా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Bahut badhiya. Kya aapko ${pName} ke liye raw material locally mil jata hai ya bahar se purchase karenge?`;
-      } else {
-        reply = `Excellent. Do you already have access to raw materials for ${pName} locally in ${state.district}, or will you purchase them from suppliers?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'FOOD_ASK_RAW_MATERIAL'
-      };
-    }
-
-    // 4. Investment Budget
-    if (!state.budget) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `कच्चे माल, पैकेजिंग और मशीनरी के लिए आपका अनुमानित निवेश बजट कितना है?`;
-      } else if (langMode === 'te') {
-        reply = `ముడి పదార్థాలు మరియు ప్యాకేజింగ్ యంత్రాల కోసం మీ అంచనా బడ్జెట్ ఎంత?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Raw material aur packaging machine ke liye aapka approximate investment budget kitna hai?`;
-      } else {
-        reply = `What is your approximate investment budget for ingredients and packaging equipment?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'FOOD_ASK_BUDGET'
-      };
-    }
-
-    // 5. Workspace (Home vs Commercial)
-    if (!state.workspace) {
-      let reply = '';
-      if (langMode === 'hi_deva') {
-        reply = `क्या आप इस उत्पाद का निर्माण शुरुआत में घर से करना चाहते हैं या एक अलग कमर्शियल वर्कशॉप में?`;
-      } else if (langMode === 'te') {
-        reply = `మీరు దీన్ని ఇంట్లో ప్రారంభించాలనుకుంటున్నారా లేక ప్రత్యేక యూనిట్ ఏర్పాటు చేస్తారా?`;
-      } else if (langMode === 'hi_latin') {
-        reply = `Kya aap ise shuruaat mein ghar se start karna chahte hain ya alag commercial workshop mein?`;
-      } else {
-        reply = `Do you want to start from home or establish a separate commercial unit?`;
-      }
-      return {
-        reply,
-        speak_text: cleanForSpeech(reply),
-        conversation_state: state,
-        intent: 'FOOD_ASK_WORKSPACE'
-      };
-    }
-
-    // 6. Comprehensive Food Processing Advisory
-    const budgetFmt = formatINR(state.budget);
-    const estMonthlyProfit = Math.round(state.budget * 0.28);
-
-    let reply = '';
-    if (langMode === 'hi_deva') {
-      reply = `बधाई हो ${state.name} जी! ${state.district} में **${state.productType}** निर्माण इकाई की योजना:\n\n` +
-        `• **उत्पाद:** ${state.productType} (कच्चा माल: ${state.rawMaterial === 'locally available' ? 'स्थानीय उपलब्धता' : 'सप्लायर्स'})\n` +
-        `• **कार्यस्थल:** ${state.workspace === 'home' ? 'घरेलू स्तर' : 'कमर्शियल वर्कशॉप'}\n` +
-        `• **निवेश बजट:** ${budgetFmt}\n` +
-        `• **अनुमानित मासिक शुद्ध लाभ:** लगभग ${formatINR(estMonthlyProfit)}/माह (35%-40% ग्रॉस मार्जिन)\n\n` +
-        `**उद्यमसारथी लाइसेंसिंग व सरकारी सब्सिडी गाइड:**\n` +
-        `1. **PMFME योजना:** सूक्ष्म खाद्य उद्यमों के लिए 35% क्रेडिट-लिंक्ड पूंजी सब्सिडी (अधिकतम ₹10 लाख) उपलब्ध है।\n` +
-        `2. **FSSAI रजिस्ट्रेशन:** पैकेज्ड फूड की बिक्री के लिए FSSAI बेसिक रजिस्ट्रेशन (मात्र ₹100/वर्ष) ऑनलाइन अनिवार्य है।\n` +
-        `3. आकर्षक पाउच पैकेजिंग और FSSAI नंबर से आप सीधे नजदीकी किराना दुकानों और सुपरमार्केट में आपूर्ति कर सकते हैं।\n\n` +
-        `क्या आप PMFME सब्सिडी के आवेदन या FSSAI लाइसेंस पंजीकरण के बारे में जानना चाहते हैं?`;
-    } else {
-      reply = `Congratulations, ${state.name}! Your **${state.productType}** processing plan in ${state.district} is structured:\n\n` +
-        `• **Product Line:** ${state.productType} (Sourced: ${state.rawMaterial})\n` +
-        `• **Setup:** ${state.workspace === 'home' ? 'Home-based unit' : 'Dedicated commercial workshop'}\n` +
-        `• **Budget:** ${budgetFmt}\n` +
-        `• **Projected Net Margin:** approx. ${formatINR(estMonthlyProfit)}/month (35%-40% gross margins)\n\n` +
-        `**Government Schemes & Licensing Advisory:**\n` +
-        `1. **PMFME Scheme:** 35% capital subsidy up to ₹10 Lakhs for micro food processors.\n` +
-        `2. **FSSAI Registration:** Mandatory basic food license (₹100/yr online) + Udyam MSME certification.\n\n` +
-        `Would you like step-by-step guidance on PMFME subsidy application or FSSAI registration?`;
-    }
-    return {
-      reply,
-      speak_text: cleanForSpeech(reply),
-      conversation_state: state,
-      intent: 'FOOD_COMPLETE_ADVICE'
-    };
-  }
-
-  // --------------------------------------------------------------------------
-  // STAGE 5: GENERAL DEFAULT FALLBACK
-  // --------------------------------------------------------------------------
-  let reply = '';
-  if (langMode === 'hi_deva') {
-    reply = `${state.name} जी, ${state.district} में आपके ${state.business || 'व्यवसाय'} के लिए योजना तैयार हो रही है। आप इसके बारे में आगे क्या जानना चाहते हैं?`;
-  } else {
-    reply = `${state.name}, your enterprise plan in ${state.district} is progressing well. What aspect would you like to explore next?`;
-  }
+  const currentMsg = currentQ.message[selectedLang] || currentQ.message.en;
+  const currentReplies = currentQ.quickReplies[selectedLang] || currentQ.quickReplies.en;
 
   return {
-    reply,
-    speak_text: cleanForSpeech(reply),
-    conversation_state: state,
-    intent: 'BUSINESS_ADVICE'
+    message: currentMsg,
+    language: selectedLang,
+    questionId: currentQ.questionId,
+    quickReplies: currentReplies,
+    business: state.business,
+    step: qIndex + 1,
+    waitingForAnswer: true,
+    reply: currentMsg,
+    speak_text: cleanForSpeech(currentMsg),
+    conversation_state: state
   };
 }
 
 /**
- * Main Dynamic Advisory Generator
+ * Public export for generating dynamic advisory
  */
-exports.generateDynamicAdvisory = async function({ message, conversation_state = {}, history = [], profile = {}, lang = 'hi' }) {
-  const langMode = detectLanguageMode(message, conversation_state.lang || lang);
-  return dynamicAgentReasoning({ message, conversation_state, profile, lang: langMode });
+exports.generateDynamicAdvisory = async function({ message, conversation_state = {}, history = [], profile = {}, lang = 'en' }) {
+  const language = normalizeLang(lang || conversation_state?.lang || 'en');
+  return processConversationalTurn({ message, conversation_state, lang: language });
 };
+
+exports.cleanForSpeech = cleanForSpeech;
+exports.normalizeBusiness = normalizeBusiness;
+exports.normalizeLang = normalizeLang;
+exports.INITIAL_QUESTIONS = INITIAL_QUESTIONS;
+exports.BUSINESS_FLOWS_I18N = BUSINESS_FLOWS_I18N;
+exports.extractCompoundEntities = extractCompoundEntities;
+exports.generateFinalAnalysis = generateFinalAnalysis;
