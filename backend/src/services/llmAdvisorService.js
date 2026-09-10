@@ -486,34 +486,65 @@ function extractEntities(text, existingState = {}) {
 function detectUserQuestion(text) {
   const lower = text.toLowerCase();
   
-  // Subsidy query
+  // 1. Comparison query: "Dairy aur poultry mein kya better hai?", "dairy vs poultry"
+  if (
+    (lower.includes('dairy') && lower.includes('poultry')) ||
+    (lower.includes('डेयरी') && lower.includes('पोल्ट्री')) ||
+    (lower.includes('పాడి') && lower.includes('పౌల్ట్రీ')) ||
+    lower.includes('better') ||
+    lower.includes('behtar') ||
+    lower.includes('बेहतर') ||
+    lower.includes('తేడా') ||
+    lower.includes('vs') ||
+    (lower.includes('kaunsa') && lower.includes('accha'))
+  ) {
+    if (
+      lower.includes('dairy') || lower.includes('poultry') || lower.includes('goat') || lower.includes('food') ||
+      lower.includes('डेयरी') || lower.includes('पोल्ट्री') || lower.includes('बकरी') || lower.includes('పాడి')
+    ) {
+      return 'COMPARISON_QUESTION';
+    }
+  }
+
+  // 2. Subsidy / Government Scheme query: "Kaunsi sarkari scheme milegi?", "subsidy", "yojana"
   const hasSubsidyWord = lower.includes('subsidy') || lower.includes('सब्सिडी') || 
     lower.includes('సబ్సిడీ') || lower.includes('yojana') || lower.includes('योजना') || lower.includes('పథకం') || 
-    lower.includes('sahayata') || lower.includes('सहायता') || lower.includes('సహాయం') || lower.includes('anudan') || lower.includes('अनुदान');
+    lower.includes('sahayata') || lower.includes('सहायता') || lower.includes('సహాయం') || lower.includes('anudan') || lower.includes('अनुदान') ||
+    lower.includes('scheme') || lower.includes('sarkari');
 
   const hasQueryWord = lower.includes('milegi') || lower.includes('milti') || lower.includes('kya') || lower.includes('hai') || 
     lower.includes('how much') || lower.includes('లభిస్తుంది') || lower.includes('ఉందా') || lower.includes('मिलती') || 
-    lower.includes('मिलेगी') || lower.includes('क्या') || lower.includes('है क्या') || lower.includes('ఎంత');
+    lower.includes('मिलेगी') || lower.includes('क्या') || lower.includes('है क्या') || lower.includes('ఎంత') ||
+    lower.includes('kaunsi') || lower.includes('कौनसी') || lower.includes('ఏ') || text.includes('?');
 
   if (hasSubsidyWord && (hasQueryWord || text.includes('?'))) {
     return 'SUBSIDY_QUESTION';
   }
 
-  // Loan / EMI query
+  // 3. Loan / EMI query: "5 lakh loan ki EMI kitni hogi?"
   const hasLoanWord = lower.includes('loan') || lower.includes('emi') || lower.includes('लोन') || lower.includes('ऋण') || 
     lower.includes('రుణం') || lower.includes('byaj') || lower.includes('ब्याज') || lower.includes('వడ్డీ') || lower.includes('ఈఎమ్‌ఐ');
 
-  const hasLoanQueryWord = lower.includes('kitna') || lower.includes('kaise') || lower.includes('how') || lower.includes('ఎంత') || 
-    lower.includes('rate') || lower.includes('कितना') || lower.includes('कितनी') || lower.includes('मिलेगा') || lower.includes('लगेगा');
+  const hasLoanQueryWord = lower.includes('kitna') || lower.includes('kitni') || lower.includes('kaise') || lower.includes('how') || lower.includes('ఎంత') || 
+    lower.includes('rate') || lower.includes('कितना') || lower.includes('कितनी') || lower.includes('मिलेगा') || lower.includes('लगेगा') || lower.includes('hogi');
 
   if (hasLoanWord && (hasLoanQueryWord || text.includes('?'))) {
     return 'LOAN_QUESTION';
   }
 
-  // Profit query
+  // 4. Profit query
   if (lower.includes('profit') || lower.includes('मुनाफा') || lower.includes('कमाई') || lower.includes('लाभ') || 
       lower.includes('లాభం') || lower.includes('income') || lower.includes('आमदनी')) {
     return 'PROFIT_QUESTION';
+  }
+
+  // 5. Budget inquiry without business: "Mere paas 3 lakh hain", "budget 2 lakh"
+  if (
+    !lower.includes('dairy') && !lower.includes('poultry') && !lower.includes('goat') && !lower.includes('food') &&
+    (lower.includes('mere paas') || lower.includes('मेरे पास') || lower.includes('నా దగ్గర') || lower.includes('i have') || lower.includes('budget') || lower.includes('capital')) &&
+    (lower.includes('lakh') || lower.includes('hazar') || lower.includes('लाख') || lower.includes('हजार') || lower.includes('లక్ష') || /\d{5,8}/.test(text))
+  ) {
+    return 'BUDGET_ADVICE_QUESTION';
   }
 
   return null;
@@ -530,6 +561,92 @@ function answerUserQuestion(questionType, state, langMode) {
   else if (state.business === 'Goat Farming') bTitle = langMode === 'hi_deva' ? 'बकरी पालन' : (langMode === 'te' ? 'మేకల పెంపకం' : 'Goat Farming');
   else if (state.business === 'Food Processing') bTitle = langMode === 'hi_deva' ? 'खाद्य प्रसंस्करण' : (langMode === 'te' ? 'ఆహార ప్రాసెసింగ్' : 'Food Processing');
 
+  if (questionType === 'COMPARISON_QUESTION') {
+    if (langMode === 'hi_deva') {
+      return `**डेयरी फार्मिंग vs पोल्ट्री फार्मिंग — व्यावहारिक तुलना:**\n\n` +
+        `1. **डेयरी फार्मिंग (कम जोखिम, दैनिक नकद आय):**\n` +
+        `• **आय:** रोज़ाना दूध बिक्री से प्रतिदिन नकद भुगतान मिलता है।\n` +
+        `• **पूंजी सुरक्षा:** पशुधन और बछड़े आपकी पूंजी बढ़ाते हैं।\n` +
+        `• **सब्सिडी:** नाबार्ड / AHIDF योजना से 25% - 33.33% सब्सिडी और KCC पर 4% ब्याज दर।\n` +
+        `• **आवश्यकता:** हरा चारा, स्वच्छ पानी और पशु शेड।\n\n` +
+        `2. **पोल्ट्री फार्मिंग (त्वरित चक्र, मध्यम जोखिम):**\n` +
+        `• **आय:** ब्रायलर 40-45 दिनों में तैयार हो जाते हैं, जिससे साल में 5-6 बार त्वरित मुनाफा होता है।\n` +
+        `• **ज़मीन:** कम ज़मीन की आवश्यकता होती है।\n` +
+        `• **जोखिम:** बीमारी व बाज़ार में भाव में उतार-चढ़ाव का थोड़ा जोखिम रहता है।\n\n` +
+        `यदि आपके पास ज़मीन व चारा उपलब्ध है तो **डेयरी** सबसे सुरक्षित है। आप इनमें से किस व्यवसाय में आगे बढ़ना चाहते हैं?`;
+    } else if (langMode === 'te') {
+      return `**పాడి పరిశ్రమ vs పౌల్ట్రీ ఫార్మింగ్ — పోలిక:**\n\n` +
+        `1. **పాడి పరిశ్రమ (తక్కువ రిస్క్, రోజువారీ నగదు ఆదాయం):**\n` +
+        `• రోజువారీ పాల విక్రయం ద్వారా క్రమం తప్పకుండా ఆదాయం లభిస్తుంది.\n` +
+        `• నాబార్డ్ నుండి 25% - 33% సబ్సిడీ మరియు 4% వడ్డీతో KCC రుణం.\n` +
+        `• పచ్చిగడ్డి, నీటి సదుపాయం అవసరం.\n\n` +
+        `2. **పౌల్ట్రీ ఫార్మింగ్ (త్వరిత రాబడి, మధ్యస్థ రిస్క్):**\n` +
+        `• బ్రాయిలర్లు 40-45 రోజులలో సిద్ధమవుతాయి, ఏడాదికి 5-6 బ్యాచ్‌ల ద్వారా లాభం.\n` +
+        `• తక్కువ స్థలం సరిపోతుంది.\n\n` +
+        `మీ వనరుల ప్రకారం మీరు దేనితో ప్రారంభించాలనుకుంటున్నారు?`;
+    } else if (langMode === 'hi_latin') {
+      return `**Dairy Farming vs Poultry Farming — Comparison:**\n\n` +
+        `1. **Dairy Farming (Low Risk, Daily Cashflow):**\n` +
+        `• Daily milk sale se continuous cashflow generate hota hai.\n` +
+        `• NABARD / AHIDF se 25% - 33.33% capital subsidy aur KCC par 4% loan milta hai.\n` +
+        `• Green fodder, water aur shed required hota hai.\n\n` +
+        `2. **Poultry Farming (Fast Cycles, Moderate Risk):**\n` +
+        `• Broilers 40-45 din mein ready ho jaate hain (yearly 5-6 batches).\n` +
+        `• Kam land space mein shuru hota hai.\n` +
+        `• Feed price aur mortality risk thoda rehta hai.\n\n` +
+        `Agar land aur chara hai toh **Dairy** safest choice hai. Aap kis mein interest rakhte hain?`;
+    } else {
+      return `**Dairy Farming vs Poultry Farming — Key Comparison:**\n\n` +
+        `1. **Dairy Farming (Lower Risk, Daily Income):**\n` +
+        `• Regular daily cash flow from milk sales to collection centres.\n` +
+        `• 25% to 33.33% NABARD capital subsidy + 4% interest KCC loans.\n` +
+        `• Requires green fodder, clean water, and cattle shed.\n\n` +
+        `2. **Poultry Farming (Fast Cycle, Moderate Risk):**\n` +
+        `• 40-45 day broiler lifecycle with 5-6 batches per year.\n` +
+        `• Compact land footprint.\n` +
+        `• Requires strict bio-security and disease management.\n\n` +
+        `Which of these matches your available land and resources better?`;
+    }
+  }
+
+  if (questionType === 'BUDGET_ADVICE_QUESTION') {
+    const budgetVal = state.budget || 300000;
+    const bFmt = formatINR(budgetVal);
+
+    if (langMode === 'hi_deva') {
+      return `**${bFmt}** का बजट ग्रामीण उद्यम शुरू करने के लिए बहुत अच्छा और व्यावहारिक है!\n\n` +
+        `इस बजट में आप निम्न में से कोई भी लाभदायक व्यवसाय चुन सकते हैं:\n` +
+        `1. **डेयरी फार्मिंग:** 3-4 उच्च दुग्ध देने वाली मुर्राह भैंसें या एचएफ गायें (प्रतिदिन 30-40 लीटर दूध उत्पादन)।\n` +
+        `2. **ब्रायलर पोल्ट्री फार्म:** 1,000 मुर्गियों का शेड व पहला बैच (45 दिन में फसल चक्र)।\n` +
+        `3. **बकरी पालन यूनिट:** 20+1 बकरियों की ब्रीडिंग यूनिट (NLM से 50% तक सब्सिडी)।\n` +
+        `4. **खाद्य प्रसंस्करण:** मसाला पिसाई या आटा चक्की / मिनी ऑयल मिल (PMFME योजना से 35% सब्सिडी)।\n\n` +
+        `इनमें से आप किस व्यवसाय में रुचि रखते हैं?`;
+    } else if (langMode === 'te') {
+      return `**${bFmt}** పెట్టుబడితో మీరు ఈ క్రింది లాభదాయకమైన వ్యాపారాలను ప్రారంభించవచ్చు:\n\n` +
+        `1. **పాడి పరిశ్రమ:** 3-4 గేదెలు లేదా ఆవులు (రోజుకు 30-40 లీటర్ల పాలు).\n` +
+        `2. **పౌల్ట్రీ ఫార్మింగ్:** 1,000 బ్రాయిలర్ కోళ్ల యూనిట్.\n` +
+        `3. **మేకల పెంపకం:** 20+1 యూనిట్ (50% NLM సబ్సిడీ).\n` +
+        `4. **ఫుడ్ ప్రాసెసింగ్:** పిండి మిల్లు లేదా మసాలా తయారీ యూనిట్.\n\n` +
+        `మీరు దేనిపై ఆసక్తి చూపుతున్నారు?`;
+    } else if (langMode === 'hi_latin') {
+      return `**${bFmt}** ka budget business shuru karne ke liye bahut accha hai!\n\n` +
+        `Is budget mein aap yeh profitable businesses start kar sakte hain:\n` +
+        `1. **Dairy Farming:** 3-4 high-yielding buffaloes ya cows (daily 30-40L milk).\n` +
+        `2. **Broiler Poultry:** 1,000 birds capacity shed.\n` +
+        `3. **Goat Farming:** 20+1 breeding unit (50% NLM subsidy eligible).\n` +
+        `4. **Food Processing:** Spice grinding ya mini flour mill unit (35% PMFME subsidy).\n\n` +
+        `Aap kis business mein shuru karna chahte hain?`;
+    } else {
+      return `A budget of **${bFmt}** is an excellent capital base to launch a rural enterprise!\n\n` +
+        `Top viable opportunities with this budget:\n` +
+        `1. **Dairy Farming:** 3-4 high-yield buffaloes/cows (30-40L daily milk yield).\n` +
+        `2. **Poultry Unit:** 1,000 bird broiler capacity.\n` +
+        `3. **Goat Farming:** 20+1 commercial breeding unit (50% NLM capital subsidy).\n` +
+        `4. **Micro Food Processing:** Spices or flour processing unit (35% PMFME grant).\n\n` +
+        `Which of these sectors interests you the most?`;
+    }
+  }
+
   if (questionType === 'SUBSIDY_QUESTION') {
     if (langMode === 'hi_deva') {
       return `जी हाँ ${name}! **${bTitle}** के लिए सरकार से आकर्षक सब्सिडी उपलब्ध है:\n\n` +
@@ -537,51 +654,54 @@ function answerUserQuestion(questionType, state, langMode) {
         `• **PMEGP योजना:** ग्रामीण क्षेत्र में सूक्ष्म उद्योग के लिए 25% से 35% तक सब्सिडी मिलती है।\n` +
         `• **राष्ट्रीय पशुधन मिशन (NLM):** बकरी पालन यूनिट पर 50% तक सब्सिडी उपलब्ध है।\n` +
         `• **PMFME योजना:** खाद्य प्रसंस्करण में 35% तक सब्सिडी (अधिकतम ₹10 लाख) मिलती है।\n\n` +
-        `क्या आपके पास पहले से जमीन या शेड उपलब्ध है?`;
+        `क्या आप इनमें से किसी योजना के लिए आवेदन प्रक्रिया जानना चाहते हैं?`;
     } else if (langMode === 'te') {
       return `అవును ${name}! **${bTitle}** కోసం ప్రభుత్వ రాయితీలు అందుబాటులో ఉన్నాయి:\n\n` +
         `• **నాబార్డ్ / AHIDF పథకం:** ప్రాజెక్ట్ ఖర్చుపై 25% నుండి 33.33% వరకు రాయితీ లభిస్తుంది.\n` +
         `• **PMEGP:** గ్రామీణ ప్రాంతాల్లో 25% - 35% సబ్సిడీ లభిస్తుంది.\n` +
         `• **జాతీయ పశుసంవర్ధక మిషన్ (NLM):** మేకల పెంపకంపై 50% సబ్సిడీ లభిస్తుంది.\n\n` +
-        `మీ వద్ద ముందే సొంత స్థలం లేదా షెడ్ అందుబాటులో ఉందా?`;
+        `మీరు సబ్సిడీ దరఖాస్తు విధానం గురించి తెలుసుకోవాలనుకుంటున్నారా?`;
     } else if (langMode === 'hi_latin') {
       return `Ji haan ${name}! **${bTitle}** ke liye sarkar se subsidy uplabdh hai:\n\n` +
         `• **NABARD / AHIDF Yojana:** 25% se 33.33% tak ki capital subsidy milti hai.\n` +
         `• **PMEGP Yojana:** Grameen area mein 25% se 35% tak ki subsidy milti hai.\n` +
         `• **KCC Pashupalan:** 4% concessional interest rate par loan milta hai.\n\n` +
-        `Kya aapke paas pehle se zameen ya shed available hai?`;
+        `Kya aap NABARD ya PMEGP subsidy application process ke bare mein janna chahte hain?`;
     } else {
       return `Yes, ${name}! Government subsidies are actively available for **${bTitle}**:\n\n` +
         `• **NABARD / AHIDF Scheme:** 25% to 33.33% back-ended capital subsidy for livestock & dairy.\n` +
         `• **PMEGP Scheme:** Up to 35% margin money subsidy in rural areas.\n` +
         `• **NLM (National Livestock Mission):** Up to 50% subsidy for goat & poultry units.\n` +
         `• **PMFME Scheme:** 35% subsidy for micro food processing units.\n\n` +
-        `Do you already have land or a shed available?`;
+        `Would you like step-by-step guidance on applying for these schemes?`;
     }
   }
 
   if (questionType === 'LOAN_QUESTION') {
-    const budget = state.budget || 200000;
+    const budget = state.budget || 500000;
     const loanAmt = Math.round(budget * 0.85);
     const emi = Math.round((loanAmt * 0.08 / 12) / (1 - Math.pow(1 + 0.08 / 12, -60)));
 
     if (langMode === 'hi_deva') {
-      return `**${formatINR(budget)}** के प्रोजेक्ट पर लगभग **${formatINR(loanAmt)}** तक का बैंक ऋण मिल सकता है:\n\n` +
-        `• **ब्याज दर:** 7.5% - 8.5% वार्षिक (KCC पर मात्र 4%)\n` +
+      return `**${formatINR(budget)}** के प्रोजेक्ट पर लगभग **${formatINR(loanAmt)}** (80%-85%) तक का बैंक ऋण मिल सकता है:\n\n` +
+        `• **ब्याज दर:** 7.5% - 8.5% वार्षिक (पशुपालन KCC पर मात्र 4%)\n` +
         `• **अवधि:** 5 वर्ष (60 महीने)\n` +
-        `• **अनुमानित मासिक EMI:** लगभग **${formatINR(emi)}/माह**\n\n` +
-        `क्या आपके पास पहले से जमीन या शेड उपलब्ध है?`;
+        `• **अनुमानित मासिक EMI:** लगभग **${formatINR(emi)}/माह**\n` +
+        `• **सब्सिडी लाभ:** नाबार्ड/PMEGP के तहत ₹1,25,000 से ₹1,65,000 तक की पूंजीगत सब्सिडी आपके ऋण खाते में क्रेडिट होगी।\n\n` +
+        `आप किस व्यवसाय के लिए ऋण की योजना बना रहे हैं?`;
     } else if (langMode === 'te') {
       return `**${formatINR(budget)}** ప్రాజెక్టుకు దాదాపు **${formatINR(loanAmt)}** వరకు బ్యాంకు రుణం లభిస్తుంది:\n\n` +
-        `• **వడ్డీ రేటు:** 7.5% - 8.5% వార్షికం\n` +
-        `• **నెలవారీ ఈఎమ్‌ఐ:** దాదాపు **${formatINR(emi)}/నెల**\n\n` +
-        `మీ వద్ద ముందే సొంత స్థలం లేదా షెడ్ అందుబాటులో ఉందా?`;
+        `• **వడ్డీ రేటు:** 7.5% - 8.5% వార్షికం (KCC ద్వారా 4%)\n` +
+        `• **నెలవారీ ఈఎమ్‌ఐ:** దాదాపు **${formatINR(emi)}/నెల**\n` +
+        `• **సబ్సిడీ:** ₹1.25 లక్షల నుండి ₹1.65 లక్షల వరకు రాయితీ లభిస్తుంది.\n\n` +
+        `మీరు ఏ వ్యాపారం కోసం రుణాన్ని ప్లాన్ చేస్తున్నారు?`;
     } else {
       return `For a **${formatINR(budget)}** project, you can avail a bank loan of approx. **${formatINR(loanAmt)}**:\n\n` +
         `• **Interest Rate:** 7.5% - 8.5% p.a. (4% on Animal Husbandry KCC)\n` +
         `• **Tenure:** 5 Years\n` +
-        `• **Estimated Monthly EMI:** approx. **${formatINR(emi)}/month**\n\n` +
-        `Do you already have land or a shed available?`;
+        `• **Estimated Monthly EMI:** approx. **${formatINR(emi)}/month**\n` +
+        `• **Subsidy Benefit:** ₹1,25,000 to ₹1,65,000 back-ended subsidy credited against loan.\n\n` +
+        `Which business sector are you planning to seek finance for?`;
     }
   }
 
@@ -591,16 +711,38 @@ function answerUserQuestion(questionType, state, langMode) {
 /**
  * Intelligent Dynamic Advisor Agent Engine (Female Persona)
  */
-function dynamicAgentReasoning({ message, conversation_state = {}, lang = 'hi' }) {
+function dynamicAgentReasoning({ message, conversation_state = {}, profile = {}, lang = 'hi' }) {
   const langMode = detectLanguageMode(message, conversation_state.lang || lang);
   const newlyExtracted = extractEntities(message, conversation_state);
 
+  // Infer Name from extraction, conversation_state, or profile
+  let resolvedName = newlyExtracted.name || conversation_state.name;
+  if (!resolvedName && profile?.name && profile.name !== 'Demo Entrepreneur') {
+    resolvedName = profile.name;
+  }
+  // If user was prompted for name on last turn, treat any simple reply as their name
+  if (!resolvedName && conversation_state.lastIntent === 'ASK_NAME' && message.trim()) {
+    const rawClean = message.trim().replace(/[।!?.,]/g, '');
+    if (rawClean.length <= 25 && !/(dairy|poultry|business|farming|lakh|loan|scheme|hello|hi|namaste)/i.test(rawClean)) {
+      resolvedName = rawClean;
+    }
+  }
+
+  // Infer District from extraction, conversation_state, or profile
+  let resolvedDistrict = newlyExtracted.district || conversation_state.district || profile?.district || profile?.village_name || null;
+  if (!resolvedDistrict && conversation_state.lastIntent === 'ASK_DISTRICT' && message.trim()) {
+    const rawClean = message.trim().replace(/[।!?.,]/g, '');
+    if (rawClean.length <= 30 && !/(dairy|poultry|business|farming|lakh|loan|scheme|haan|nahi|yes|no)/i.test(rawClean)) {
+      resolvedDistrict = rawClean;
+    }
+  }
+
   // Merge updated entities into conversation state (NEVER overwrite non-null with null)
   const state = {
-    name: newlyExtracted.name || conversation_state.name || null,
-    district: newlyExtracted.district || conversation_state.district || null,
-    state: newlyExtracted.state || conversation_state.state || null,
-    business: newlyExtracted.business || conversation_state.business || null,
+    name: resolvedName || null,
+    district: resolvedDistrict || null,
+    state: newlyExtracted.state || conversation_state.state || profile?.state || null,
+    business: newlyExtracted.business || conversation_state.business || profile?.business_interest || profile?.business_idea || null,
     subCategory: newlyExtracted.subCategory || conversation_state.subCategory || null,
     animalType: newlyExtracted.animalType || conversation_state.animalType || null,
     quantity: newlyExtracted.quantity !== undefined && newlyExtracted.quantity !== null
@@ -634,6 +776,7 @@ function dynamicAgentReasoning({ message, conversation_state = {}, lang = 'hi' }
       ? newlyExtracted.subsidyNeeded 
       : (conversation_state.subsidyNeeded !== undefined ? conversation_state.subsidyNeeded : null),
     goal: newlyExtracted.goal || conversation_state.goal || null,
+    lastIntent: conversation_state.lastIntent || null,
     lang: langMode
   };
 
@@ -642,6 +785,7 @@ function dynamicAgentReasoning({ message, conversation_state = {}, lang = 'hi' }
   if (detectedQuestion) {
     const questionAnswer = answerUserQuestion(detectedQuestion, state, langMode);
     if (questionAnswer) {
+      state.lastIntent = detectedQuestion;
       return {
         reply: questionAnswer,
         speak_text: cleanForSpeech(questionAnswer),
@@ -651,68 +795,69 @@ function dynamicAgentReasoning({ message, conversation_state = {}, lang = 'hi' }
     }
   }
 
-  // Core progression state
-  const hasName = Boolean(state.name);
-  const hasDistrict = Boolean(state.district);
-  const hasBusiness = Boolean(state.business);
-
-  // --------------------------------------------------------------------------
-  // STAGE 1: ASK NAME (FEMALE PERSONA: "jaan sakti hoon?")
-  // --------------------------------------------------------------------------
-  if (!hasName) {
-    let reply = '';
-    if (langMode === 'hi_deva') {
-      reply = `नमस्ते! मैं उद्यमसारथी हूँ, आपकी एआई बिजनेस एडवाइजर। मैं आपको नया व्यवसाय शुरू करने या बढ़ाने में मदद करूँगी।\n\nसबसे पहले, क्या मैं आपका नाम जान सकती हूँ?`;
-    } else if (langMode === 'te') {
-      reply = `నమస్కారం! నేను ఉద్యమ్‌సారథిని, మీ ఏఐ వ్యాపార సలహాదారుని. వ్యాపారం ప్రారంభించడానికి మరియు వృద్ధి చేయడానికి నేను మీకు సహాయం చేస్తాను.\n\nముందుగా, మీ పేరు ఏమిటి?`;
-    } else if (langMode === 'hi_latin') {
-      reply = `Namaste! Main UdyamSarthi hoon, aapki AI business advisor. Main aapko business start ya grow karne mein help karungi.\n\nSabse pehle, kya main aapka naam jaan sakti hoon?`;
-    } else {
-      reply = `Namaste! I am UdyamSarthi, your AI Business Advisor. I will help you start and scale your enterprise.\n\nFirst, may I know your name?`;
+  // If business is ALREADY known, proceed straight into that Business Domain Advisory!
+  if (!state.business) {
+    // --------------------------------------------------------------------------
+    // STAGE 1: ASK NAME (Only if name is missing AND not already asked)
+    // --------------------------------------------------------------------------
+    if (!state.name && conversation_state.lastIntent !== 'ASK_NAME') {
+      state.lastIntent = 'ASK_NAME';
+      let reply = '';
+      if (langMode === 'hi_deva') {
+        reply = `नमस्ते! मैं उद्यमसारथी हूँ, आपकी एआई बिजनेस एडवाइजर। मैं आपको नया व्यवसाय शुरू करने या बढ़ाने में मदद करूँगी।\n\nसबसे पहले, क्या मैं आपका नाम जान सकती हूँ?`;
+      } else if (langMode === 'te') {
+        reply = `నమస్కారం! నేను ఉద్యమ్‌సారథిని, మీ ఏఐ వ్యాపార సలహాదారుని. వ్యాపారం ప్రారంభించడానికి మరియు వృద్ధి చేయడానికి నేను మీకు సహాయం చేస్తాను.\n\nముందుగా, మీ పేరు ఏమిటి?`;
+      } else if (langMode === 'hi_latin') {
+        reply = `Namaste! Main UdyamSarthi hoon, aapki AI business advisor. Main aapko business start ya grow karne mein help karungi.\n\nSabse pehle, kya main aapka naam jaan sakti hoon?`;
+      } else {
+        reply = `Namaste! I am UdyamSarthi, your AI Business Advisor. I will help you start and scale your enterprise.\n\nFirst, may I know your name?`;
+      }
+      return {
+        reply,
+        speak_text: cleanForSpeech(reply),
+        conversation_state: state,
+        intent: 'ASK_NAME'
+      };
     }
-    return {
-      reply,
-      speak_text: cleanForSpeech(reply),
-      conversation_state: state,
-      intent: 'ASK_NAME'
-    };
-  }
 
-  // --------------------------------------------------------------------------
-  // STAGE 2: ASK DISTRICT (NEVER ASK NAME AGAIN)
-  // --------------------------------------------------------------------------
-  if (hasName && !hasDistrict) {
-    let reply = '';
-    if (langMode === 'hi_deva') {
-      reply = `बहुत अच्छा ${state.name} जी। आप किस जिले में अपना व्यवसाय शुरू करना चाहते हैं?`;
-    } else if (langMode === 'te') {
-      reply = `ధన్యవాదాలు ${state.name} గారు. మీరు ఏ జిల్లాలో వ్యాపారం ప్రారంభించాలనుకుంటున్నారు?`;
-    } else if (langMode === 'hi_latin') {
-      reply = `Bahut achha ${state.name} ji. Aap kis district mein business shuru karna chahte hain?`;
-    } else {
-      reply = `Thank you, ${state.name}. Which district do you want to start your business in?`;
+    // --------------------------------------------------------------------------
+    // STAGE 2: ASK DISTRICT (Only if district missing AND not already asked)
+    // --------------------------------------------------------------------------
+    if (!state.district && conversation_state.lastIntent !== 'ASK_DISTRICT') {
+      state.lastIntent = 'ASK_DISTRICT';
+      const namePrefix = state.name ? `${state.name} जी` : 'जी';
+      let reply = '';
+      if (langMode === 'hi_deva') {
+        reply = `बहुत अच्छा ${namePrefix}। आप किस जिले या गाँव में अपना व्यवसाय शुरू करना चाहते हैं?`;
+      } else if (langMode === 'te') {
+        reply = `చాలా మంచిది ${state.name ? state.name + ' గారు' : ''}. మీరు ఏ జిల్లా లేదా గ్రామంలో వ్యాపారం ప్రారంభించాలనుకుంటున్నారు?`;
+      } else if (langMode === 'hi_latin') {
+        reply = `Bahut achha ${state.name || ''} ji. Aap kis district ya village mein business shuru karna chahte hain?`;
+      } else {
+        reply = `Thank you ${state.name || ''}. Which district or village do you want to start your business in?`;
+      }
+      return {
+        reply,
+        speak_text: cleanForSpeech(reply),
+        conversation_state: state,
+        intent: 'ASK_DISTRICT'
+      };
     }
-    return {
-      reply,
-      speak_text: cleanForSpeech(reply),
-      conversation_state: state,
-      intent: 'ASK_DISTRICT'
-    };
-  }
 
-  // --------------------------------------------------------------------------
-  // STAGE 3: ASK BUSINESS (NEVER ASK NAME OR DISTRICT AGAIN)
-  // --------------------------------------------------------------------------
-  if (hasName && hasDistrict && !hasBusiness) {
+    // --------------------------------------------------------------------------
+    // STAGE 3: ASK BUSINESS IDEA
+    // --------------------------------------------------------------------------
+    state.lastIntent = 'ASK_BUSINESS_IDEA';
+    const locTxt = state.district ? `${state.district} में ` : '';
     let reply = '';
     if (langMode === 'hi_deva') {
-      reply = `बहुत बढ़िया। ${state.district} में आप किस प्रकार का व्यवसाय शुरू करना चाहते हैं — जैसे डेयरी फार्मिंग, पोल्ट्री, बकरी पालन, या खाद्य प्रसंस्करण?`;
+      reply = `बहुत बढ़िया। ${locTxt}आप किस प्रकार का व्यवसाय शुरू करना चाहते हैं — जैसे डेयरी फार्मिंग, पोल्ट्री, बकरी पालन, या खाद्य प्रसंस्करण?`;
     } else if (langMode === 'te') {
-      reply = `చాలా బాగుంది. ${state.district}లో మీరు ఏ రకమైన వ్యాపారం ప్రారంభించాలనుకుంటున్నారు — పాడి పరిశ్రమ, పౌల్ట్రీ, మేకల పెంపకం లేదా ఆహార ప్రాసెసింగ్?`;
+      reply = `చాలా బాగుంది. ${state.district ? state.district + 'లో ' : ''}మీరు ఏ రకమైన వ్యాపారం ప్రారంభించాలనుకుంటున్నారు — పాడి పరిశ్రమ, పౌల్ట్రీ, మేకల పెంపకం లేదా ఆహార ప్రాసెసింగ్?`;
     } else if (langMode === 'hi_latin') {
-      reply = `Bahut badhiya. ${state.district} mein aap kis type ka business shuru karna chahte hain — jaise dairy farming, poultry, goat farming, ya food processing?`;
+      reply = `Bahut badhiya. ${locTxt}aap kis type ka business shuru karna chahte hain — jaise dairy farming, poultry, goat farming, ya food processing?`;
     } else {
-      reply = `Great. What type of business would you like to start in ${state.district} — such as dairy farming, poultry farming, goat farming, or food processing?`;
+      reply = `Great. What type of business would you like to start ${state.district ? 'in ' + state.district : ''} — such as dairy farming, poultry farming, goat farming, or food processing?`;
     }
     return {
       reply,
@@ -730,17 +875,40 @@ function dynamicAgentReasoning({ message, conversation_state = {}, lang = 'hi' }
   // DOMAIN 1: DAIRY FARMING
   // ==========================================================================
   if (state.business === 'Dairy Farming') {
-    // A. If user mentioned budget first, acknowledge budget and check land & shed (matching user's exact example)
-    if (state.budget && (state.landAvailable === null || state.shedAvailable === null)) {
+    // If district not known and hasn't been asked yet:
+    if (!state.district && conversation_state.lastIntent !== 'DAIRY_ASK_LOCATION') {
+      state.lastIntent = 'DAIRY_ASK_LOCATION';
+      const nameTxt = state.name ? `${state.name} जी` : 'जी';
       let reply = '';
       if (langMode === 'hi_deva') {
-        reply = `यह एक बहुत अच्छी शुरुआत है ${state.name} जी। क्या आपके पास पहले से जमीन और पशु शेड उपलब्ध है?`;
+        reply = `शानदार ${nameTxt}! डेयरी फार्मिंग दैनिक नकद आय का सबसे मजबूत स्रोत है। आप किस जिले या गाँव में यह फार्म शुरू करना चाहते हैं?`;
       } else if (langMode === 'te') {
-        reply = `ఇది మంచి ప్రారంభం ${state.name} గారు. మీ వద్ద ముందే సొంత స్థలం మరియు పశువుల షెడ్ అందుబాటులో ఉందా?`;
+        reply = `చాలా మంచి ఆలోచన! మీరు ఏ జిల్లా లేదా గ్రామంలో పాడి పరిశ్రమ ప్రారంభించాలనుకుంటున్నారు?`;
       } else if (langMode === 'hi_latin') {
-        reply = `Yeh ek acchi shuruaat hai ${state.name} ji. Kya aapke paas pehle se land aur cattle shed available hai?`;
+        reply = `Shandar ${state.name || ''} ji! Dairy farming daily cashflow ka best business hai. Aap kis district ya gaon mein setup karna chahte hain?`;
       } else {
-        reply = `That's a good start, ${state.name}. Do you already have land and a cattle shed available?`;
+        reply = `Excellent! Dairy farming is a reliable daily cashflow enterprise. Which district or village are you planning to set this up in?`;
+      }
+      return {
+        reply,
+        speak_text: cleanForSpeech(reply),
+        conversation_state: state,
+        intent: 'DAIRY_ASK_LOCATION'
+      };
+    }
+
+    // A. If user mentioned budget first, acknowledge budget and check land & shed
+    if (state.budget && (state.landAvailable === null || state.shedAvailable === null) && conversation_state.lastIntent !== 'DAIRY_ASK_LAND_SHED') {
+      state.lastIntent = 'DAIRY_ASK_LAND_SHED';
+      let reply = '';
+      if (langMode === 'hi_deva') {
+        reply = `यह एक बहुत अच्छी शुरुआत है ${state.name || ''} जी। क्या आपके पास पहले से जमीन और पशु शेड उपलब्ध है?`;
+      } else if (langMode === 'te') {
+        reply = `ఇది మంచి ప్రారంభం ${state.name || ''} గారు. మీ వద్ద ముందే సొంత స్థలం మరియు పశువుల షెడ్ అందుబాటులో ఉందా?`;
+      } else if (langMode === 'hi_latin') {
+        reply = `Yeh ek acchi shuruaat hai ${state.name || ''} ji. Kya aapke paas pehle se land aur cattle shed available hai?`;
+      } else {
+        reply = `That's a good start, ${state.name || ''}. Do you already have land and a cattle shed available?`;
       }
       return {
         reply,
@@ -1352,5 +1520,5 @@ function dynamicAgentReasoning({ message, conversation_state = {}, lang = 'hi' }
  */
 exports.generateDynamicAdvisory = async function({ message, conversation_state = {}, history = [], profile = {}, lang = 'hi' }) {
   const langMode = detectLanguageMode(message, conversation_state.lang || lang);
-  return dynamicAgentReasoning({ message, conversation_state, lang: langMode });
+  return dynamicAgentReasoning({ message, conversation_state, profile, lang: langMode });
 };
