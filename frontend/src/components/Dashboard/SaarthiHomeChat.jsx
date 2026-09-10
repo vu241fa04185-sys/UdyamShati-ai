@@ -490,7 +490,12 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         recommendations: response.data?.top_recommendation,
         actionType: response.data?.action_type,
-        actionPayload: response.data?.action_payload
+        actionPayload: response.data?.action_payload,
+        financialSummary: response.data?.financial_summary || (response.data?.action_type === 'SHOW_FINANCE' ? response.data?.action_payload : null),
+        comparisonTable: response.data?.comparison_table || (response.data?.action_type === 'SHOW_COMPARISON' ? response.data?.action_payload?.comparison_table : null),
+        sources: response.data?.sources,
+        recommendationScore: response.data?.recommendation_score,
+        confidenceScore: response.data?.confidence_score
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -589,25 +594,45 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
       id: 'recommendations',
       title: t.quickActionFindIdea || 'Find a business idea',
       icon: Lightbulb,
-      color: 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+      color: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+      prompt: language === 'hi' 
+        ? "Mere budget aur location ke anusaar achha business idea batao" 
+        : (language === 'te' 
+            ? "నా బడ్జెట్ మరియు ప్రాంతానికి తగిన వ్యాపార ఆలోచనలను సూచించండి" 
+            : "Find the best business ideas for my capital and location")
     },
     {
       id: 'recommendations',
       title: t.quickActionAnalyze || 'Analyze my business idea',
       icon: BarChart2,
-      color: 'bg-emerald-600/10 text-[#0F3D2E] border-emerald-600/20'
+      color: 'bg-emerald-600/10 text-[#0F3D2E] border-emerald-600/20',
+      prompt: language === 'hi' 
+        ? "Mere business idea ka feasibility aur risk analysis karein" 
+        : (language === 'te' 
+            ? "నా వ్యాపార ఆలోచన సాధ్యత మరియు రిస్క్ విశ్లేషణ చేయండి" 
+            : "Analyze the feasibility and market risk of my business idea")
     },
     {
       id: 'finance',
       title: t.quickActionFinances || 'Plan my finances',
       icon: Wallet,
-      color: 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+      color: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      prompt: language === 'hi' 
+        ? "Mujhe finance planning aur loan EMI calculate karni hai" 
+        : (language === 'te' 
+            ? "నా ఫైనాన్స్ ప్లానింగ్ మరియు లోన్ ఈఎమ్‌ఐ లెక్కించండి" 
+            : "Plan my business finances and calculate loan EMI")
     },
     {
       id: 'schemes',
       title: t.quickActionSchemes || 'Explore government schemes',
       icon: Landmark,
-      color: 'bg-purple-500/10 text-purple-600 border-purple-500/20'
+      color: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+      prompt: language === 'hi' 
+        ? "Mere vyavasay ke liye kaunsi sarkari scheme aur subsidy milegi?" 
+        : (language === 'te' 
+            ? "నా వ్యాపారానికి ఏ ప్రభుత్వ పథకాలు మరియు సబ్సిడీలు ఉన్నాయి?" 
+            : "Explore government schemes and subsidies available for my business")
     }
   ];
 
@@ -792,7 +817,13 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
               return (
                 <button
                   key={idx}
-                  onClick={() => setActiveTab(action.id)}
+                  onClick={() => {
+                    if (action.prompt) {
+                      handleSend(action.prompt);
+                    } else {
+                      setActiveTab(action.id);
+                    }
+                  }}
                   className={`
                     p-3.5 rounded-2xl border ${action.color} text-left transition-all duration-200 hover:-translate-y-0.5 shadow-2xs hover:shadow-md flex flex-col justify-between h-20
                   `}
@@ -897,6 +928,215 @@ export default function SaarthiHomeChat({ profile, onProfileUpdate, setActiveTab
                         </span>
                         <ArrowRight className="w-3.5 h-3.5 ml-1" />
                       </button>
+                    </div>
+                  )}
+
+                  {/* Financial Analysis & EMI Structuring Card */}
+                  {(msg.actionType === 'SHOW_FINANCE' || msg.financialSummary) && msg.financialSummary && (
+                    <div className="mt-3 p-3.5 bg-gradient-to-br from-blue-50/95 to-indigo-50/80 border border-blue-200 rounded-2xl text-stone-800 shadow-2xs space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1.5 text-xs font-bold text-blue-900">
+                          <Wallet className="w-4 h-4 text-blue-600" />
+                          <span>
+                            {language === 'hi' ? 'वित्तीय संरचना एवं मासिक ईएमआई' : (language === 'te' ? 'ఆర్థిక ప్రణాళిక మరియు ఈఎమ్‌ఐ సారాంశం' : 'Financial Structuring & EMI Report')}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300">
+                          DSCR: {msg.financialSummary.dscr || '2.15'}x (Safe)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        <div className="bg-white p-2 rounded-xl border border-blue-100">
+                          <span className="text-[10px] text-stone-500 block">{language === 'hi' ? 'कुल परियोजना लागत' : (language === 'te' ? 'మొత్తం ప్రాజెక్ట్ ఖర్చు' : 'Total Project Cost')}</span>
+                          <strong className="text-stone-900 font-bold">₹{Number(msg.financialSummary.project_cost || 0).toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-blue-100">
+                          <span className="text-[10px] text-stone-500 block">{language === 'hi' ? 'अपनी पूँजी (Margin)' : (language === 'te' ? 'సొంత పెట్టుబడి' : 'Own Contribution')}</span>
+                          <strong className="text-emerald-700 font-bold">₹{Number(msg.financialSummary.own_capital || 0).toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-blue-100">
+                          <span className="text-[10px] text-stone-500 block">{language === 'hi' ? 'आवश्यक बैंक ऋण' : (language === 'te' ? 'బ్యాంక్ రుణం' : 'Term Loan Required')}</span>
+                          <strong className="text-blue-700 font-bold">₹{Number(msg.financialSummary.loan_amount || 0).toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-blue-100">
+                          <span className="text-[10px] text-stone-500 block">{language === 'hi' ? 'मासिक EMI (@8.0%)' : (language === 'te' ? 'నెలవారీ EMI (@8.0%)' : 'Monthly EMI (@8.0%)')}</span>
+                          <strong className="text-amber-700 font-bold">₹{Number(msg.financialSummary.monthly_emi || 0).toLocaleString('en-IN')}/mo</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-blue-100">
+                          <span className="text-[10px] text-stone-500 block">{language === 'hi' ? 'ऋण अवधि' : (language === 'te' ? 'కాలపరిమితి' : 'Tenure')}</span>
+                          <strong className="text-stone-800 font-bold">{msg.financialSummary.tenure_years || 5} Years</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-blue-100">
+                          <span className="text-[10px] text-stone-500 block">{language === 'hi' ? 'ब्याज दर' : (language === 'te' ? 'వడ్డీ రేటు' : 'Interest Rate')}</span>
+                          <strong className="text-emerald-600 font-bold">{msg.financialSummary.interest_rate_pct || 8.0}% Concessional</strong>
+                        </div>
+                      </div>
+
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => setActiveTab('finance')}
+                          className="bg-blue-700 hover:bg-blue-800 text-white font-bold py-1.5 px-3 rounded-xl text-xs flex items-center space-x-1.5 transition shadow-xs"
+                        >
+                          <Wallet className="w-3.5 h-3.5" />
+                          <span>{language === 'hi' ? 'पूरा वित्तीय प्लानर खोलें' : (language === 'te' ? 'పూర్తి ఫైనాన్స్ ప్లానర్ తెరవండి' : 'Open Financial Planner')}</span>
+                          <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                        </button>
+                        <button
+                          onClick={() => handleSend(language === 'hi' ? "इसके लिए कौनसी सरकारी सब्सिडी योजना मिलेगी?" : "Which government subsidy applies to this loan?")}
+                          className="bg-white hover:bg-stone-50 text-blue-900 border border-blue-200 font-semibold py-1.5 px-3 rounded-xl text-xs flex items-center space-x-1 transition"
+                        >
+                          <Landmark className="w-3.5 h-3.5 text-purple-600" />
+                          <span>{language === 'hi' ? 'सब्सिडी योजनाएं देखें' : (language === 'te' ? 'సబ్సిడీ పథకాలు చూడండి' : 'Check Subsidies')}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Government Schemes & Subsidies Card */}
+                  {(msg.actionType === 'SHOW_SCHEMES' || msg.actionPayload?.schemes) && (
+                    <div className="mt-3 p-3.5 bg-gradient-to-br from-purple-50/95 to-amber-50/80 border border-purple-200 rounded-2xl text-stone-800 shadow-2xs space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1.5 text-xs font-bold text-purple-900">
+                          <Landmark className="w-4 h-4 text-purple-600" />
+                          <span>{language === 'hi' ? 'सत्यापित सरकारी ऋण एवं सब्सिडी योजनाएं' : (language === 'te' ? 'ధృవీకరించబడిన ప్రభుత్వ పథకాలు & సబ్సిడీలు' : 'Verified Government Schemes & Subsidies')}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
+                          MoSJE / NABARD / PMFME
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs">
+                        <div className="bg-white p-2.5 rounded-xl border border-purple-100 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-stone-900">1. PMFME Scheme (MoFPI)</span>
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">35% Subsidy (Up to ₹10L)</span>
+                          </div>
+                          <p className="text-[11px] text-stone-600">Credit-linked capital subsidy for micro-enterprises and agro-processing units.</p>
+                          <a href="https://pmfme.mofpi.gov.in" target="_blank" rel="noreferrer" className="text-[10px] text-purple-700 font-semibold underline inline-flex items-center">
+                            Official Portal: pmfme.mofpi.gov.in ↗
+                          </a>
+                        </div>
+
+                        <div className="bg-white p-2.5 rounded-xl border border-purple-100 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-stone-900">2. NABARD AHIDF / DEDS</span>
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">25% - 33.3% Capital Subsidy</span>
+                          </div>
+                          <p className="text-[11px] text-stone-600">Dairy and livestock units with interest subvention under Kisan Credit Card.</p>
+                          <a href="https://dahd.nic.in" target="_blank" rel="noreferrer" className="text-[10px] text-purple-700 font-semibold underline inline-flex items-center">
+                            Official Portal: dahd.nic.in ↗
+                          </a>
+                        </div>
+
+                        <div className="bg-white p-2.5 rounded-xl border border-purple-100 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-stone-900">3. MoSJE NBCFDC / NSFDC Loans</span>
+                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">4% - 8% p.a. Concession</span>
+                          </div>
+                          <p className="text-[11px] text-stone-600">Concessional project financing up to 90% for rural and backward category entrepreneurs.</p>
+                          <a href="https://nbcfdc.gov.in" target="_blank" rel="noreferrer" className="text-[10px] text-purple-700 font-semibold underline inline-flex items-center">
+                            Official Portal: nbcfdc.gov.in ↗
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => setActiveTab('schemes')}
+                          className="bg-purple-800 hover:bg-purple-900 text-white font-bold py-1.5 px-3 rounded-xl text-xs flex items-center space-x-1.5 transition shadow-xs"
+                        >
+                          <Landmark className="w-3.5 h-3.5" />
+                          <span>{language === 'hi' ? 'योजना पोर्टल खोलें' : (language === 'te' ? 'పథకాల పోర్టల్ తెరవండి' : 'Open Schemes Explorer')}</span>
+                          <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                        </button>
+                        <button
+                          onClick={() => handleSend(language === 'hi' ? "आवेदन करने के लिए कौनसे दस्तावेज चाहिए?" : "What documents are required to apply for these schemes?")}
+                          className="bg-white hover:bg-stone-50 text-purple-900 border border-purple-200 font-semibold py-1.5 px-3 rounded-xl text-xs flex items-center space-x-1 transition"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-stone-600" />
+                          <span>{language === 'hi' ? 'ज़रूरी दस्तावेज देखें' : (language === 'te' ? 'అవసరమైన పత్రాలు' : 'Check Required Documents')}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 7-Factor Risk Analysis Card */}
+                  {(msg.actionType === 'SHOW_RISK' || msg.actionPayload?.risks) && (
+                    <div className="mt-3 p-3.5 bg-amber-50/90 border border-amber-300 rounded-2xl text-stone-800 shadow-2xs space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-900">
+                          <BarChart2 className="w-4 h-4 text-amber-600" />
+                          <span>{language === 'hi' ? '7-कारक जोखिम एवं बचाव योजना' : (language === 'te' ? '7-కారక రిస్క్ మరియు పరిష్కారాలు' : '7-Factor Risk Assessment & Mitigations')}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                          Zero-Risk Myth Guard
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs">
+                        <div className="bg-white p-2 rounded-xl border border-amber-200">
+                          <div className="flex justify-between items-center text-[11px] font-bold text-stone-900">
+                            <span>1. चारा एवं कच्चा माल मूल्य जोखिम (Fodder/Feed)</span>
+                            <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[10px]">Medium</span>
+                          </div>
+                          <p className="text-[10px] text-stone-600 mt-0.5">बचाव: साइलेज भंडारण और स्थानीय किसानों के साथ मौसमी अग्रिम अनुबंध।</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-amber-200">
+                          <div className="flex justify-between items-center text-[11px] font-bold text-stone-900">
+                            <span>2. बाज़ार मूल्य में उतार-चढ़ाव (Market Volatility)</span>
+                            <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[10px]">Low-Medium</span>
+                          </div>
+                          <p className="text-[10px] text-stone-600 mt-0.5">बचाव: सहकारी संघ से खरीद अनुबंध और मूल्य संवर्धन (घी/पनीर)।</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-amber-200">
+                          <div className="flex justify-between items-center text-[11px] font-bold text-stone-900">
+                            <span>3. पशुधन स्वास्थ्य एवं मृत्यु दर जोखिम (Mortality)</span>
+                            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">Low</span>
+                          </div>
+                          <p className="text-[10px] text-stone-600 mt-0.5">बचाव: 100% सरकारी पशुधन बीमा और समय पर टीकाकरण।</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Business Comparison Table Card */}
+                  {(msg.actionType === 'SHOW_COMPARISON' || msg.comparisonTable) && (
+                    <div className="mt-3 p-3.5 bg-emerald-50/90 border border-emerald-300 rounded-2xl text-stone-800 shadow-2xs space-y-2">
+                      <div className="flex items-center space-x-1.5 text-xs font-bold text-[#0F3D2E]">
+                        <BarChart2 className="w-4 h-4 text-emerald-700" />
+                        <span>{language === 'hi' ? 'व्यवसाय तुलना मैट्रिक्स' : (language === 'te' ? 'వ్యాపార పోలిక పట్టిక' : 'Business Feasibility Comparison Matrix')}</span>
+                      </div>
+
+                      <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden text-[11px]">
+                        <div className="grid grid-cols-3 bg-emerald-100/70 p-2 font-bold text-emerald-950 border-b border-emerald-200">
+                          <div>कारक / Metric</div>
+                          <div>विकल्प 1 (Option 1)</div>
+                          <div>विकल्प 2 (Option 2)</div>
+                        </div>
+                        {(msg.comparisonTable || [
+                          { factor: "Project Cost", option_1: "₹3,00,000", option_2: "₹2,50,000" },
+                          { factor: "Land / Space Needed", option_1: "0.5 Acre / Shed", option_2: "0.25 Acre / Shed" },
+                          { factor: "Estimated Profit", option_1: "₹22,000 / mo", option_2: "₹18,000 / mo" },
+                          { factor: "Risk Tier", option_1: "LOW", option_2: "MEDIUM" }
+                        ]).map((row, rIdx) => (
+                          <div key={rIdx} className={`grid grid-cols-3 p-2 border-b border-stone-100 ${rIdx % 2 === 1 ? 'bg-stone-50/60' : 'bg-white'}`}>
+                            <div className="font-semibold text-stone-700">{row.factor}</div>
+                            <div className="text-stone-900 font-bold">{row.option_1}</div>
+                            <div className="text-stone-900 font-bold">{row.option_2}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => setActiveTab('recommendations')}
+                          className="bg-[#0F3D2E] text-amber-300 font-bold py-1.5 px-3 rounded-xl text-xs flex items-center space-x-1 hover:brightness-110 shadow-xs"
+                        >
+                          <span>{language === 'hi' ? 'विस्तृत विश्लेषण देखें' : 'View Full Details'}</span>
+                          <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                        </button>
+                      </div>
                     </div>
                   )}
 

@@ -29,36 +29,89 @@ exports.handleChat = async (req, res) => {
       return res.status(400).json({ error: 'Message text is required' });
     }
 
-    // 1. Check if user is asking to search nearby places or view businesses on map
-    const lowerMsg = (message || '').toLowerCase();
-    const isNearbyQuery = /(nearby|paas ki|doodh ki dukan|kirana dukan|medical store|where is|kahan hai|chemist|pharmacy|fertilizer shop|petrol pump|shop in|दुकान|నందు|దుకాణం|daggara|దగ్గర)/i.test(lowerMsg);
+    // Assemble unified entrepreneur profile
+    const currentProfile = {
+      ...(profile || {}),
+      name: session_state?.name || profile?.name || null,
+      district: session_state?.district || profile?.district || null,
+      available_capital: session_state?.budget !== undefined && session_state?.budget !== null 
+        ? session_state.budget 
+        : (profile?.available_capital || profile?.capital || null),
+      capital: session_state?.budget !== undefined && session_state?.budget !== null 
+        ? session_state.budget 
+        : (profile?.available_capital || profile?.capital || null),
+      business_interest: session_state?.business || session_state?.businessIdea || profile?.business_interest || null,
+      land_acres: session_state?.landAvailable || profile?.land_acres || null,
+      experience_years: session_state?.experience || profile?.experience_years || null,
+      preferred_language: lang
+    };
 
-    if (isNearbyQuery) {
-      try {
-        const agentResult = await callAI('/api/agent/chat', { message, profile: profile || {} });
-        if (agentResult && agentResult.action_type === 'OPEN_MAP') {
-          return res.json({
-            reply: agentResult.reply,
-            response: agentResult.reply,
-            speak_text: agentResult.reply,
-            intent: agentResult.intent,
-            action_type: agentResult.action_type,
-            action_payload: agentResult.action_payload || (agentResult.map_action ? {
-              search_query: agentResult.map_action.query,
-              category: agentResult.map_action.category,
-              radius_km: agentResult.map_action.radius_km,
-              total_count: agentResult.map_action.total_count
-            } : null),
-            session_state: session_state || {},
-            updated_profile: profile || {}
-          });
-        }
-      } catch (err) {
-        console.warn('AI agent nearby search fallback to local advisor:', err.message);
-      }
+    let agentResult = null;
+    try {
+      // 1. Primary Engine: UdyamSarthi Autonomous Specialist Agent (Python Microservice)
+      agentResult = await callAI('/api/agent/chat', { 
+        message, 
+        profile: currentProfile,
+        session_id: session_state?.session_id || 'default_session'
+      });
+    } catch (microErr) {
+      console.warn('AI Microservice call failed, falling back to local Express Advisor:', microErr.message);
     }
 
-    // Process chat through Dynamic AI Advisor Agent Reasoning
+    if (agentResult) {
+      const up = agentResult.updated_profile || {};
+      const fin = up.financial || {};
+      const resrc = up.resources || {};
+      const exp = up.experience || {};
+      const biz = up.business || {};
+      const loc = up.location || {};
+
+      const updatedSessionState = {
+        ...(session_state || {}),
+        name: up.name || session_state?.name || null,
+        district: loc.village || loc.district || session_state?.district || null,
+        state: loc.state || session_state?.state || null,
+        business: biz.interest || session_state?.business || null,
+        businessIdea: biz.interest || session_state?.businessIdea || null,
+        budget: fin.capital !== undefined && fin.capital !== null ? fin.capital : session_state?.budget,
+        landAvailable: resrc.land_acres !== undefined && resrc.land_acres !== null ? resrc.land_acres : session_state?.landAvailable,
+        experience: exp.experience_years !== undefined && exp.experience_years !== null ? exp.experience_years : session_state?.experience,
+        lang: agentResult.detected_language === 'TELUGU' ? 'te' : (agentResult.detected_language === 'ENGLISH' ? 'en' : 'hi'),
+        lastIntent: agentResult.intent
+      };
+
+      const updatedProfileResponse = {
+        ...(profile || {}),
+        name: up.name || profile?.name || null,
+        district: loc.village || loc.district || profile?.district || null,
+        available_capital: fin.capital !== undefined && fin.capital !== null ? fin.capital : profile?.available_capital,
+        business_interest: biz.interest || profile?.business_interest || null
+      };
+
+      return res.json({
+        reply: agentResult.reply,
+        response: agentResult.reply,
+        speak_text: agentResult.reply,
+        intent: agentResult.intent,
+        action_type: agentResult.action_type,
+        action_payload: agentResult.action_payload || (agentResult.map_action ? {
+          search_query: agentResult.map_action.query,
+          category: agentResult.map_action.category,
+          radius_km: agentResult.map_action.radius_km,
+          total_count: agentResult.map_action.total_count
+        } : null),
+        recommendation_score: agentResult.recommendation_score,
+        confidence_score: agentResult.confidence_score,
+        comparison_table: agentResult.comparison_table,
+        financial_summary: agentResult.financial_summary,
+        map_action: agentResult.map_action,
+        sources: agentResult.sources,
+        session_state: updatedSessionState,
+        updated_profile: updatedProfileResponse
+      });
+    }
+
+    // Fallback: Dynamic Advisor Service
     const sarthiResult = await generateDynamicAdvisory({
       message,
       conversation_state: session_state || {},

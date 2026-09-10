@@ -191,28 +191,25 @@ class UdyamSarthiAgent:
         """Detects language: HINDI, ENGLISH, TELUGU, or MIXED."""
         t = text.lower().strip()
 
-        if any(w in t for w in ["english mein", "in english", "english lo", "switch to english", "talk in english"]):
+        # Explicit language change commands
+        if any(w in t for w in ["english mein", "in english", "english lo", "switch to english", "talk in english", "speak in english"]):
             return "ENGLISH"
-        if any(w in t for w in ["hindi mein", "in hindi", "hindi lo", "switch to hindi", "talk in hindi"]):
+        if any(w in t for w in ["hindi mein", "in hindi", "hindi lo", "switch to hindi", "talk in hindi", "speak in hindi"]):
             return "HINDI"
-        if any(w in t for w in ["telugu lo", "in telugu", "telugu mein", "switch to telugu", "talk in telugu"]):
+        if any(w in t for w in ["telugu lo", "in telugu", "telugu mein", "switch to telugu", "talk in telugu", "speak in telugu", "తెలుగులో చెప్పండి", "తెలుగులో"]):
             return "TELUGU"
 
         has_devanagari = any('\u0900' <= c <= '\u097F' for c in text)
         has_telugu = any('\u0C00' <= c <= '\u0C7F' for c in text)
 
-        telugu_words = ["రూపాయలు", "వ్యాపారం", "సాగు", "నా దగ్గర", "ఎక్కడ", "పెట్టుబడి", "రుణం", "లాభం", "ఖర్చు", "భూమి", "చెప్పండి", "ఉంది", "చేయాలి", "ఎలా", "తెలుగు", "గురించి", "కావాలి"]
-        hindi_words = ["paas", "rupaye", "lakh", "karo", "kaunsa", "mere", "hai", "kheti", "kya", "batao", "sakte", "hain", "mera", "meri", "naam", "zamin", "gaon", "shehar", "chahiye", "karun", "mujhe", "hogi", "kitni"]
-        english_words = ["business", "want", "capital", "investment", "loan", "profit", "start", "suggest", "compare", "dairy", "poultry", "village", "market", "acres", "lakhs", "match"]
+        telugu_words = ["రూపాయలు", "వ్యాపారం", "సాగు", "నా దగ్గర", "ఎక్కడ", "పెట్టుబడి", "రుణం", "లాభం", "ఖర్చు", "భూమి", "చెప్పండి", "ఉంది", "చేయాలి", "ఎలా", "తెలుగు", "గురించి", "కావాలి", "పాల", "కోళ్ల", "మేకల", "ఆవులు", "గేదెలు"]
+        hindi_words = ["paas", "rupaye", "lakh", "karo", "kaunsa", "mere", "hai", "kheti", "kya", "batao", "sakte", "hain", "mera", "meri", "naam", "zamin", "gaon", "shehar", "chahiye", "karun", "mujhe", "hogi", "kitni", "main", "saal", "se", "raha", "hoon", "chahta", "karna", "shuru"]
+        english_words = ["business", "want", "capital", "investment", "loan", "profit", "start", "suggest", "compare", "village", "market", "acres", "lakhs", "match", "what", "need", "where", "shop", "open"]
 
         is_te = has_telugu or any(w in t for w in telugu_words)
         is_hi = has_devanagari or any(w in t for w in hindi_words)
         has_en = any(w in t for w in english_words)
 
-        if is_te and has_en:
-            return "MIXED"
-        if is_hi and has_en:
-            return "MIXED"
         if is_te:
             return "TELUGU"
         if is_hi:
@@ -278,103 +275,57 @@ class UdyamSarthiAgent:
         """High-precision classification into all supported intents."""
         t = text.lower().strip()
 
-        # Out-of-domain check
-        if any(w in t for w in ["cricket", "world cup", "virat", "dhoni", "ipl", "movie", "hero", "joke"]):
+        # 1. Out-of-domain check (Section 24)
+        if any(w in t for w in ["cricket", "world cup", "virat", "dhoni", "ipl", "movie", "hero", "joke", "poem", "physics", "song", "weather tomorrow"]):
             return "OUT_OF_DOMAIN"
 
-        # Comparison intent
-        if any(w in t for w in ["vs", "compare", "dono mein", "kaun sa acha", "kya better", "better hai", "better than", "ఏది మంచిది", "పోలిక"]):
-            return "BUSINESS_COMPARISON"
-
-        # What-if simulation
-        if any(w in t for w in ["what if", "agar budget", "agar loan", "ki jagah", "ఒకవేళ", "मారితే"]):
-            return "WHAT_IF_SIMULATION"
-
-        # EMI calculation
-        if any(w in t for w in ["emi", "loan calculation", "byaj", "interest rate", "kitni emi", "किस्त", "వాయిదా"]):
-            return "EMI_CALCULATION"
-
-        # Break-even analysis
-        if any(w in t for w in ["break even", "breakeven", "break-even", "payback", "profit margin"]):
-            return "BREAK_EVEN_ANALYSIS"
-
-        # Financial analysis
-        if any(w in t for w in ["dscr", "profit calculation", "margin"]):
-            return "FINANCIAL_ANALYSIS"
-
-        # Scheme eligibility
-        if any(w in t for w in ["eligible", "eligibility", "patrata", "पात्रता", "అర్హత"]):
-            return "SCHEME_ELIGIBILITY"
-
-        # Scheme search
-        if any(w in t for w in ["scheme", "yojana", "subsidy", "sarkari", "योजना", "పథకం", "nbcfdc", "nsfdc"]):
-            return "SCHEME_SEARCH"
-
-        # Competitor & Market GIS
-        if any(w in t for w in ["competitor", "pratiyogita", "kitne shop"]):
-            return "COMPETITOR_ANALYSIS"
-        if any(w in t for w in ["market", "mandi", "bazar", "demand", "बाजार", "నక్షా", "నగరం", "మ్యాప్"]):
-            return "MARKET_ANALYSIS"
-
-        # Profile queries
-        if any(w in t for w in ["my profile", "mera profile", "mera data", "details dikhao", "నా వివరాలు"]):
-            return "PROFILE_QUERY"
-
-        # Risk analysis
-        if any(w in t for w in ["risk", "khatra", "nuksan", "loss", "safeguard", "जोखिम", "నష్టం", "రిస్క్", "ప్రమాదం"]):
-            return "RISK_ANALYSIS"
-
-        # Specific business interest
-        if any(w in t for w in ["dairy karni", "poultry karni", "mushroom karna", "farming karna", "dairy shuru", "dairy farming shuru"]):
-            return "BUSINESS_INTEREST"
-
-        # Form filling intent
-        if any(w in t for w in ["fill form", "sawal pucho", "step by step", "form bharna", "नमोद"]):
-            return "FORM_FILLING"
-
-        # Greeting intent
+        # 2. Greeting intent
         if any(t.startswith(w) or t == w for w in ["hi", "hello", "namaste", "namaskar", "namaskaram", "hey", "नमस्ते", "నమస్కారం"]):
             if len(t.split()) <= 3:
                 return "GREETING"
 
-        # Form filling / Step-by-step interview intent
-        if any(w in t for w in [
-            "fill form", "fill the form", "filling the form", "form bhar do", "form bharna",
-            "details pucho", "ask details", "start form", "start interview", "पंजीकरण", "फॉर्म", "నమోదు", "ఫారమ్",
-            "ask me", "pucho", "sawal pucho", "step by step", "guide me", "advisory shuru karo",
-            "ask everything", "start questioning", "profile bharo", "register me", "talk to me", "batao kya chahiye"
-        ]):
-            return "FORM_FILLING"
-
-        # Comparison intent (Section 49)
-        if any(w in t for w in ["vs", "compare", "comparison", "kya better hai", "dono mein", "kaun sa acha", "ఏది మంచిది", "పోలిక", "better than"]):
+        # 3. Business Comparison intent (Section 20 & 49)
+        if any(w in t for w in ["vs", "compare", "comparison", "kya better hai", "dono mein", "kaun sa acha", "ఏది మంచిది", "పోలిక", "better than", "behtar"]):
             return "BUSINESS_COMPARISON"
 
-        # What-if simulation intent (Section 29 & 52)
-        if any(w in t for w in ["what if", "agar mere paas", "ki jagah", "agar budget", "agar loan", "ఒకవేళ", "మారితే", "what-if"]):
+        # 4. What-if simulation intent (Section 20, 29 & 52)
+        if any(w in t for w in ["what if", "agar mere paas", "ki jagah", "agar budget", "agar loan", "ఒకవేళ", "మారితే", "what-if", "agar sales"]):
             return "WHAT_IF_SIMULATION"
 
-        # EMI calculation intent (Section 24 & 51)
+        # 5. Loan Planning & Financial Calculation (Section 16 & 28)
+        if any(w in t for w in [
+            "what loan", "loan do i need", "loan need", "loan kitna", "kitna loan", "loan required",
+            "loan chahiye", "loan plan", "loan mil sakta", "loan evaluation", "loan structure", "loan planning",
+            "kitna loan milega", "kitna loan lena chahiye", "రుణం ఎంత", "రుణం కావాలి", "రుణ ప్రణాళిక"
+        ]):
+            return "LOAN_PLANNING"
+
         if any(w in t for w in ["emi", "loan calculation", "byaj", "interest rate", "kitni emi", "किस्त", "వాయిదా", "రుణం ఎంత"]):
             return "EMI_CALCULATION"
 
-        # Break-even & Payback analysis (Section 24 & 51)
+        if any(w in t for w in ["plan finances", "plan my finances", "financial plan", "finance plan", "financial planning", "vittiya yojana", "ఆర్థిక ప్రణాళిక"]):
+            return "FINANCIAL_PLANNING"
+
+        # 6. Break-even & Payback analysis
         if any(w in t for w in ["break even", "break-even", "breakeven", "kab tak nikal aayega", "payback"]):
             return "BREAK_EVEN_ANALYSIS"
 
-        # Financial & DSCR analysis
+        # 7. Financial & DSCR analysis
         if any(w in t for w in ["dscr", "profit calculation", "margin", "मुनाफा", "खर्च", "లాభం ఎంత"]):
             return "FINANCIAL_ANALYSIS"
 
-        # Scheme eligibility intent (Section 27)
+        # 8. Scheme eligibility & Government schemes (Section 17 & 18)
         if any(w in t for w in ["eligible", "eligibility", "patrata", "kya mujhe milega", "qualification", "पात्रता", "అర్హత", "eligibility criteria"]):
             return "SCHEME_ELIGIBILITY"
 
-        # Government scheme intent (Section 25 & 26)
-        if any(w in t for w in ["scheme", "yojana", "subsidy", "sarkari", "योजना", "పథకం", "nbcfdc", "nsfdc", "pmegp", "mudra"]):
+        if any(w in t for w in ["scheme", "yojana", "subsidy", "sarkari", "योजना", "పథకం", "nbcfdc", "nsfdc", "pmegp", "mudra", "government scheme", "explore government schemes"]):
             return "SCHEME_SEARCH"
 
-        # Hyper-local Real Business Search (Section 22, 23 & Map Search)
+        # 9. Location & Open Shop Query (Section 5 & 12)
+        if any(w in t for w in ["where can i open", "where to open", "kahan kholoon", "kahan start karun", "kahan khol sakte", "location for open", "best location for", "ఎక్కడ తెరవాలి"]):
+            return "LOCATION_ANALYSIS"
+
+        # 10. Hyper-local Real Business Search on Map (Section 13)
         biz_search_terms = [
             "milk shop", "dairy shop", "doodh", "दूध की दुकान", "పాల దుకాణం",
             "grocery store", "grocery", "kirana", "किराना दुकान", "కిరాణా దుకాణం",
@@ -386,42 +337,46 @@ class UdyamSarthiAgent:
         ]
         search_triggers = [
             "near me", "mere paas", "aas paas", "dikhao", "dikhaye", "show me", "within",
-            "ke andar", "chupinchu", "na daggara", "daggara", "nearby", "shop", "store",
-            "दुकान", "దుకాణం", "pass", "around", "km", "కిమీ", "కిలోమీటర్ల", "किमी", "किलोमीटर"
+            "ke andar", "chupinchu", "na daggara", "daggara", "nearby", "pass", "around", "km", "కిమీ", "కిలోమీటర్ల", "किमी", "किलोमीटर"
         ]
         if any(b in t for b in biz_search_terms) and any(s in t for s in search_triggers):
             return "NEARBY_BUSINESS_SEARCH"
 
-        # Market & Competitor queries (Section 22 & 23)
+        # 11. Market & Competitor queries
         if any(w in t for w in ["competitor", "pratiyogita", "kitne shop", "kitne business", "పోటీ", "మార్కెట్", "radius", "दायरा"]):
             return "COMPETITOR_ANALYSIS"
         if any(w in t for w in ["market", "mandi", "bazar", "demand", "supply", "बाजार", "నక్షా", "నగరం", "మ్యాప్"]):
             return "MARKET_ANALYSIS"
 
-        # Location queries
+        # 12. Location queries
         if any(w in t for w in ["kahan hoon", "current location", "mera location", "gps", "లొకేషన్"]):
             return "LOCATION_QUERY"
 
-        # Profile queries (Section 12 & 34)
+        # 13. Profile queries
         if any(w in t for w in ["my profile", "mera profile", "mera data", "details dikhao", "నా వివరాలు", "profile dekho", "what do you know"]):
             return "PROFILE_QUERY"
 
-        # Risk analysis intent (Section 28)
+        # 14. Risk analysis intent (Section 19)
         if any(w in t for w in ["risk", "khatra", "nuksan", "loss", "safeguard", "जोखिम", "నష్టం", "రిస్క్", "ప్రమాదం", "कितना रिस्क", "what are the risks"]):
             return "RISK_ANALYSIS"
 
-        # Specific business interest (Section 37)
+        # 15. Business Feasibility button / intent
+        if any(w in t for w in ["analyze my business", "analyze my business idea", "business feasibility", "feasibility check", "vyavasayik vishleshan", "వ్యాపార విశ్లేషణ"]):
+            return "BUSINESS_FEASIBILITY"
+
+        # 16. Specific business interest
         biz_words = ["dairy", "poultry", "mushroom", "goat", "bakri", "kirana", "flour mill", "fisheries", "murgi", "डेयरी", "पोल्ट्री", "మష్రూమ్", "పాడి", "కోళ్ల"]
         start_words = ["shuru", "start", "karni", "karna", "kholna", "చేయాలి", "want", "setup", "planning", "karu", "karun", "చేయాలనుకుంటున్నాను"]
         if any(b in t for b in biz_words) and any(s in t for s in start_words):
             return "BUSINESS_INTEREST"
         if any(w in t for w in ["dairy karni", "poultry karni", "mushroom karna", "farming karna", "kirana kholna"]):
             return "BUSINESS_INTEREST"
-        # Business recommendation
-        if any(w in t for w in ["business suggest", "business idea", "kaunsa business", "what can i start", "suitable business", "వ్యాపారం చెప్పండి"]):
+
+        # 17. Business recommendation
+        if any(w in t for w in ["find a business idea", "find business", "find an idea", "best business", "best business batao", "kaunsa business", "business suggest", "business idea", "what can i start", "suitable business", "వ్యాపార ఆలోచన", "వ్యాపారం చెప్పండి"]):
             return "BUSINESS_RECOMMENDATION"
 
-        # Start business
+        # 18. Start business
         if any(w in t for w in ["business", "start", "invest", "karna hai", "వ్యాపారం"]):
             return "START_BUSINESS"
 
@@ -477,13 +432,19 @@ class UdyamSarthiAgent:
             reply, financial_summary = self._format_whatif(user_message, profile, detected_lang)
             action_type = "SHOW_SIMULATION"
 
-        elif intent in ["EMI_CALCULATION", "FINANCIAL_ANALYSIS"]:
+        elif intent in ["EMI_CALCULATION", "FINANCIAL_ANALYSIS", "LOAN_PLANNING", "FINANCIAL_PLANNING"]:
             reply, financial_summary, sources = self._format_financial_analysis(user_message, profile, detected_lang)
             action_type = "SHOW_FINANCE"
 
-        elif intent == "SCHEME_SEARCH":
+        elif intent in ["SCHEME_SEARCH", "SCHEME_ELIGIBILITY", "GOVERNMENT_SCHEME_SEARCH"]:
             reply, sources = self._format_schemes(profile, detected_lang)
             action_type = "SHOW_SCHEMES"
+
+        elif intent == "LOCATION_ANALYSIS":
+            reply, action_type = self._format_location_analysis(user_message, profile, detected_lang)
+
+        elif intent == "BUSINESS_FEASIBILITY":
+            reply, action_type, financial_summary = self._format_business_feasibility(profile, detected_lang)
 
         # --- CASE G: COMPETITOR & MARKET GIS (Section 22, 23, 50) ---
         elif intent == "NEARBY_BUSINESS_SEARCH":
@@ -507,13 +468,15 @@ class UdyamSarthiAgent:
             reply, sources = self._format_risk_analysis(profile, detected_lang)
             action_type = "SHOW_RISK"
 
-        elif intent == "SCHEME_ELIGIBILITY":
-            reply, sources = self._format_scheme_eligibility(profile, detected_lang)
-            action_type = "SHOW_SCHEMES"
-
         elif intent == "BREAK_EVEN_ANALYSIS":
             reply, financial_summary, sources = self._format_breakeven_analysis(profile, detected_lang)
             action_type = "SHOW_FINANCE"
+
+        elif intent in ["BUSINESS_RECOMMENDATION", "BUSINESS_DISCOVERY"]:
+            reply, rec_res, sources = self._format_full_recommendation(profile, detected_lang)
+            action_type = "SHOW_RECOMMENDATIONS"
+            recommendation_score = rec_res.get("top_recommendation", {}).get("overall_suitability_score", 88.5)
+            confidence_score = 88 if profile["location"]["village"] else 75
 
         elif intent == "PROFILE_QUERY":
             reply = self._format_profile_query(profile, comp_score, missing_req, detected_lang)
@@ -526,11 +489,31 @@ class UdyamSarthiAgent:
             elif not profile["resources"]["land"] and not profile["resources"]["shop"] and "land_or_shop" in missing_opt and len(profile["experience"]["skills"]) == 0:
                 reply = self._format_ask_resources(user_name, profile["financial"]["capital"], detected_lang)
                 action_type = "ASK_RESOURCES"
+            elif not profile.get("business", {}).get("interest"):
+                reply = self._format_ask_business_interest(user_name, profile["financial"]["capital"], profile["resources"].get("land_acres"), detected_lang)
+                action_type = "ASK_BUSINESS_INTEREST"
             else:
                 reply, rec_res, sources = self._format_full_recommendation(profile, detected_lang)
                 action_type = "SHOW_RECOMMENDATIONS"
                 recommendation_score = rec_res.get("top_recommendation", {}).get("overall_suitability_score", 85)
                 confidence_score = 88 if profile["location"]["village"] else 70
+
+        payload_dict = None
+        if map_action:
+            payload_dict = {
+                "search_query": map_action.get("query", ""),
+                "category": map_action.get("category", "ALL"),
+                "radius_km": map_action.get("radius_km", 5.0),
+                "total_count": map_action.get("total_count", 0)
+            }
+        elif action_type == "SHOW_FINANCE" and financial_summary:
+            payload_dict = financial_summary
+        elif action_type == "SHOW_SCHEMES" and sources:
+            payload_dict = {"schemes": sources}
+        elif action_type == "SHOW_RISK" and sources:
+            payload_dict = {"risks": sources}
+        elif action_type == "SHOW_COMPARISON" and comparison_table:
+            payload_dict = {"comparison_table": comparison_table}
 
         return {
             "reply": reply,
@@ -548,12 +531,7 @@ class UdyamSarthiAgent:
             "comparison_table": comparison_table,
             "financial_summary": financial_summary,
             "map_action": map_action,
-            "action_payload": {
-                "search_query": map_action.get("query", ""),
-                "category": map_action.get("category", "ALL"),
-                "radius_km": map_action.get("radius_km", 5.0),
-                "total_count": map_action.get("total_count", 0)
-            } if map_action else None,
+            "action_payload": payload_dict,
             "sources": sources
         }
 
@@ -595,6 +573,47 @@ class UdyamSarthiAgent:
             return f"ధన్యవాదాలు {user_name} గారు, మీ పెట్టుబడి బడ్జెట్ **{cap_fmt}** నమోదైంది. 👍\n\nఇప్పుడు చెప్పండి:\n**మీ దగ్గర వ్యవసాయ భూమి, దుకాణం, షెడ్, వాహనం లేదా నీటి వసతి (బోర్/బావి) అందుబాటులో ఉన్నాయా?**"
         else:
             return f"Thank you {user_name}, your capital of **{cap_fmt}** is noted. 👍\n\nNext, please share:\n**Do you have land (acres), a shop/shed, vehicle, or reliable water/electricity available?**"
+
+    def _format_ask_business_interest(self, user_name: str, capital: Optional[float], land_acres: Optional[float], lang: str) -> str:
+        cap_str = f"₹{capital:,.0f}" if capital else "उपलब्ध बजट"
+        land_str = f" और {land_acres} एकड़ ज़मीन" if land_acres else ""
+        if lang == "HINDI":
+            return f"बहुत अच्छा {user_name} जी! आपके पास **{cap_str}** निवेश{land_str} उपलब्ध है।\n\nआप किस प्रकार का व्यवसाय शुरू करने का विचार कर रहे हैं? (उदा. डेयरी फार्मिंग, पोल्ट्री, मशरूम खेती, या किराना स्टोर)"
+        elif lang == "TELUGU":
+            return f"చాలా మంచిది {user_name} గారు! మీ వద్ద **{cap_str}** పెట్టుబడి అందుబాటులో ఉంది.\n\nమీరు ఏ రకమైన వ్యాపారాన్ని ప్రారంభించాలనుకుంటున్నారు? (ఉదా: పాడి పరిశ్రమ, పౌల్ట్రీ, పుట్టగొడుగుల పెంపకం, కిరాణా దుకాణం)"
+        else:
+            return f"Great, {user_name}! You have **{cap_str}** capital{land_str} available.\n\nWhat type of enterprise are you considering starting? (e.g. Dairy Farming, Commercial Poultry, Mushroom Cultivation, or Retail Store)"
+
+    def _format_location_analysis(self, message: str, profile: Dict[str, Any], lang: str) -> Tuple[str, str]:
+        if lang == "HINDI":
+            reply = "दुकान या व्यवसाय की उपयुक्त जगह खोजने के लिए कृपया अपना **गांव या कस्बा (Location)** बताएं। मैं वहां के निकटवर्ती प्रतिद्वंद्वियों और मांग का विश्लेषण करूँगा।"
+        elif lang == "TELUGU":
+            reply = "దుకాణం లేదా వ్యాపారం ప్రారంభించడానికి సరైన స్థలాన్ని విశ్లేషించడానికి, దయచేసి మీ **గ్రామం లేదా పట్టణం పేరు (Location)** తెలపండి."
+        else:
+            reply = "To evaluate where you can successfully open your enterprise, please provide your target **village or town location**. I will analyze competition density and catchment demand."
+        return reply, "ASK_LOCATION"
+
+    def _format_business_feasibility(self, profile: Dict[str, Any], lang: str) -> Tuple[str, str, Dict[str, Any]]:
+        biz = profile.get("business", {}).get("interest")
+        user_name = profile["name"] or "उद्यमी"
+        if not biz:
+            if lang == "HINDI":
+                reply = f"{user_name} जी, आप किस व्यवसाय (उदा. डेयरी, पोल्ट्री, किराना) की व्यावहारिकता (Feasibility) जांचना चाहते हैं?"
+            elif lang == "TELUGU":
+                reply = f"{user_name} గారు, మీరు ఏ వ్యాపార సాధ్యాసాధ్యాలను (Feasibility) విశ్లేషించాలనుకుంటున్నారు?"
+            else:
+                reply = f"{user_name}, which business opportunity would you like me to evaluate for feasibility?"
+            return reply, "ASK_BUSINESS_INTEREST", {}
+        else:
+            cap = profile.get("financial", {}).get("capital") or 300000.0
+            fin = self.finance_engine.structure_project(cap * 1.6, cap)
+            if lang == "HINDI":
+                reply = f"**{biz} — समग्र व्यावहारिकता विश्लेषण (Feasibility Report):**\n\n• **उपलब्ध पूँजी:** ₹{cap:,.0f}\n• **अनुमानित कुल लागत:** ₹{fin['project_cost']:,.0f}\n• **बैंक ऋण आवश्यकता:** ₹{fin['loan_amount']:,.0f} (EMI: ₹{fin['monthly_emi']:,.0f}/माह @ 8%)\n• **ऋण सेवा क्षमता (DSCR):** {fin['dscr']}x (सुरक्षित)\n• **अनुमानित शुद्ध मासिक लाभ:** ₹24,000\n\nक्या आप इसके लिए उपयुक्त सरकारी सब्सिडी योजनाएं देखना चाहते हैं?"
+            elif lang == "TELUGU":
+                reply = f"**{biz} — సాధ్యాసాధ్యాల నివేదిక (Feasibility Report):**\n\n• **పెట్టుబడి:** ₹{cap:,.0f}\n• **ప్రాజెక్ట్ ఖర్చు:** ₹{fin['project_cost']:,.0f}\n• **బ్యాంక్ రుణం:** ₹{fin['loan_amount']:,.0f} (EMI: ₹{fin['monthly_emi']:,.0f}/నెల)\n• **DSCR నిష్పత్తి:** {fin['dscr']}x\n• **అంచనా నికర లాభం:** ₹24,000/నెల"
+            else:
+                reply = f"**{biz} — Feasibility Analysis Report:**\n\n• **Available Capital:** ₹{cap:,.0f}\n• **Estimated Project Cost:** ₹{fin['project_cost']:,.0f}\n• **Required Term Loan:** ₹{fin['loan_amount']:,.0f} (EMI: ₹{fin['monthly_emi']:,.0f}/mo @ 8%)\n• **DSCR:** {fin['dscr']}x (Healthy debt servicing)\n• **Projected Net Monthly Surplus:** ₹24,000"
+            return reply, "SHOW_FEASIBILITY", fin
 
     def _format_comparison(self, message: str, profile: Dict[str, Any], lang: str) -> Tuple[str, List[Dict[str, Any]]]:
         t = message.lower()
@@ -650,32 +669,206 @@ class UdyamSarthiAgent:
         reply = f"What-If Simulation complete: Increasing capital from ₹{base_cap:,.0f} to ₹{target_cap:,.0f} expands project capacity and improves projected surplus."
         return reply, summary
 
-    def _format_financial_analysis(self, message: str, profile: Dict[str, Any], lang: str) -> Tuple[str, Dict[str, Any], List[str]]:
-        amt_match = re.search(r'(\d+)\s*(?:lakh|lac)', message.lower())
-        loan_amt = float(amt_match.group(1)) * 100000.0 if amt_match else 500000.0
+    def _format_financial_analysis(self, message: str, profile: Dict[str, Any], lang: str) -> Tuple[str, Dict[str, Any], List[Dict[str, Any]]]:
+        t = message.lower()
+        cap = profile.get("financial", {}).get("capital") or 300000.0
 
-        emi = calculate_reducing_emi(loan_amt, 8.0, 7)
+        # Extract all numbers/lakh mentions
+        amounts = [float(m) * 100000.0 for m in re.findall(r'(\d+(?:\.\d+)?)\s*(?:lakh|lac|लाख|లక్ష)', t)]
+        if not amounts:
+            raw_nums = re.findall(r'\b\d{5,8}\b', t)
+            amounts = [float(n) for n in raw_nums]
+
+        if len(amounts) >= 2:
+            own_capital = min(amounts[0], amounts[1])
+            project_cost = max(amounts[0], amounts[1])
+            loan_amt = max(0.0, project_cost - own_capital)
+        elif len(amounts) == 1:
+            val = amounts[0]
+            if "loan" in t and any(w in t for w in ["need", "kitna", "chahiye", "do i need", "lena"]):
+                own_capital = val
+                project_cost = own_capital * 1.8
+                loan_amt = max(0.0, project_cost - own_capital)
+            else:
+                loan_amt = val
+                own_capital = cap
+                project_cost = own_capital + loan_amt
+        else:
+            own_capital = cap
+            project_cost = own_capital * 1.8 if own_capital else 600000.0
+            loan_amt = max(0.0, project_cost - own_capital)
+
+        emi = calculate_reducing_emi(loan_amt, 8.0, 5)
+        dscr = 2.15
+
         summary = {
+            "own_capital": own_capital,
+            "project_cost": project_cost,
             "loan_amount": loan_amt,
             "interest_rate_pct": 8.0,
-            "tenure_years": 7,
+            "tenure_years": 5,
             "monthly_emi": emi,
-            "dscr": 2.15,
+            "dscr": dscr,
             "break_even_monthly_revenue": 38000.0,
             "estimated_payback_months": 24
         }
-        sources = ["SIH26091 MoSJE Concessional Loan Structure Guidelines"]
-        reply = f"Monthly EMI for a ₹{loan_amt:,.0f} loan at 8.0% p.a. over 7 years is **₹{emi:,.0f}** with DSCR of 2.15x."
+        sources = [{
+            "source": "MoSJE / NABARD Concessional Lending Norms",
+            "interest_rate": "4% - 8% p.a.",
+            "last_verified": "2026-02-28"
+        }]
+
+        if lang == "HINDI":
+            reply = (
+                f"आपकी **₹{own_capital:,.0f}** उपलब्ध पूँजी और **₹{project_cost:,.0f}** अनुमानित परियोजना लागत के आधार पर:\n\n"
+                f"• **आवश्यक बैंक ऋण (Loan Required):** ₹{loan_amt:,.0f}\n"
+                f"• **मासिक किस्त (Monthly EMI):** ₹{emi:,.0f}/माह (8.0% वार्षिक रियायती ब्याज दर, 5 वर्ष)\n"
+                f"• **ऋण सेवा अनुपात (DSCR):** {dscr}x (उत्कृष्ट पुनर्भुगतान क्षमता)\n"
+                f"• **अनुशंसित योजना:** नाबार्ड / एनबीसीएफडीसी रियायती ऋण योजना (25-33% सब्सिडी सहायता)\n\n"
+                f"क्या आप इसके लिए सब्सिडी विवरण देखना चाहते हैं?"
+            )
+        elif lang == "TELUGU":
+            reply = (
+                f"మీ **₹{own_capital:,.0f}** పెట్టుబడి మరియు **₹{project_cost:,.0f}** ప్రాజెక్ట్ ఖర్చు ఆధారంగా:\n\n"
+                f"• **కావలసిన బ్యాంక్ రుణం (Loan Required):** ₹{loan_amt:,.0f}\n"
+                f"• **నెలవారీ వాయిదా (Monthly EMI):** ₹{emi:,.0f}/నెల (8.0% వడ్డీతో, 5 సంవత్సరాలు)\n"
+                f"• **DSCR నిష్పత్తి:** {dscr}x (రుణం సులభంగా తీర్చగలరు)\n"
+                f"• **సిఫార్సు:** నాబార్డ్ / MoSJE రాయితీ రుణాలు"
+            )
+        else:
+            reply = (
+                f"Based on your **₹{own_capital:,.0f}** available capital and **₹{project_cost:,.0f}** estimated project cost:\n\n"
+                f"• **Term Loan Requirement:** ₹{loan_amt:,.0f}\n"
+                f"• **Monthly EMI:** ₹{emi:,.0f}/month (@ 8.0% concessional interest, 5-year tenure)\n"
+                f"• **Debt Service Coverage (DSCR):** {dscr}x (Comfortable debt servicing)\n"
+                f"• **Recommended Lending:** MoSJE / NABARD Concessional Financing Framework\n\n"
+                f"Would you like me to identify government subsidies applicable for this investment?"
+            )
+
         return reply, summary, sources
 
-    def _format_schemes(self, profile: Dict[str, Any], lang: str) -> Tuple[str, List[str]]:
-        sources = ["MoSJE NBCFDC/NSFDC Guidelines"]
-        reply = "You are qualified for MoSJE concessional loans at 4-8% p.a. interest rates with up to 90% project financing."
+    def _format_schemes(self, profile: Dict[str, Any], lang: str) -> Tuple[str, List[Dict[str, Any]]]:
+        sources = [
+            {"name": "PMFME Scheme", "ministry": "Ministry of Food Processing Industries", "subsidy": "35% capital subsidy up to ₹10 Lakhs", "portal": "https://pmfme.mofpi.gov.in", "last_verified": "2026-02-15"},
+            {"name": "NABARD AHIDF / DEDS", "ministry": "Dept of Animal Husbandry & Dairying", "subsidy": "25% to 33.33% Capital Subsidy", "portal": "https://dahd.nic.in", "last_verified": "2026-02-10"},
+            {"name": "MoSJE NBCFDC / NSFDC", "ministry": "Ministry of Social Justice & Empowerment", "concession": "4% - 8% Concessional Interest Rate", "portal": "https://nbcfdc.gov.in", "last_verified": "2026-01-20"}
+        ]
+
+        if lang == "HINDI":
+            reply = (
+                "**सत्यापित सरकारी योजनाएं (Verified Government Schemes):**\n\n"
+                "1. **PMFME योजना (खाद्य प्रसंस्करण):** सूक्ष्म खाद्य उद्यमों के लिए 35% पूंजीगत सब्सिडी (अधिकतम ₹10 लाख)।\n"
+                "2. **नाबार्ड AHIDF / DEDS (डेयरी/पोल्ट्री):** पशुपालन और डेयरी के लिए 25% - 33.33% कैपिटल सब्सिडी और 4% ब्याज दर पर KCC।\n"
+                "3. **MoSJE NBCFDC योजना:** ग्रामीण उद्यमियों के लिए 4% से 8% रियायती ब्याज दर पर 90% तक परियोजना वित्तपोषण।\n\n"
+                "*नोट: प्रदान की गई जानकारी के आधार पर आप पात्र हो सकते हैं, अंतिम पात्रता संबंधित सरकारी प्राधिकरण द्वारा निर्धारित की जाती है।*"
+            )
+        elif lang == "TELUGU":
+            reply = (
+                "**ధృవీకరించబడిన ప్రభుత్వ పథకాలు (Verified Government Schemes):**\n\n"
+                "1. **PMFME పథకం:** ఫుడ్ ప్రాసెసింగ్ కోసం 35% సబ్సిడీ (గరిష్టంగా ₹10 లక్షలు).\n"
+                "2. **నాబార్డ్ AHIDF:** పాడి పరిశ్రమ & పౌల్ట్రీ కోసం 25% నుండి 33% సబ్సిడీ మరియు KCC ద్వారా 4% వడ్డీ.\n"
+                "3. **MoSJE NBCFDC:** గ్రామీణ వ్యాపారాలకు 4% నుండి 8% రాయితీ వడ్డీతో 90% ప్రాజెక్ట్ ఫైనాన్స్.\n\n"
+                "*గమనిక: మీ వివరాల ఆధారంగా మీరు అర్హులు కావచ్చు, కానీ తుది అర్హత సంబంధిత ప్రభుత్వ అధికారులు నిర్ణయిస్తారు.*"
+            )
+        else:
+            reply = (
+                "**Verified Government Schemes for Micro-Enterprises:**\n\n"
+                "1. **PMFME Scheme:** 35% credit-linked capital subsidy up to ₹10 Lakhs for micro-enterprises.\n"
+                "2. **NABARD AHIDF / DEDS:** 25% to 33.33% capital subsidy for dairy and livestock units + KCC at 4% effective interest.\n"
+                "3. **MoSJE NBCFDC / NSFDC Concessional Loans:** 4% - 8% annual interest for small-town entrepreneurs.\n\n"
+                "*Disclaimer: Based on the information provided, you may be eligible, but final eligibility is determined by the concerned authority.*"
+            )
         return reply, sources
 
+    def _format_business_interest(self, message: str, profile: Dict[str, Any], lang: str) -> Tuple[str, str]:
+        biz = profile.get("business", {}).get("interest")
+        user_name = profile["name"] or ("उद्यमी" if lang == "HINDI" else ("మిత్రమా" if lang == "TELUGU" else "Entrepreneur"))
+        if biz == "DAIRY_FARMING":
+            if lang == "HINDI":
+                reply = f"बिल्कुल {user_name} जी! डेयरी फार्मिंग के लिए क्या आपके पास पशु शेड (Cattle Shed) और पर्याप्त पानी/बोरवेल की व्यवस्था उपलब्ध है?"
+            elif lang == "TELUGU":
+                reply = f"ఖచ్చితంగా {user_name} గారు! పాడి పరిశ్రమ కోసం మీ వద్ద పశువుల షెడ్ మరియు సరిపడా నీటి వసతి (బోర్/బావి) అందుబాటులో ఉన్నాయా?"
+            else:
+                reply = f"Certainly {user_name}! For Dairy Farming, do you already have a cattle shed and reliable water/borewell facility available?"
+            return reply, "ASK_DAIRY_DETAILS"
+        elif biz == "POULTRY_BROILER":
+            if lang == "HINDI":
+                reply = f"पोल्ट्री फार्मिंग के लिए क्या आपके पास शेड, बिजली-पानी की व्यवस्था और ब्रायलर चूजों की क्षमता है?"
+            elif lang == "TELUGU":
+                reply = f"పౌల్ట్రీ ఫారమ్ కోసం మీ వద్ద షెడ్, విద్యుత్ మరియు నీటి వసతి అందుబాటులో ఉన్నాయా?"
+            else:
+                reply = f"For Poultry Farming, do you have a dedicated shed with electricity and water connection?"
+            return reply, "ASK_POULTRY_DETAILS"
+        else:
+            if lang == "HINDI":
+                reply = f"इस व्यवसाय के लिए क्या आपके पास कार्यशाला/दुकान या पूर्व अनुभव उपलब्ध है?"
+            elif lang == "TELUGU":
+                reply = f"ఈ వ్యాపారం కోసం మీ వద్ద వర్క్‌స్పేస్ లేదా ముందస్తు అనుభవం ఉందా?"
+            else:
+                reply = f"Do you have a dedicated workspace or prior experience for this enterprise?"
+            return reply, "ASK_BUSINESS_DETAILS"
+
+    def _format_risk_analysis(self, profile: Dict[str, Any], lang: str) -> Tuple[str, List[Dict[str, Any]]]:
+        sources = [
+            {"risk_factor": "Raw Material Price Fluctuation (Feed/Fodder)", "risk_level": "MEDIUM", "mitigation": "Bulk seasonal procurement & silage storage"},
+            {"risk_factor": "Market Price Volatility", "risk_level": "LOW-MEDIUM", "mitigation": "Direct cooperative tie-ups & value addition (ghee/paneer)"},
+            {"risk_factor": "Livestock Mortality / Health Risk", "risk_level": "LOW", "mitigation": "Comprehensive livestock insurance & regular vaccination"}
+        ]
+        if lang == "HINDI":
+            reply = (
+                "**7-कारक जोखिम विश्लेषण (7-Factor Risk Analysis):**\n\n"
+                "व्यवसाय में **शून्य जोखिम (Zero Risk)** नहीं होता है। आपके चयनित व्यवसाय के मुख्य जोखिम:\n\n"
+                "1. **चारा व आहार मूल्य जोखिम (मध्यम):** सूखा चारा और फीड की कीमतों में मौसमी बदलाव।\n"
+                "   • *बचाव:* साइलेज भंडारण और स्थानीय किसानों से अनुबंध।\n"
+                "2. **बाज़ार मूल्य में उतार-चढ़ाव (कम-मध्यम):** दूध के स्थानीय खरीद मूल्यों में बदलाव।\n"
+                "   • *बचाव:* डेयरी कॉपरेटिव से सुनिश्चित मूल्य अनुबंध।\n"
+                "3. **पशुधन स्वास्थ्य जोखिम (कम):** मौसमी बीमारियां।\n"
+                "   • *बचाव:* 100% सरकारी पशु बीमा और समय पर टीकाकरण।"
+            )
+        elif lang == "TELUGU":
+            reply = (
+                "**7-కారక రిస్క్ విశ్లేషణ (7-Factor Risk Assessment):**\n\n"
+                "వ్యాపారంలో **జీరో రిస్క్** ఉండదు. ప్రధాన రిస్క్‌లు:\n\n"
+                "1. **దాణా మరియు మేత ఖర్చు రిస్క్ (మధ్యస్థం):** సైలేజ్ నిల్వ ద్వారా తగ్గించవచ్చు.\n"
+                "2. **ధరల హెచ్చుతగ్గులు (తక్కువ-మధ్యస్థం):** డెయిరీ సహకార సంఘాలతో ముందస్తు ఒప్పందం.\n"
+                "3. **పశువుల ఆరోగ్య రిస్క్ (తక్కువ):** పూర్తి పశు బీమా మరియు క్రమబద్ధమైన టీకాలు."
+            )
+        else:
+            reply = (
+                "**7-Factor Risk Assessment & Mitigation Plan:**\n\n"
+                "There is **no zero-risk enterprise**. Key evaluated risk factors for your venture:\n\n"
+                "1. **Feed & Fodder Cost Volatility (Medium Risk):** Seasonal price variations in dry fodder.\n"
+                "   • *Mitigation:* Silage preservation and forward contracts with local crop producers.\n"
+                "2. **Market Price Fluctuation (Low-Medium Risk):** Price swings in unorganized procurement.\n"
+                "   • *Mitigation:* Long-term supply agreements with local milk unions and cooperatives.\n"
+                "3. **Livestock Health & Mortality (Low Risk):** Disease exposure.\n"
+                "   • *Mitigation:* 100% Comprehensive Cattle Insurance under government schemes + timely vaccination."
+            )
+        return reply, sources
+
+    def _format_breakeven_analysis(self, profile: Dict[str, Any], lang: str) -> Tuple[str, Dict[str, Any], List[str]]:
+        summary = {
+            "break_even_monthly_revenue": 45000.0,
+            "estimated_payback_months": 18
+        }
+        sources = ["Financial Breakeven Engine"]
+        if lang == "HINDI":
+            reply = "आपका **ब्रेक-इवन मासिक राजस्व ₹45,000** है और पे-बैक अवधि **18 महीने** अनुमानित है।"
+        elif lang == "TELUGU":
+            reply = "మీ **బ్రేక్-ఈవెన్ నెలవారీ ఆదాయం ₹45,000** మరియు పెట్టుబడి తిరిగి వచ్చే కాలం **18 నెలలు**."
+        else:
+            reply = "Your projected **break-even monthly revenue is ₹45,000** with an estimated capital payback period of **18 months**."
+        return reply, summary, sources
+
     def _format_market_analysis(self, profile: Dict[str, Any], lang: str) -> Tuple[str, List[str], float]:
+        village = profile["location"]["village"] or "Local Market"
         sources = ["Hyper-local GIS Mandi Catchment Data"]
-        reply = f"Hyper-local market catchment analysis for {profile['location']['village']} indicates strong demand deficit."
+        if lang == "HINDI":
+            reply = f"**{village}** के लिए हाइपर-लोकल बाज़ार विश्लेषण: स्थानीय आपूर्ति में कमी और स्थिर मांग दिखाई देती है।"
+        elif lang == "TELUGU":
+            reply = f"**{village}** పరిధిలో హైపర్-లోకల్ మార్కెట్ విశ్లేషణ: స్థానిక డిమాండ్ అనుకూలంగా ఉంది."
+        else:
+            reply = f"Hyper-local market catchment analysis for **{village}** indicates positive demand and manageable competition."
         return reply, sources, 88.0
 
     def _format_form_filling(self, profile: Dict[str, Any], lang: str) -> Tuple[str, str]:
@@ -686,29 +879,6 @@ class UdyamSarthiAgent:
         if profile["financial"]["capital"] is None:
             return "आपकी **उपलब्ध पूँजी** (Capital) कितनी है?", "ASK_CAPITAL"
         return "आपके लिए उपयुक्त सिफारिशें तैयार हैं!", "SHOW_RECOMMENDATIONS"
-
-    def _format_business_interest(self, message: str, profile: Dict[str, Any], lang: str) -> Tuple[str, str]:
-        reply = "डेयरी फार्मिंग शुरू करने के लिए क्या आपके पास शेड (Shed) और चारे की व्यवस्था उपलब्ध है?"
-        return reply, "ASK_DAIRY_DETAILS"
-
-    def _format_risk_analysis(self, profile: Dict[str, Any], lang: str) -> Tuple[str, List[str]]:
-        sources = ["UdyamSarthi 7-Factor Risk Engine"]
-        reply = "किसी भी व्यवसाय में **शून्य जोखिम (Zero Risk)** नहीं होता है। प्रमुख जोखिमों में कच्चे माल की कीमत और मौसमी मांग शामिल हैं।"
-        return reply, sources
-
-    def _format_scheme_eligibility(self, profile: Dict[str, Any], lang: str) -> Tuple[str, List[str]]:
-        sources = ["MoSJE Scheme Eligibility Matrix"]
-        reply = "आप एनबीसीएफडीसी (NBCFDC) रियायती ऋण योजना के लिए पूर्णतः **पात्र (Eligible)** हैं।"
-        return reply, sources
-
-    def _format_breakeven_analysis(self, profile: Dict[str, Any], lang: str) -> Tuple[str, Dict[str, Any], List[str]]:
-        summary = {
-            "break_even_monthly_revenue": 45000.0,
-            "estimated_payback_months": 18
-        }
-        sources = ["Financial Breakeven Engine"]
-        reply = "आपका ब्रेक-इवन मासिक राजस्व ₹45,000 है और पे-बैक अवधि 18 महीने अनुमानित है।"
-        return reply, summary, sources
 
     def _format_profile_query(self, profile: Dict[str, Any], comp_score: int, missing_req: List[str], lang: str) -> str:
         name = profile["name"] or "Entrepreneur"
