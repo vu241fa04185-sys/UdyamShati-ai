@@ -10,7 +10,6 @@ import {
   FileText, 
   User, 
   Settings, 
-  HelpCircle,
   X
 } from 'lucide-react';
 import { translations } from '../../locales/translations';
@@ -31,8 +30,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, la
 
   const secondaryNavItems = [
     { id: 'profile', label: t.navProfile || 'Profile', icon: User },
-    { id: 'settings', label: t.navSettings || 'Settings', icon: Settings },
-    { id: 'help', label: t.navHelpSupport || t.navHelp || 'Help & Support', icon: HelpCircle }
+    { id: 'settings', label: t.navSettings || 'Settings', icon: Settings }
   ];
 
   const handleSelect = (id) => {
