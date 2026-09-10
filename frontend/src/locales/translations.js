@@ -456,7 +456,23 @@ export const translations = {
     postOfficeLabel: "Post Office",
     policeStationLabel: "Police Station",
     saveProfileChanges: "Save Profile Details",
-    profileSavedSuccess: "Profile details updated successfully!"
+    profileSavedSuccess: "Profile details updated successfully!",
+
+    // Email Access & Verification
+    emailAccessTitle: "Email Access Verification",
+    emailAccessSubtitle: "For your account security, access confirmation is required when logging in with email. Enter the 6-digit access code sent to your inbox.",
+    emailAccessCodeSentTo: "Access code dispatched to",
+    emailAccessCodeLabel: "6-DIGIT EMAIL ACCESS CODE",
+    emailAccessVerifyBtn: "Verify & Access UdyamSaarthi",
+    emailAccessVerifying: "Verifying Access...",
+    emailAccessResendBtn: "Resend Access Code",
+    emailAccessResendIn: "Resend code in",
+    emailAccessBackToLogin: "Back to Login",
+    emailAccessPreviewTitle: "Email Access Authorization Sent",
+    emailAccessAutoFill: "Tap to Auto-fill Code",
+    emailAccessInvalidCode: "Invalid or expired access code. Please check your email or enter the code shown above.",
+    emailAccessSuccess: "Access authorized! Redirecting to your dashboard...",
+    emailAccessPendingBadge: "Email Access Required"
   },
   hi: {
     appTitle: "उद्यमसारथी एआई",
@@ -924,7 +940,23 @@ export const translations = {
     postOfficeLabel: "डाकघर (पोस्ट ऑफिस)",
     policeStationLabel: "थाना (पुलिस स्टेशन)",
     saveProfileChanges: "विवरण सुरक्षित करें",
-    profileSavedSuccess: "प्रोफ़ाइल विवरण सफलतापूर्वक अपडेट किए गए!"
+    profileSavedSuccess: "प्रोफ़ाइल विवरण सफलतापूर्वक अपडेट किए गए!",
+
+    // Email Access & Verification
+    emailAccessTitle: "ईमेल एक्सेस सत्यापन",
+    emailAccessSubtitle: "खाते की सुरक्षा हेतु, ईमेल से लॉगिन करने पर एक्सेस सत्यापन अनिवार्य है। आपके इनबॉक्स में भेजा गया 6-अंकों का एक्सेस कोड दर्ज करें।",
+    emailAccessCodeSentTo: "एक्सेस कोड भेजा गया:",
+    emailAccessCodeLabel: "6-अंकों का ईमेल एक्सेस कोड",
+    emailAccessVerifyBtn: "सत्यापित करें और एक्सेस लें",
+    emailAccessVerifying: "सत्यापन जारी है...",
+    emailAccessResendBtn: "नया कोड पुनः भेजें",
+    emailAccessResendIn: "पुनः कोड भेजें:",
+    emailAccessBackToLogin: "लॉगिन पर वापस जाएं",
+    emailAccessPreviewTitle: "ईमेल एक्सेस कोड भेजा गया",
+    emailAccessAutoFill: "कोड स्वतः भरने के लिए टैप करें",
+    emailAccessInvalidCode: "अमान्य या समाप्त एक्सेस कोड। कृपया अपना ईमेल जांचें या ऊपर दिखाया गया कोड दर्ज करें।",
+    emailAccessSuccess: "एक्सेस स्वीकृत! आपके डैशबोर्ड पर ले जाया जा रहा है...",
+    emailAccessPendingBadge: "ईमेल एक्सेस आवश्यक"
   },
   te: {
     appTitle: "ఉద్యమ్ సారథి ఏఐ",
@@ -1392,6 +1424,22 @@ export const translations = {
     postOfficeLabel: "పోస్ట్ ఆఫీస్",
     policeStationLabel: "పోలీస్ స్టేషన్",
     saveProfileChanges: "వివరాలను సేవ్ చేయండి",
-    profileSavedSuccess: "ప్రొఫైల్ వివరాలు విజయవంతంగా అప్‌డేట్ చేయబడ్డాయి!"
+    profileSavedSuccess: "ప్రొఫైల్ వివరాలు విజయవంతంగా అప్‌డేట్ చేయబడ్డాయి!",
+
+    // Email Access & Verification
+    emailAccessTitle: "ఇమెయిల్ యాక్సెస్ ధృవీకరణ",
+    emailAccessSubtitle: "మీ ఖాతా భద్రత కోసం, ఇమెయిల్ ద్వారా లాగిన్ చేసినప్పుడు యాక్సెస్ ధృవీకరణ అవసరం. మీ ఇన్‌బాక్స్‌కు పంపిన 6-అంకెల యాక్సెస్ కోడ్‌ను నమోదు చేయండి.",
+    emailAccessCodeSentTo: "యాక్సెస్ కోడ్ పంపబడింది:",
+    emailAccessCodeLabel: "6-అంకెల ఇమెయిల్ యాక్సెస్ కోడ్",
+    emailAccessVerifyBtn: "ధృవీకరించి యాక్సెస్ పొందండి",
+    emailAccessVerifying: "ధృవీకరిస్తోంది...",
+    emailAccessResendBtn: "కోడ్ మళ్లీ పంపండి",
+    emailAccessResendIn: "మళ్లీ కోడ్ పంపే సమయం:",
+    emailAccessBackToLogin: "లాగిన్‌కు తిరిగి వెళ్లండి",
+    emailAccessPreviewTitle: "ఇమెయిల్ యాక్సెస్ కోడ్ పంపబడింది",
+    emailAccessAutoFill: "కోడ్‌ను స్వయంచాలకంగా పూరించడానికి నొక్కండి",
+    emailAccessInvalidCode: "చెల్లని లేదా గడువు ముగిసిన యాక్సెస్ కోడ్. దయచేసి మీ ఇమెయిల్‌ను తనిఖీ చేయండి.",
+    emailAccessSuccess: "యాక్సెస్ విజయవంతమైంది! డాష్‌బోర్డ్‌కు వెళ్తున్నారు...",
+    emailAccessPendingBadge: "ఇమెయిల్ యాక్సెస్ అవసరం"
   }
 };

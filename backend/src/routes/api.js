@@ -11,6 +11,8 @@ const { verifyToken } = require('../middleware/auth');
 router.post('/auth/login', authController.login);
 router.post('/auth/demo-login', authController.demoLogin);
 router.post('/auth/change-password', verifyToken, authController.changePassword);
+router.post('/auth/send-email-access', authController.sendEmailAccessCode);
+router.post('/auth/verify-email-access', authController.verifyEmailAccessCode);
 
 // Profile routes
 router.get('/profile', verifyToken, profileController.getProfile);

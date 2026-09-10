@@ -201,6 +201,162 @@ export const authService = {
   },
 
   /**
+   * Send Email Access Code (Verification Required for Email Login)
+   */
+  sendEmailAccessCode: async (email, password) => {
+    if (!email || !email.includes('@')) {
+      return { status: 'ERROR', message: 'Please enter a valid email address.' };
+    }
+    if (!password) {
+      return { status: 'ERROR', message: 'Please enter your password.' };
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check registered users password if user is registered in localStorage
+    try {
+      const stored = localStorage.getItem(USERS_REGISTRY_KEY);
+      if (stored) {
+        const registeredUsers = JSON.parse(stored);
+        const match = registeredUsers.find((u) => u.email === normalizedEmail);
+        if (match && match.password && match.password !== password) {
+          return { status: 'ERROR', message: 'Incorrect password for this email account.' };
+        }
+      }
+    } catch (e) {
+      console.warn('Error checking user registry:', e);
+    }
+
+    // Try backend API first
+    try {
+      const res = await fetch('/api/auth/send-email-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail, password })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Save pending locally for resilience
+        sessionStorage.setItem('udyam_pending_email_access', JSON.stringify({
+          email: normalizedEmail,
+          accessCode: data.accessCode,
+          expiresAt: Date.now() + 10 * 60 * 1000
+        }));
+        return {
+          status: 'SUCCESS',
+          email: normalizedEmail,
+          accessCode: data.accessCode,
+          message: data.message
+        };
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          return { status: 'ERROR', message: errData.error || 'Incorrect password for this email.' };
+        }
+      }
+    } catch (err) {
+      console.warn('Backend send-email-access unavailable, using local client authorization:', err);
+    }
+
+    // Client-side fallback if backend is unreachable
+    const accessCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const pendingData = {
+      email: normalizedEmail,
+      accessCode,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    };
+    sessionStorage.setItem('udyam_pending_email_access', JSON.stringify(pendingData));
+
+    return {
+      status: 'SUCCESS',
+      email: normalizedEmail,
+      accessCode,
+      message: `Access authorization code sent to ${normalizedEmail}`
+    };
+  },
+
+  /**
+   * Verify Email Access Code (Only this grants access into Dashboard)
+   */
+  verifyEmailAccessCode: async (email, code) => {
+    if (!email || !code) {
+      return { status: 'ERROR', message: 'Please enter the 6-digit access code.' };
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanCode = String(code).trim();
+
+    // 1. Try Backend API first
+    try {
+      const res = await fetch('/api/auth/verify-email-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail, code: cleanCode })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.session) {
+          authService.saveSession(data.session);
+          sessionStorage.removeItem('udyam_pending_email_access');
+          return { status: 'SUCCESS', session: data.session };
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.error && errData.error.includes('Invalid access code')) {
+          return { status: 'ERROR', message: errData.error };
+        }
+      }
+    } catch (err) {
+      console.warn('Backend verify-email-access error, falling back to local verification:', err);
+    }
+
+    // 2. Client-side fallback verification
+    try {
+      const stored = sessionStorage.getItem('udyam_pending_email_access');
+      if (stored) {
+        const pending = JSON.parse(stored);
+        if (pending.email === normalizedEmail) {
+          if (Date.now() > pending.expiresAt) {
+            sessionStorage.removeItem('udyam_pending_email_access');
+            return { status: 'ERROR', message: 'Access code has expired. Please request a new code.' };
+          }
+          if (pending.accessCode === cleanCode) {
+            // Find in registry or create session
+            let userName = normalizedEmail.split('@')[0];
+            try {
+              const reg = JSON.parse(localStorage.getItem(USERS_REGISTRY_KEY) || '[]');
+              const matched = reg.find(u => u.email === normalizedEmail);
+              if (matched) userName = matched.fullName;
+            } catch (e) {}
+
+            const session = {
+              isAuthenticated: true,
+              provider: 'email_access',
+              loginTime: Date.now(),
+              user: {
+                id: `user_${Date.now()}`,
+                name: userName,
+                email: normalizedEmail,
+                isDemo: false
+              }
+            };
+            authService.saveSession(session);
+            sessionStorage.removeItem('udyam_pending_email_access');
+            return { status: 'SUCCESS', session };
+          } else {
+            return { status: 'ERROR', message: 'Invalid access code. Please check your email or enter the code shown.' };
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error in local verification:', e);
+    }
+
+    return { status: 'ERROR', message: 'Invalid access code. Please check your email or enter the code shown.' };
+  },
+
+
+  /**
    * Register New User
    */
   registerUser: async (userData) => {

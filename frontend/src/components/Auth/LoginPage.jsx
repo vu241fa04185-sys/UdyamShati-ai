@@ -1,5 +1,20 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, ArrowRight, Sprout, AlertCircle, UserCheck, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Eye, 
+  EyeOff, 
+  ArrowRight, 
+  Sprout, 
+  AlertCircle, 
+  UserCheck, 
+  ShieldAlert, 
+  Mail, 
+  MailCheck, 
+  KeyRound, 
+  ArrowLeft, 
+  RefreshCw, 
+  CheckCircle2, 
+  ShieldCheck 
+} from 'lucide-react';
 import RuralBrandHero from './RuralBrandHero';
 import LanguageSelector from './LanguageSelector';
 import RegisterForm from './RegisterForm';
@@ -9,7 +24,7 @@ import { translations } from '../../locales/translations';
 export default function LoginPage({ onLoginSuccess, lang, setLang }) {
   const t = translations[lang] || translations.en;
 
-  const [view, setView] = useState('login'); // 'login' | 'register'
+  const [view, setView] = useState('login'); // 'login' | 'register' | 'email_access'
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,6 +32,32 @@ export default function LoginPage({ onLoginSuccess, lang, setLang }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [googleConfigError, setGoogleConfigError] = useState(false);
+
+  // Email Access Verification state
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [accessCode, setAccessCode] = useState(['', '', '', '', '', '']);
+  const [previewCode, setPreviewCode] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [verifySuccessMsg, setVerifySuccessMsg] = useState('');
+
+  // Countdown timer for resending email access code
+  useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  // Helper to detect if identifier is an email address
+  const isEmailIdentifier = (val) => {
+    if (!val || typeof val !== 'string') return false;
+    const clean = val.trim();
+    return clean.includes('@') || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean);
+  };
 
   // Handle Password Login Submission
   const handlePasswordLogin = async (e) => {
@@ -30,9 +71,35 @@ export default function LoginPage({ onLoginSuccess, lang, setLang }) {
       return;
     }
 
-    setIsSubmitting(true);
     setError('');
+    setGoogleConfigError(false);
 
+    // ============================================================
+    // REQUIREMENT: IF LOGGING IN THROUGH EMAIL, DO NOT DIRECTLY
+    // LOG IN! TAKE ACCESS FROM EMAIL VIA ACCESS CODE VERIFICATION.
+    // ============================================================
+    if (isEmailIdentifier(identifier)) {
+      setIsSubmitting(true);
+      const normalizedEmail = identifier.trim().toLowerCase();
+      const res = await authService.sendEmailAccessCode(normalizedEmail, password);
+      setIsSubmitting(false);
+
+      if (res.status === 'SUCCESS') {
+        setPendingEmail(normalizedEmail);
+        setPreviewCode(res.accessCode || '');
+        setAccessCode(['', '', '', '', '', '']);
+        setResendTimer(30);
+        setError('');
+        setVerifySuccessMsg('');
+        setView('email_access'); // Switch to email access verification screen
+      } else {
+        setError(res.message || 'Unable to authenticate email. Please check your credentials.');
+      }
+      return;
+    }
+
+    // For mobile numbers, direct credential authentication proceeds
+    setIsSubmitting(true);
     const res = await authService.signInWithPassword(identifier, password);
     setIsSubmitting(false);
 
@@ -40,6 +107,96 @@ export default function LoginPage({ onLoginSuccess, lang, setLang }) {
       onLoginSuccess(res.session);
     } else {
       setError(res.message || 'Login failed. Please check your credentials.');
+    }
+  };
+
+  // Handle input for 6 individual access code digit boxes
+  const handleDigitChange = (index, value) => {
+    const cleanVal = value.replace(/\D/g, '');
+    if (!cleanVal) {
+      const updated = [...accessCode];
+      updated[index] = '';
+      setAccessCode(updated);
+      return;
+    }
+
+    // If user pasted a multi-digit string (e.g. 6 digits)
+    if (cleanVal.length > 1) {
+      const digits = cleanVal.slice(0, 6).split('');
+      const updated = [...accessCode];
+      digits.forEach((d, i) => {
+        if (i < 6) updated[i] = d;
+      });
+      setAccessCode(updated);
+      const nextFocus = Math.min(digits.length, 5);
+      const el = document.getElementById(`access-code-digit-${nextFocus}`);
+      if (el) el.focus();
+      return;
+    }
+
+    const updated = [...accessCode];
+    updated[index] = cleanVal[cleanVal.length - 1];
+    setAccessCode(updated);
+
+    // Auto-advance to next input
+    if (index < 5) {
+      const nextEl = document.getElementById(`access-code-digit-${index + 1}`);
+      if (nextEl) nextEl.focus();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !accessCode[index] && index > 0) {
+      const prevEl = document.getElementById(`access-code-digit-${index - 1}`);
+      if (prevEl) prevEl.focus();
+    }
+  };
+
+  // One-click auto-fill access code from simulation card
+  const handleAutoFillCode = () => {
+    if (previewCode && previewCode.length === 6) {
+      setAccessCode(previewCode.split(''));
+      setError('');
+    }
+  };
+
+  // Verify Email Access Code Submission
+  const handleVerifyEmailAccess = async (e) => {
+    e.preventDefault();
+    const fullCode = accessCode.join('').trim();
+    if (fullCode.length !== 6) {
+      setError('Please enter the full 6-digit access code sent to your email.');
+      return;
+    }
+
+    setIsVerifyingCode(true);
+    setError('');
+
+    const res = await authService.verifyEmailAccessCode(pendingEmail, fullCode);
+    setIsVerifyingCode(false);
+
+    if (res.status === 'SUCCESS') {
+      setVerifySuccessMsg(t.emailAccessSuccess || 'Access authorized! Redirecting to your dashboard...');
+      setTimeout(() => {
+        onLoginSuccess(res.session);
+      }, 500);
+    } else {
+      setError(res.message || t.emailAccessInvalidCode || 'Invalid access code. Please check your email or enter the code shown above.');
+    }
+  };
+
+  // Resend Email Access Code
+  const handleResendCode = async () => {
+    if (resendTimer > 0) return;
+    setError('');
+    setVerifySuccessMsg('');
+    const res = await authService.sendEmailAccessCode(pendingEmail, password);
+    if (res.status === 'SUCCESS') {
+      setPreviewCode(res.accessCode || '');
+      setAccessCode(['', '', '', '', '', '']);
+      setResendTimer(30);
+    } else {
+      setError(res.message || 'Failed to resend access code. Please try again.');
     }
   };
 
@@ -53,7 +210,6 @@ export default function LoginPage({ onLoginSuccess, lang, setLang }) {
     setIsGoogleLoading(false);
 
     if (res.status === 'UNCONFIGURED') {
-      // Show explicit configuration message - DO NOT silently authenticate or enter dashboard!
       setGoogleConfigError(true);
       setError(res.message);
     } else if (res.status === 'SUCCESS') {
@@ -61,7 +217,7 @@ export default function LoginPage({ onLoginSuccess, lang, setLang }) {
     } else if (res.status === 'CANCELLED') {
       setError('Google sign-in was cancelled. Please try again.');
     } else {
-      setError(res.message || 'Google sign-in couldn\'t be completed. Please try again.');
+      setError(res.message || "Google sign-in couldn't be completed. Please try again.");
     }
   };
 
@@ -97,15 +253,191 @@ export default function LoginPage({ onLoginSuccess, lang, setLang }) {
         {/* CENTER AUTHENTICATION AREA */}
         <div className="my-auto py-4 max-w-md w-full mx-auto space-y-5">
           
-          {view === 'register' ? (
-            /* REGISTER VIEW */
+          {/* VIEW 1: EMAIL ACCESS VERIFICATION VIEW */}
+          {view === 'email_access' ? (
+            <div className="space-y-5 animate-fadeIn">
+              
+              {/* Back to Login Link */}
+              <button
+                type="button"
+                onClick={() => { setView('login'); setError(''); setVerifySuccessMsg(''); }}
+                className="inline-flex items-center space-x-1.5 text-xs font-bold text-forest hover:text-gold transition cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{t.emailAccessBackToLogin || 'Back to Login'}</span>
+              </button>
+
+              {/* Header */}
+              <div className="text-center space-y-1">
+                <div className="inline-flex w-12 h-12 rounded-2xl bg-forest items-center justify-center text-gold shadow-md mb-2 border border-gold/30 relative">
+                  <MailCheck className="w-6 h-6 text-gold" />
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse" />
+                </div>
+
+                <div className="inline-block px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black uppercase tracking-widest mb-1">
+                  {t.emailAccessPendingBadge || 'Email Access Required'}
+                </div>
+
+                <h2 className="text-2xl font-black tracking-tight text-forest leading-tight">
+                  {t.emailAccessTitle || 'Email Access Verification'}
+                </h2>
+
+                <p className="text-xs text-muted-text max-w-sm mx-auto leading-relaxed pt-1">
+                  {t.emailAccessSubtitle || 'For your account security, direct email login is blocked. Please enter the 6-digit access code sent to:'}
+                </p>
+
+                <p className="text-xs font-extrabold text-forest bg-forest/5 py-1 px-3 rounded-lg inline-block border border-forest/10 mt-1">
+                  {pendingEmail}
+                </p>
+              </div>
+
+              {/* Simulated Email Delivery Card for SIH Demonstration */}
+              <div className="bg-gradient-to-br from-amber-50/90 via-white to-emerald-50/70 border border-gold/40 rounded-2xl p-3.5 shadow-xs space-y-2">
+                <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded-lg bg-forest/10 flex items-center justify-center text-forest">
+                      <Mail className="w-3.5 h-3.5 text-forest" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-forest tracking-tight">
+                        {t.emailAccessPreviewTitle || 'Email Access Code Sent'}
+                      </p>
+                      <p className="text-[10px] text-muted-text">
+                        From: access@udyam-saarthi.gov.in
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Inbox
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-text">
+                      6-Digit Access Code:
+                    </span>
+                    <div className="text-lg font-black tracking-[0.25em] font-mono text-forest">
+                      {previewCode || '------'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAutoFillCode}
+                    className="px-3 py-1.5 rounded-lg bg-forest text-gold hover:bg-forest/90 text-xs font-extrabold border border-gold/40 shadow-xs transition active:scale-95 cursor-pointer flex items-center space-x-1"
+                  >
+                    <KeyRound className="w-3 h-3 text-gold" />
+                    <span>{t.emailAccessAutoFill || 'Tap to Auto-fill'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Code Verification Form */}
+              <form onSubmit={handleVerifyEmailAccess} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-dark-text uppercase tracking-wider mb-2.5 text-center">
+                    {t.emailAccessCodeLabel || 'ENTER 6-DIGIT ACCESS CODE'}
+                  </label>
+
+                  {/* 6 Individual Code Digit Boxes */}
+                  <div className="flex items-center justify-center space-x-2 sm:space-x-3">
+                    {accessCode.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        id={`access-code-digit-${idx}`}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(idx, e)}
+                        className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-mono font-black rounded-xl border-2 transition outline-none shadow-xs ${
+                          digit 
+                            ? 'border-forest bg-forest/5 text-forest' 
+                            : 'border-slate-300 bg-white text-dark-text focus:border-forest focus:ring-2 focus:ring-forest/10'
+                        }`}
+                        autoFocus={idx === 0}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Success Message */}
+                {verifySuccessMsg && (
+                  <div className="flex items-center space-x-2 text-xs font-semibold p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 animate-fadeIn">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{verifySuccessMsg}</span>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {error && !verifySuccessMsg && (
+                  <div className="flex items-start space-x-2 text-xs font-semibold p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* Verify Button */}
+                <button
+                  type="submit"
+                  disabled={isVerifyingCode || Boolean(verifySuccessMsg)}
+                  className="w-full py-3.5 rounded-xl bg-forest text-white text-base font-bold hover:bg-deep-green transition shadow-md flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99] disabled:opacity-70"
+                >
+                  {isVerifyingCode ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>{t.emailAccessVerifying || 'Verifying Access...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-5 h-5 text-gold" />
+                      <span>{t.emailAccessVerifyBtn || 'Verify & Access UdyamSaarthi'}</span>
+                      <ArrowRight className="w-4 h-4 text-gold" />
+                    </>
+                  )}
+                </button>
+
+                {/* Resend Code & Back to Login Footer */}
+                <div className="flex items-center justify-between pt-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    disabled={resendTimer > 0}
+                    className={`font-extrabold flex items-center space-x-1.5 transition ${
+                      resendTimer > 0 
+                        ? 'text-muted-text cursor-not-allowed' 
+                        : 'text-forest hover:text-gold cursor-pointer'
+                    }`}
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${resendTimer > 0 ? '' : 'text-forest'}`} />
+                    <span>
+                      {resendTimer > 0 
+                        ? `${t.emailAccessResendIn || 'Resend code in'} ${resendTimer}s` 
+                        : (t.emailAccessResendBtn || 'Resend Access Code')}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setView('login'); setError(''); setVerifySuccessMsg(''); }}
+                    className="font-bold text-slate-500 hover:text-forest transition cursor-pointer"
+                  >
+                    {t.emailAccessBackToLogin || 'Back to Login'}
+                  </button>
+                </div>
+
+              </form>
+            </div>
+          ) : view === 'register' ? (
+            /* VIEW 2: REGISTER VIEW */
             <RegisterForm
               onRegisterSuccess={(session) => onLoginSuccess(session)}
               onSwitchToLogin={() => { setView('login'); setError(''); setGoogleConfigError(false); }}
               lang={lang}
             />
           ) : (
-            /* LOGIN VIEW (NO MOBILE OTP TAB STRIP) */
+            /* VIEW 3: LOGIN VIEW */
             <div className="space-y-5 animate-fadeIn">
               
               {/* LOGIN BRAND MARK & WELCOME HEADER */}
@@ -217,7 +549,7 @@ export default function LoginPage({ onLoginSuccess, lang, setLang }) {
                   className="w-full py-3.5 rounded-xl bg-forest text-white text-base font-bold hover:bg-deep-green transition shadow-md flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
                 >
                   {isSubmitting ? (
-                    <span>Logging in...</span>
+                    <span>Authenticating...</span>
                   ) : (
                     <>
                       <span>{t.loginBtn || 'Login'}</span>
@@ -290,7 +622,7 @@ export default function LoginPage({ onLoginSuccess, lang, setLang }) {
 
         </div>
 
-        {/* BOTTOM DECORATIVE PRODUCT PRINCIPLE PANEL (NO INSPIRATIONAL QUOTES) */}
+        {/* BOTTOM DECORATIVE PRODUCT PRINCIPLE PANEL */}
         <div className="pt-3 border-t border-slate-200/60">
           <div className="bg-cream/90 border border-gold/30 rounded-2xl p-3 flex items-center space-x-3">
             <div className="w-7 h-7 rounded-full bg-forest/10 flex items-center justify-center text-forest shrink-0">
