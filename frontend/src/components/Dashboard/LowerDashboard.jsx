@@ -1,8 +1,7 @@
 import React from 'react';
 import { 
   Sparkles, 
-  CheckCircle2, 
-  PhoneCall
+  CheckCircle2 
 } from 'lucide-react';
 import { translations } from '../../locales/translations';
 
@@ -50,38 +49,6 @@ export default function LowerDashboard({ language = 'en', lang }) {
               {t.reason4 || t.whyPoint4 || 'Guidance you can trust step by step'}
             </span>
           </div>
-        </div>
-      </div>
-
-      {/* 2. NEED HELP / HELPLINE CARD */}
-      <div className="bg-gradient-to-r from-[#0F3D2E] to-[#165440] text-white rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-400 text-[#0F3D2E] flex items-center justify-center shadow-lg shrink-0">
-            <PhoneCall className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
-              {t.needHelp || t.needHelpTitle || 'Need Help?'}
-            </span>
-            <h4 className="text-base font-extrabold text-white">
-              {t.callHelpline || 'Call Our Helpline'}
-            </h4>
-            <p className="text-xs text-emerald-100">
-              {t.helplineSubtitle || (activeLang === 'hi' ? 'MoSJE उद्यमी परामर्श एवं सहायता' : (activeLang === 'te' ? 'MoSJE పారిశ్రామికవేత్త సలహా & మద్దతు' : 'MoSJE Entrepreneur Advisory & Support'))}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          <span className="text-xl sm:text-2xl font-black text-amber-400 tracking-wider">
-            {t.helplineNumber || "1800-11-2001"}
-          </span>
-          <a 
-            href="tel:1800112001"
-            className="px-5 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-[#0F3D2E] font-extrabold text-xs shadow-md transition"
-          >
-            {t.callNow || (activeLang === 'hi' ? 'कॉल करें' : (activeLang === 'te' ? 'కాల్ చేయండి' : 'Call Now'))}
-          </a>
         </div>
       </div>
 
